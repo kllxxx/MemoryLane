@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google {
             content {
@@ -24,3 +25,18 @@ dependencyResolutionManagement {
 
 rootProject.name = "MemoryLane"
 include(":app")
+
+include(":feature:swipe:api")
+include(":feature:swipe:impl")
+include(":feature:achievements:api")
+include(":feature:achievements:impl")
+include(":feature:profile:api")
+include(":feature:profile:impl")
+
+include(":core:photos:api")
+include(":core:photos:impl")
+include(":core:ui")
+include(":core:data:api")
+include(":core:data:impl")
+
+include(":lib:lazycardstack")
