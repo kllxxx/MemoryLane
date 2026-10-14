@@ -10,8 +10,8 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
         pluginManager.apply("com.android.library")
 
         extensions.configure<LibraryExtension> {
-            // :feature:swipe:impl -> com.example.memorylane.feature.swipe.impl
-            namespace = "com.example.memorylane" + path.replace(':', '.')
+            // :feature:swipe:impl -> com.kllxx.memorylane.feature.swipe.impl
+            namespace = "com.kllxx.memorylane" + path.replace(':', '.')
             compileSdk { version = release(37) }
             defaultConfig {
                 minSdk = 24

@@ -2,7 +2,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "com.example.memorylane.buildlogic"
+group = "com.kllxx.memorylane.buildlogic"
 
 dependencies {
     compileOnly(libs.android.gradlePlugin)

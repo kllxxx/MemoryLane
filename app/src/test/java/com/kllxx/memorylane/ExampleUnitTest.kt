@@ -1,4 +1,4 @@
-package com.example.memorylane
+package com.kllxx.memorylane
 
 import org.junit.Test
 

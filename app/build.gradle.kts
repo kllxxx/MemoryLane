@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.memorylane"
+    namespace = "com.kllxx.memorylane"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.memorylane"
+        applicationId = "com.kllxx.memorylane"
         minSdk = 24
         targetSdk = 37
         versionCode = 1

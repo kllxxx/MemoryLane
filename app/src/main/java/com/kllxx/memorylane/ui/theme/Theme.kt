@@ -1,4 +1,4 @@
-package com.example.memorylane.ui.theme
+package com.kllxx.memorylane.ui.theme
 
 import android.app.Activity
 import android.os.Build

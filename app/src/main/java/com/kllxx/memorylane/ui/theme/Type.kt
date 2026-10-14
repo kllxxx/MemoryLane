@@ -1,4 +1,4 @@
-package com.example.memorylane.ui.theme
+package com.kllxx.memorylane.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
