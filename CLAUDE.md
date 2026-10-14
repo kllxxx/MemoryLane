@@ -86,12 +86,14 @@ Ticket numbers start from 0 and increment by 1.
 
 **Commit format (Conventional Commits):**
 
+Commit message must include the ticket number (numbers count separately for each logical commit format):
+
 ```
-feat(swipe): add green/red overlay on card drag
-fix(photos): handle missing READ_MEDIA_IMAGES permission
-refactor(core): extract photo repository interface
+feat/MMLN-01: add green/red overlay on card drag
+fix/MMLN-02: handle missing READ_MEDIA_IMAGES permission
+refactor/MMLN-03: extract photo repository interface
 chore: add Room and Hilt dependencies
-test(swipe): add ViewModel unit tests
+test/MMLN-01: add ViewModel unit tests
 docs: update CLAUDE.md with new module
 ```
 
@@ -106,8 +108,8 @@ docs: update CLAUDE.md with new module
 
 Main branch: `master`. PRs from feature branches into `master`.
 
-During initial project setup and chore commits, commit directly to master branch. 
-Branch out only when working on specific features or fixes (look at branch naming). 
+During initial project setup and chore commits, commit directly to master branch.
+Branch out only when working on specific features or fixes (look at branch naming).
 Do not create new branches for each commit.
 Do not add Co-Authored-By or any other trailer lines to commit messages.
 Do not add any "build successful" or similiar lines to commit messages.
