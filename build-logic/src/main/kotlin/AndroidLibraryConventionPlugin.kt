@@ -20,10 +20,12 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             compileOptions {
                 sourceCompatibility = JavaVersion.VERSION_11
                 targetCompatibility = JavaVersion.VERSION_11
+                isCoreLibraryDesugaringEnabled = true
             }
         }
 
         dependencies {
+            add("coreLibraryDesugaring", libs.library("desugar-jdk-libs"))
             add("testImplementation", libs.bundle("unit-test"))
         }
     }

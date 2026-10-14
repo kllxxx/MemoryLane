@@ -1,5 +1,5 @@
 plugins {
-    id("memorylane.jvm.library")
+    id("memorylane.android.library")
 }
 
 dependencies {

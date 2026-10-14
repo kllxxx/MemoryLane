@@ -3,6 +3,10 @@ plugins {
     id("memorylane.android.hilt")
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(project(":core:data:api"))
 

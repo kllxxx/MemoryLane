@@ -157,8 +157,8 @@ Font license: `core/ui/OFL-Nunito.txt`
 - [ ] :feature:swipe
 - [ ] :feature:achievements
 - [ ] :feature:profile
-- [ ] :core:photos
+- [✅] :core:photos
 - [✅] :core:ui
-- [ ] :core:data
+- [✅] :core:data
 - [✅] :lib:lazycardstack
 - [ ] :build-logic
