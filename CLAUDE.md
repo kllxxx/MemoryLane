@@ -106,6 +106,10 @@ docs: update CLAUDE.md with new module
 
 Main branch: `main`. PRs from feature branches into `main`.
 
+During initial project setup and chore commits, commit directly to master branch. 
+Branch out only when working on specific features or fixes (look at branch naming). 
+Do not create new branches for each commit.
+
 ## Design System
 
 ``Minimalist green-themed UI. All colors defined as tokens in `:core:ui`. Once `Color.kt` and `Theme.kt` are generated from the scheme below, remove the raw color data from this file and keep only a reference to those files.``
