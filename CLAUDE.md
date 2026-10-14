@@ -113,68 +113,13 @@ Do not add Co-Authored-By or any other trailer lines to commit messages.
 
 ## Design System
 
-``Minimalist green-themed UI. All colors defined as tokens in `:core:ui`. Once `Color.kt` and `Theme.kt` are generated from the scheme below, remove the raw color data from this file and keep only a reference to those files.``
+Minimalist green-themed UI. All design tokens live in `:core:ui` (`core/ui/src/main/java/com/kllxx/memorylane/core/ui/theme/`):
 
-**Named colors (`Color.kt`):**
-
-```kotlin
-// Brand colors
-val BritishRacingGreen = Color(0xFF054A29)
-val DarkSpringGreen = Color(0xFF137547)
-val Emerald = Color(0xFF5BBA6F)
-val Licorice = Color(0xFF230903)
-val BabyPowder = Color(0xFFFCFFFC)
-val RedCrayola = Color(0xFFEE204E)
-val LightGray = Color.LightGray.copy(red = 0.6f, blue = 0.6f, green = 0.6f)
-
-// M3 generated (seed #137547)
-val Green10 = Color(0xFF002110)
-val Green20 = Color(0xFF00391F)
-val Green30 = Color(0xFF0C5130)
-val Green40 = Color(0xFF2B6A46)
-val Green80 = Color(0xFF94D5A9)
-val Green90 = Color(0xFFAFF2C4)
-val DarkBackground = Color(0xFF0F1511)
-val DarkSurface = Color(0xFF1C211D)
-```
-
-**Light color scheme (`lightColorScheme`):**
-
-```kotlin
-primary = DarkSpringGreen,        // #137547 — screen background
-onPrimary = BabyPowder,           // cards, nav
-secondary = Emerald,              // #5BBA6F — stat cards, key buttons
-onSecondary = BabyPowder,
-tertiary = BritishRacingGreen,    // #054A29 — nav buttons, forms
-onTertiary = BabyPowder,
-error = RedCrayola,               // #EE204E
-onError = BabyPowder,
-background = DarkSpringGreen,
-onBackground = LightGray,
-surface = BabyPowder,
-onSurface = Licorice,
-```
-
-**Dark color scheme (`darkColorScheme`) — M3 generated + brand error:**
-
-```kotlin
-primary = Green80,                // #94D5A9 — light green on dark
-onPrimary = Green20,              // #00391F
-primaryContainer = Green30,       // #0C5130
-onPrimaryContainer = Green90,     // #AFF2C4
-secondary = Color(0xFFB5CCBA),
-onSecondary = Color(0xFF213528),
-tertiary = Color(0xFFA3CDDB),
-onTertiary = Color(0xFF033641),
-error = RedCrayola,               // keep brand red, not M3 pink
-onError = Color(0xFF690005),
-background = DarkBackground,      // #0F1511
-onBackground = Color(0xFFDFE4DD),
-surface = DarkBackground,
-onSurface = Color(0xFFDFE4DD),
-surfaceVariant = Color(0xFF414942),
-onSurfaceVariant = Color(0xFFC0C9C0),
-```
+- `Color.kt` — named brand/M3 colors and the light and dark color schemes
+- `Theme.kt` — `MemoryLaneTheme` and `ThemeMode` (default dark; System/Light/Dark override, persisted in DataStore by the app layer)
+- `Type.kt` — Nunito typography (bundled variable font in `core/ui/src/main/res/font/`)
+- `Shape.kt` — shape tokens
+- `Spacing.kt` — spacing constants
 
 | Token name | Color name | Hex | Light role | Notes |
 | --- | --- | --- | --- | --- |
@@ -209,7 +154,7 @@ onSurfaceVariant = Color(0xFFC0C9C0),
 - Dialog titles: `18–24.sp`, `FontWeight.Medium`
 - Button labels: `16.sp`
 - Secondary text: `14.sp`
-- Font family: system default (no custom font)
+- Font family: Nunito (bundled in `:core:ui`, SIL OFL; license in `core/ui/OFL-Nunito.txt`)
 
 Swipe overlays: left → `RedCrayola` (`error`), right → `Emerald` (`secondary`).
 
