@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("memorylane.android.hilt")
 }
 
 android {
@@ -37,6 +38,21 @@ android {
 }
 
 dependencies {
+    implementation(project(":feature:swipe:impl"))
+    implementation(project(":feature:achievements:impl"))
+    implementation(project(":feature:profile:impl"))
+    implementation(project(":feature:swipe:api"))
+    implementation(project(":feature:achievements:api"))
+    implementation(project(":feature:profile:api"))
+    implementation(project(":core:photos:impl"))
+    implementation(project(":core:photos:api"))
+    implementation(project(":core:data:impl"))
+    implementation(project(":core:data:api"))
+    implementation(project(":core:ui"))
+
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.bundles.lifecycle)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

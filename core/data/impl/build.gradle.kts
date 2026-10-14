@@ -1,0 +1,16 @@
+plugins {
+    id("memorylane.android.library")
+    id("memorylane.android.hilt")
+}
+
+dependencies {
+    implementation(project(":core:data:api"))
+
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.androidx.room.testing)
+}
