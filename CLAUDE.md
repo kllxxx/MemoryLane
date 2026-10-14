@@ -109,6 +109,7 @@ Main branch: `main`. PRs from feature branches into `main`.
 During initial project setup and chore commits, commit directly to master branch. 
 Branch out only when working on specific features or fixes (look at branch naming). 
 Do not create new branches for each commit.
+Do not add Co-Authored-By or any other trailer lines to commit messages.
 
 ## Design System
 
