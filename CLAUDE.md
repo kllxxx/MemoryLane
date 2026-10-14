@@ -10,19 +10,19 @@ All processing is local — no network, no cloud, no uploads.
 
 ## Tech Stack
 
-| Layer | Choice |
-| --- | --- |
-| Language | Kotlin |
-| UI | Jetpack Compose + Material3 |
-| Architecture | MVI |
-| DI | Hilt |
-| Navigation | Compose Navigation |
-| Database | Room |
-| Async | Coroutines + Flow |
+| Layer | Choice                                          |
+| --- |-------------------------------------------------|
+| Language | Kotlin                                          |
+| UI | Jetpack Compose + Material3                     |
+| Architecture | MVI                                             |
+| DI | Hilt                                            |
+| Navigation | Compose Navigation                              |
+| Database | Room                                            |
+| Async | Coroutines + Flow                               |
 | Build | Kotlin DSL + Version Catalog (libs.versions.toml) |
-| Swipe cards | LazyCardStack (vendored as :lib:lazycardstack) |
-| Min SDK | 24 (Android 7.0) |
-| Theme | System (light/dark) with manual toggle |
+| Swipe cards | LazyCardStack (vendored as :lib:lazycardstack)  |
+| Min SDK | 24 (Android 7.0)                                |
+| Theme | Dark by degault, system/manual toggle           |
 
 ## Module Structure
 
@@ -100,65 +100,31 @@ docs: update CLAUDE.md with new module
 **Push workflow:**
 
 1. Commit freely during work — as many commits as needed
-2. Before push: squash all commits on the branch into one logical commit
+2. If many commits were created during the task, squash them into one logical commit
 3. The human reviews all commits manually before any push
 4. Claude Code has no permission to push — suggest commit message only
 
-Main branch: `main`. PRs from feature branches into `main`.
+Main branch: `master`. PRs from feature branches into `master`.
 
 During initial project setup and chore commits, commit directly to master branch. 
 Branch out only when working on specific features or fixes (look at branch naming). 
 Do not create new branches for each commit.
 Do not add Co-Authored-By or any other trailer lines to commit messages.
+Do not add any "build successful" or similiar lines to commit messages.
 
 ## Design System
 
-Minimalist green-themed UI. All design tokens live in `:core:ui` (`core/ui/src/main/java/com/kllxx/memorylane/core/ui/theme/`):
+Minimalist green-themed UI. All design tokens live in `:core:ui`:
+`core/ui/src/main/java/com/kllxx/memorylane/core/ui/theme/`
 
-- `Color.kt` — named brand/M3 colors and the light and dark color schemes
-- `Theme.kt` — `MemoryLaneTheme` and `ThemeMode` (default dark; System/Light/Dark override, persisted in DataStore by the app layer)
-- `Type.kt` — Nunito typography (bundled variable font in `core/ui/src/main/res/font/`)
-- `Shape.kt` — shape tokens
+- `Color.kt` — brand colors and light/dark color schemes
+- `Theme.kt` — `MemoryLaneTheme`, `ThemeMode` (default: dark)
+- `Type.kt` — Nunito typography
+- `Shape.kt` — corner radius tokens
 - `Spacing.kt` — spacing constants
 
-| Token name | Color name | Hex | Light role | Notes |
-| --- | --- | --- | --- | --- |
-| `BritishRacingGreen` | British Racing Green | `#054A29` | `tertiary`, dark `primary` | Buttons, nav, forms bg |
-| `DarkSpringGreen` | Dark Spring Green | `#137547` | `primary` | Screen background |
-| `Emerald` | Emerald | `#5BBA6F` | `secondary` | Stat cards, key buttons |
-| `Licorice` | Licorice | `#230903` | `onSurface` | Text, icons |
-| `BabyPowder` | Baby Powder | `#FCFFFC` | `onPrimary`, `surface` | Cards, nav, backgrounds |
-| `RedCrayola` | Red Crayola | `#EE204E` | `error` | Errors, delete, swipe-left overlay |
-| `LightGray` | Light Gray | `Color.LightGray(0.6f)` | `onBackground` | Hints, placeholders |
-
-**Shape tokens (corner radius):**
-
-| Element | Radius |
-| --- | --- |
-| Cards, dialogs | `16.dp` |
-| Buttons (default) | `8.dp` |
-| Primary action button | `12.dp` |
-| Text fields | `8.dp` |
-| Stat item cards | `12.dp` |
-
-**Spacing:**
-
-- Screen horizontal padding: `16.dp` (toolbar: `24.dp`)
-- Between elements: `16.dp`
-- Primary button height: `56.dp`
-
-**Typography (Material3 defaults + overrides):**
-
-- `bodyLarge`: `16.sp`, `FontWeight.Normal`, `lineHeight 24.sp`, `letterSpacing 0.5.sp`
-- App title: `26.sp`, `FontWeight.SemiBold`, `letterSpacing 0.5.sp`
-- Dialog titles: `18–24.sp`, `FontWeight.Medium`
-- Button labels: `16.sp`
-- Secondary text: `14.sp`
-- Font family: Nunito (bundled in `:core:ui`, SIL OFL; license in `core/ui/OFL-Nunito.txt`)
-
-Swipe overlays: left → `RedCrayola` (`error`), right → `Emerald` (`secondary`).
-
-Default theme: **dark**. Follows system otherwise. Manual override in Profile tab stored in DataStore.
+Swipe overlays: left → `RedCrayola` (error), right → `Emerald` (secondary).
+Font license: `core/ui/OFL-Nunito.txt`
 
 ## Claude Code Instructions
 
@@ -192,7 +158,7 @@ Default theme: **dark**. Follows system otherwise. Manual override in Profile ta
 - [ ] :feature:achievements
 - [ ] :feature:profile
 - [ ] :core:photos
-- [ ] :core:ui
+- [✅] :core:ui
 - [ ] :core:data
 - [ ] :lib:lazycardstack
 - [ ] :build-logic
