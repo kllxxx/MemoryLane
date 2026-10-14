@@ -160,5 +160,5 @@ Font license: `core/ui/OFL-Nunito.txt`
 - [ ] :core:photos
 - [✅] :core:ui
 - [ ] :core:data
-- [ ] :lib:lazycardstack
+- [✅] :lib:lazycardstack
 - [ ] :build-logic
