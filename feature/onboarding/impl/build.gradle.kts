@@ -12,5 +12,6 @@ dependencies {
     implementation(libs.bundles.lifecycle)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
 }

@@ -5,12 +5,12 @@ import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
-import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
+import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
@@ -86,8 +86,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun readExifCoordinates(uri: Uri): Pair<Double, Double>? = try {
         resolver.openInputStream(MediaStore.setRequireOriginal(uri))?.use { stream ->
-            val latLong = FloatArray(2)
-            if (ExifInterface(stream).getLatLong(latLong)) latLong[0].toDouble() to latLong[1].toDouble() else null
+            ExifInterface(stream).latLong?.let { it[0] to it[1] }
         }
     } catch (e: Exception) {
         null

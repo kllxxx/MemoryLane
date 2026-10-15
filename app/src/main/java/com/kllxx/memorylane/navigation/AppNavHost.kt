@@ -89,7 +89,15 @@ fun AppNavHost(
             startDestination = startDestination.toRoute(),
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable<OnboardingRoute> { OnboardingScreen() }
+            composable<OnboardingRoute> {
+                OnboardingScreen(
+                    onFinished = {
+                        navController.navigate(SwipeRoute) {
+                            popUpTo<OnboardingRoute> { inclusive = true }
+                        }
+                    },
+                )
+            }
             composable<SwipeRoute> { SwipeScreen() }
             composable<TimelineRoute> { TimelineScreen() }
             composable<AchievementsRoute> { AchievementsScreen() }

@@ -7,4 +7,5 @@ dependencies {
     implementation(project(":core:photos:domain"))
 
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.exifinterface)
 }
