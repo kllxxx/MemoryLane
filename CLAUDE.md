@@ -69,7 +69,7 @@ Intent → ViewModel → State → UI
 
 **Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:core:ui`.
 
-**Theme:** Follows system by default. User can override in Profile. Stored in DataStore.
+**Theme:** Dark by default. User can override in Profile. Stored in DataStore.
 
 ## Git Conventions
 
