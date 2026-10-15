@@ -10,19 +10,19 @@ All processing is local — no network, no cloud, no uploads.
 
 ## Tech Stack
 
-| Layer | Choice                                          |
-| --- |-------------------------------------------------|
-| Language | Kotlin                                          |
-| UI | Jetpack Compose + Material3                     |
-| Architecture | MVI                                             |
-| DI | Hilt                                            |
-| Navigation | Compose Navigation                              |
-| Database | Room                                            |
-| Async | Coroutines + Flow                               |
+| Layer | Choice                                            |
+| --- |---------------------------------------------------|
+| Language | Kotlin                                            |
+| UI | Jetpack Compose + Material3                       |
+| Architecture | MVI                                               |
+| DI | Hilt                                              |
+| Navigation | Compose Navigation                                |
+| Database | Room                                              |
+| Async | Coroutines + Flow                                 |
 | Build | Kotlin DSL + Version Catalog (libs.versions.toml) |
-| Swipe cards | LazyCardStack (vendored as :lib:lazycardstack)  |
-| Min SDK | 24 (Android 7.0)                                |
-| Theme | Dark by degault, system/manual toggle           |
+| Swipe cards | LazyCardStack (vendored as :lib:lazycardstack)    |
+| Min SDK | 24 (Android 7.0)                                  |
+| Theme | Dark by default, system/manual toggle             |
 
 ## Module Structure
 
@@ -30,7 +30,7 @@ All processing is local — no network, no cloud, no uploads.
 :app                        — entry point, DI setup, bottom navigation
 :feature:onboarding:api       — onboarding route
 :feature:onboarding:impl      — onboarding screens
-:feature:swipe:api          — swipe screen contracts, navigation interface
+:feature:swipe:api          — swipe/timeline/review routes and contracts
 :feature:swipe:impl         — ViewModel, Composables, MVI implementation
 :feature:achievements:api
 :feature:achievements:impl
@@ -66,8 +66,10 @@ Intent → ViewModel → State → UI
 
 1. Swipe left → photo ID written to Room as `PendingDelete`
 2. User taps "Delete X photos" on Review screen
-3. Single `MediaStore.createDeleteRequest()` system dialog
-4. On confirmation — photos go to system trash (30-day recovery)
+3. All photos swiped → navigate to Review screen
+4. Review screen shows: kept count, marked for deletion count
+5. User taps "Delete X photos" → Single MediaStore.createDeleteRequest() system dialog
+6. On confirmation → animate freed space counter → navigate to Timeline
 
 **Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:core:ui`.
 
@@ -167,7 +169,7 @@ Font license: `core/ui/OFL-Nunito.txt`
 - [✅] :core:domain
 - [✅] :core:data
 - [✅] :lib:lazycardstack
-- [ ] :build-logic
+- [✅] :build-logic
 
 ## Testing
 
