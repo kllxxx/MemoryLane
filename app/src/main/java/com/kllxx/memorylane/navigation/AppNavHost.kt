@@ -36,6 +36,7 @@ import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
 import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineScreen
+import java.time.LocalDate
 import kotlin.reflect.KClass
 
 private data class BottomNavItem(
@@ -94,7 +95,7 @@ fun AppNavHost(
             composable<OnboardingRoute> {
                 OnboardingScreen(
                     onFinished = {
-                        navController.navigate(SwipeRoute) {
+                        navController.navigate(SwipeRoute(LocalDate.now().toString())) {
                             popUpTo<OnboardingRoute> { inclusive = true }
                         }
                     },
@@ -115,7 +116,11 @@ fun AppNavHost(
                 )
             }
             composable<ReviewRoute> { ReviewScreen() }
-            composable<TimelineRoute> { TimelineScreen() }
+            composable<TimelineRoute> {
+                TimelineScreen(
+                    onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
+                )
+            }
             composable<AchievementsRoute> { AchievementsScreen() }
             composable<ProfileRoute> { ProfileScreen() }
         }
@@ -124,6 +129,6 @@ fun AppNavHost(
 
 private fun StartDestination.toRoute(): Any = when (this) {
     StartDestination.Onboarding -> OnboardingRoute
-    StartDestination.Swipe -> SwipeRoute
+    StartDestination.Swipe -> SwipeRoute(LocalDate.now().toString())
     StartDestination.Main -> TimelineRoute
 }

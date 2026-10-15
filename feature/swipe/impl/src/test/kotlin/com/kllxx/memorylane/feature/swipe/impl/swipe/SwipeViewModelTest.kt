@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -9,6 +10,7 @@ import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +47,9 @@ class SwipeViewModelTest {
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns photos
-        viewModel = SwipeViewModel(photoRepository, swipeRepository)
+        val savedStateHandle = mockk<SavedStateHandle>()
+        every { savedStateHandle.get<String>("date") } returns date.toString()
+        viewModel = SwipeViewModel(photoRepository, swipeRepository, savedStateHandle)
     }
 
     @After
@@ -53,13 +57,13 @@ class SwipeViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // Photos for the route date are requested by the ViewModel's init
     private fun TestScope.load() {
-        viewModel.onIntent(SwipeIntent.LoadPhotos(date))
         advanceUntilIdle()
     }
 
     @Test
-    fun `LoadPhotos loads photos for the date`() = runTest(dispatcher) {
+    fun `photos for the route date are loaded without any intent`() = runTest(dispatcher) {
         load()
         val state = viewModel.state.value
         assertEquals(photos, state.photos)

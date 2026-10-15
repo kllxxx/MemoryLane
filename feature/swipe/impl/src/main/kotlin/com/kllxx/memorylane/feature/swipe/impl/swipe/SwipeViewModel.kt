@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.PendingDelete
@@ -7,6 +8,7 @@ import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,6 +24,7 @@ import kotlinx.coroutines.launch
 class SwipeViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SwipeState())
@@ -29,6 +32,11 @@ class SwipeViewModel @Inject constructor(
 
     private val _effects = MutableSharedFlow<SwipeEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<SwipeEffect> = _effects.asSharedFlow()
+
+    init {
+        val date = LocalDate.parse(checkNotNull(savedStateHandle.get<String>("date")))
+        onIntent(SwipeIntent.LoadPhotos(date))
+    }
 
     fun onIntent(intent: SwipeIntent) {
         val before = _state.value
