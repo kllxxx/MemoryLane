@@ -7,8 +7,8 @@ plugins {
 dependencies {
     implementation(project(":feature:profile:api"))
     implementation(project(":core:ui"))
-    implementation(project(":core:photos:api"))
-    implementation(project(":core:data:api"))
+    implementation(project(":core:photos:domain"))
+    implementation(project(":core:domain"))
 
     implementation(libs.bundles.lifecycle)
     implementation(libs.androidx.navigation.compose)

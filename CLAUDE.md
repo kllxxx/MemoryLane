@@ -34,11 +34,11 @@ All processing is local — no network, no cloud, no uploads.
 :feature:achievements:impl
 :feature:profile:api
 :feature:profile:impl
-:core:photos:api            — repository interfaces, photo domain models
-:core:photos:impl           — MediaStore access, reading and deleting photos
+:core:photos:domain         — repository interfaces, photo domain models
+:core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
-:core:data:api              — Room DAOs interfaces, domain models
-:core:data:impl             — Room database, repository implementations
+:core:domain                — repository interfaces, domain models
+:core:data                  — Room database, repository implementations
 :lib:lazycardstack          — vendored Tinder-style card stack library
 :build-logic                — convention plugins (shared Gradle config)
 ```
@@ -143,8 +143,8 @@ Font license: `core/ui/OFL-Nunito.txt`
 - State is a single immutable data class; never mutate it directly
 - All side effects (navigation, system dialogs, toasts) go through `Effect` SharedFlow
 - No business logic in Composables — only UI
-- Repository interfaces live in `:core:data`, implementations too
-- `:core:photos` is the only module allowed to touch MediaStore
+- Repository interfaces live in `:core:domain`, implementations in `:core:data`
+- `:core:photos:data` is the only module allowed to touch MediaStore
 
 **What to ask before doing:**
 
@@ -159,8 +159,9 @@ Font license: `core/ui/OFL-Nunito.txt`
 - [ ] :feature:swipe
 - [ ] :feature:achievements
 - [ ] :feature:profile
-- [✅] :core:photos
+- [✅] :core:photos (domain + data)
 - [✅] :core:ui
+- [✅] :core:domain
 - [✅] :core:data
 - [✅] :lib:lazycardstack
 - [ ] :build-logic
