@@ -164,3 +164,31 @@ Font license: `core/ui/OFL-Nunito.txt`
 - [✅] :core:data
 - [✅] :lib:lazycardstack
 - [ ] :build-logic
+
+## Testing
+
+**Unit tests (JUnit4 + MockK + Turbine) — mandatory for:**
+- Every ViewModel: state transitions, intent handling, effect emission
+- Every UseCase
+- Every Repository implementation (mock DAOs and MediaStore)
+- All mapper functions
+
+**Flow tests (Turbine) — mandatory for:**
+- Any StateFlow or SharedFlow emitted by ViewModel
+- Repository methods returning Flow
+
+**Compose UI tests — required for key user scenarios:**
+- Swipe left/right gesture and overlay color
+- Card stack navigation (next card appears after swipe)
+- Review screen shows correct pending delete count
+- Bottom navigation between tabs
+
+**Room DAO tests (instrumented, requires emulator):**
+- Each DAO: insert, query, delete
+- Run separately from unit tests via ./gradlew connectedAndroidTest
+
+**Rules:**
+- Mock everything outside the unit under test
+- No business logic in Composables — so UI tests only verify rendering and gestures
+- MediaStore is never tested directly — always via PhotoRepository interface mock
+- Test files mirror source structure: src/test/ for unit, src/androidTest/ for instrumented
