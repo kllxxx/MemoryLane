@@ -7,6 +7,4 @@ sealed interface SwipeIntent {
     data object SwipeLeft : SwipeIntent
     data object SwipeRight : SwipeIntent
     data object Close : SwipeIntent
-    data object ConfirmDelete : SwipeIntent
-    data class DeleteResult(val success: Boolean) : SwipeIntent
 }

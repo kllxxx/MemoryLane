@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -45,8 +44,6 @@ class SwipeViewModel @Inject constructor(
                 if (after.isFinished && !before.isFinished) onAllSwiped(after)
             }
             SwipeIntent.Close -> _effects.tryEmit(SwipeEffect.NavigateToTimeline)
-            SwipeIntent.ConfirmDelete -> deletePending(before.pendingDeletes)
-            is SwipeIntent.DeleteResult -> if (intent.success) onDeleted()
         }
     }
 
@@ -74,33 +71,16 @@ class SwipeViewModel @Inject constructor(
     }
 
     private fun onAllSwiped(state: SwipeState) {
-        val savedBytes = state.photos.filter { it.id in state.pendingDeletes }.sumOf { it.sizeBytes }
         viewModelScope.launch {
-            swipeRepository.saveSession(SwipeSession(state.date, completed = true, savedBytes = savedBytes))
-            if (state.pendingDeletes.isEmpty()) _effects.emit(SwipeEffect.NavigateToTimeline)
-        }
-    }
-
-    private fun deletePending(photoIds: List<Long>) {
-        viewModelScope.launch {
-            try {
-                when (val result = photoRepository.deletePhotos(photoIds)) {
-                    DeleteResult.Deleted -> onIntent(SwipeIntent.DeleteResult(success = true))
-                    is DeleteResult.RequiresConfirmation ->
-                        _effects.emit(SwipeEffect.RequestSystemDelete(result.intentSender))
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SecurityException) {
-                onIntent(SwipeIntent.DeleteResult(success = false))
-            }
-        }
-    }
-
-    private fun onDeleted() {
-        viewModelScope.launch {
-            swipeRepository.clearPendingDeletes()
-            _effects.emit(SwipeEffect.NavigateToTimeline)
+            // Bytes are counted by the Review screen once the photos are actually deleted
+            swipeRepository.saveSession(SwipeSession(state.date, completed = true, savedBytes = 0))
+            _effects.emit(
+                if (state.pendingDeletes.isEmpty()) {
+                    SwipeEffect.NavigateToTimeline
+                } else {
+                    SwipeEffect.NavigateToReview(state.date)
+                },
+            )
         }
     }
 }

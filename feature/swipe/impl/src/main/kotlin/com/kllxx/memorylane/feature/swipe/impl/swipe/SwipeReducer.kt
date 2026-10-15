@@ -17,13 +17,6 @@ object SwipeReducer {
         SwipeIntent.SwipeRight -> advance(state, delete = false)
         SwipeIntent.SwipeLeft -> advance(state, delete = true)
         SwipeIntent.Close -> state
-        SwipeIntent.ConfirmDelete -> state.copy(isLoading = true)
-        is SwipeIntent.DeleteResult ->
-            if (intent.success) {
-                state.copy(pendingDeletes = persistentListOf(), isLoading = false)
-            } else {
-                state.copy(isLoading = false)
-            }
     }
 
     internal fun reduce(state: SwipeState, event: SwipeEvent): SwipeState = when (event) {

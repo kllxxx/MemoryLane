@@ -31,8 +31,10 @@ import com.kllxx.memorylane.feature.onboarding.api.OnboardingRoute
 import com.kllxx.memorylane.feature.onboarding.impl.OnboardingScreen
 import com.kllxx.memorylane.feature.profile.api.ProfileRoute
 import com.kllxx.memorylane.feature.profile.impl.ProfileScreen
+import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
+import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
 import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineScreen
 import kotlin.reflect.KClass
 
@@ -98,7 +100,21 @@ fun AppNavHost(
                     },
                 )
             }
-            composable<SwipeRoute> { SwipeScreen() }
+            composable<SwipeRoute> {
+                SwipeScreen(
+                    onNavigateToReview = { date ->
+                        navController.navigate(ReviewRoute(date.toString())) {
+                            popUpTo<SwipeRoute> { inclusive = true }
+                        }
+                    },
+                    onNavigateToTimeline = {
+                        navController.navigate(TimelineRoute) {
+                            popUpTo<SwipeRoute> { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable<ReviewRoute> { ReviewScreen() }
             composable<TimelineRoute> { TimelineScreen() }
             composable<AchievementsRoute> { AchievementsScreen() }
             composable<ProfileRoute> { ProfileScreen() }

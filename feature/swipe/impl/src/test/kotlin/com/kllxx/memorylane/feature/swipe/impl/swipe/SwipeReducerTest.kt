@@ -105,28 +105,4 @@ class SwipeReducerTest {
         val state = loaded(2)
         assertEquals(state, reduce(state, SwipeIntent.Close))
     }
-
-    @Test
-    fun `ConfirmDelete starts loading`() {
-        val state = loaded(2).copy(pendingDeletes = persistentListOf(1L))
-        val result = reduce(state, SwipeIntent.ConfirmDelete)
-        assertTrue(result.isLoading)
-        assertEquals(listOf(1L), result.pendingDeletes)
-    }
-
-    @Test
-    fun `DeleteResult success clears pending deletes`() {
-        val state = loaded(2).copy(pendingDeletes = persistentListOf(1L), isLoading = true)
-        val result = reduce(state, SwipeIntent.DeleteResult(success = true))
-        assertTrue(result.pendingDeletes.isEmpty())
-        assertFalse(result.isLoading)
-    }
-
-    @Test
-    fun `DeleteResult failure keeps pending deletes`() {
-        val state = loaded(2).copy(pendingDeletes = persistentListOf(1L), isLoading = true)
-        val result = reduce(state, SwipeIntent.DeleteResult(success = false))
-        assertEquals(listOf(1L), result.pendingDeletes)
-        assertFalse(result.isLoading)
-    }
 }

@@ -1,8 +1,10 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
-import android.content.IntentSender
+import java.time.LocalDate
 
 sealed interface SwipeEffect {
     data object NavigateToTimeline : SwipeEffect
-    data class RequestSystemDelete(val intentSender: IntentSender) : SwipeEffect
+
+    /** All photos are swiped and some are marked for deletion on [date]. */
+    data class NavigateToReview(val date: LocalDate) : SwipeEffect
 }

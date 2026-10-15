@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.kllxx.memorylane.core.data.db.entity.PendingDeleteEntity
+import java.time.LocalDate
 
 @Dao
 interface PendingDeleteDao {
@@ -16,4 +17,7 @@ interface PendingDeleteDao {
 
     @Query("DELETE FROM pending_deletes")
     suspend fun clear()
+
+    @Query("DELETE FROM pending_deletes WHERE sessionDate = :date")
+    suspend fun clearByDate(date: LocalDate)
 }

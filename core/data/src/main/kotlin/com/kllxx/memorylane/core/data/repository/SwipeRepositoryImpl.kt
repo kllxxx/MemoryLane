@@ -9,6 +9,7 @@ import com.kllxx.memorylane.core.data.mapper.toDomain
 import com.kllxx.memorylane.core.data.mapper.toEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import javax.inject.Inject
 
 internal class SwipeRepositoryImpl @Inject constructor(
@@ -23,6 +24,8 @@ internal class SwipeRepositoryImpl @Inject constructor(
         pendingDeleteDao.getAll().map { it.toDomain() }
 
     override suspend fun clearPendingDeletes() = pendingDeleteDao.clear()
+
+    override suspend fun clearPendingDeletesByDate(date: LocalDate) = pendingDeleteDao.clearByDate(date)
 
     override suspend fun saveSession(session: SwipeSession) =
         swipeSessionDao.insert(session.toEntity())
