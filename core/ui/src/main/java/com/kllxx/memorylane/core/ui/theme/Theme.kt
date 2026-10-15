@@ -3,8 +3,7 @@ package com.kllxx.memorylane.core.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-
-enum class ThemeMode { System, Light, Dark }
+import com.kllxx.memorylane.core.domain.model.ThemeMode
 
 /**
  * @param themeMode dark by default. TODO(DataStore): the app/Profile layer should collect the

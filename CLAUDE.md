@@ -120,7 +120,7 @@ Minimalist green-themed UI. All design tokens live in `:core:ui`:
 `core/ui/src/main/java/com/kllxx/memorylane/core/ui/theme/`
 
 - `Color.kt` — brand colors and light/dark color schemes
-- `Theme.kt` — `MemoryLaneTheme`, `ThemeMode` (default: dark)
+- `Theme.kt` — `MemoryLaneTheme` (default: dark); `ThemeMode` lives in `:core:domain`
 - `Type.kt` — Nunito typography
 - `Shape.kt` — corner radius tokens
 - `Spacing.kt` — spacing constants
