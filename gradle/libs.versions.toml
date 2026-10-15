@@ -27,6 +27,7 @@ coroutines = "1.11.0"
 
 # Serialization
 serialization = "1.11.0"
+kotlinxCollectionsImmutable = "0.3.8"
 
 # Test
 junit = "4.13.2"
@@ -88,6 +89,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 
 # Serialization
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "serialization" }
+kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

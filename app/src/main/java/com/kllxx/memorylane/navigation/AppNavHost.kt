@@ -33,7 +33,7 @@ import com.kllxx.memorylane.feature.profile.api.ProfileRoute
 import com.kllxx.memorylane.feature.profile.impl.ProfileScreen
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
-import com.kllxx.memorylane.ui.TimelineScreen
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineScreen
 import kotlin.reflect.KClass
 
 private data class BottomNavItem(
