@@ -26,6 +26,8 @@ dependencyResolutionManagement {
 rootProject.name = "MemoryLane"
 include(":app")
 
+include(":feature:onboarding:api")
+include(":feature:onboarding:impl")
 include(":feature:swipe:api")
 include(":feature:swipe:impl")
 include(":feature:achievements:api")

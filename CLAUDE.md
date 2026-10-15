@@ -28,6 +28,8 @@ All processing is local — no network, no cloud, no uploads.
 
 ```
 :app                        — entry point, DI setup, bottom navigation
+:feature:onboarding:api       — onboarding route
+:feature:onboarding:impl      — onboarding screens
 :feature:swipe:api          — swipe screen contracts, navigation interface
 :feature:swipe:impl         — ViewModel, Composables, MVI implementation
 :feature:achievements:api
@@ -156,6 +158,7 @@ Font license: `core/ui/OFL-Nunito.txt`
 **Module status:** *(update as modules are implemented)*
 
 - [ ] :app
+- [ ] :feature:onboarding
 - [ ] :feature:swipe
 - [ ] :feature:achievements
 - [ ] :feature:profile

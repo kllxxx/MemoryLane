@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     id("memorylane.android.hilt")
 }
 
@@ -41,6 +42,8 @@ android {
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
+    implementation(project(":feature:onboarding:impl"))
+    implementation(project(":feature:onboarding:api"))
     implementation(project(":feature:swipe:impl"))
     implementation(project(":feature:achievements:impl"))
     implementation(project(":feature:profile:impl"))
@@ -54,6 +57,9 @@ dependencies {
     implementation(project(":core:ui"))
 
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.bundles.lifecycle)
     implementation(platform(libs.androidx.compose.bom))
@@ -64,7 +70,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    testImplementation(libs.junit)
+    testImplementation(libs.bundles.unit.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
