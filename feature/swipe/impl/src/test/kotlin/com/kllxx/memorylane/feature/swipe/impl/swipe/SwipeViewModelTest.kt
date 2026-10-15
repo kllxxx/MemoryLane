@@ -46,7 +46,7 @@ class SwipeViewModelTest {
         Dispatchers.setMain(dispatcher)
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
-        coEvery { photoRepository.getPhotosForDate(date) } returns photos
+        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns photos
         viewModel = SwipeViewModel(photoRepository, swipeRepository)
     }
 

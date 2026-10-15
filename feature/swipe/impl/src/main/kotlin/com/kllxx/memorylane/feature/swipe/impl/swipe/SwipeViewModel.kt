@@ -57,7 +57,7 @@ class SwipeViewModel @Inject constructor(
     private fun loadPhotos(intent: SwipeIntent.LoadPhotos) {
         viewModelScope.launch {
             val photos = try {
-                photoRepository.getPhotosForDate(intent.date)
+                photoRepository.getPhotosForDate(intent.date, includeLocation = true)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

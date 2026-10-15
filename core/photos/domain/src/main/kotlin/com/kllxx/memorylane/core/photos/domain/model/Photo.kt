@@ -8,4 +8,5 @@ data class Photo(
     val uri: Uri,
     val dateTaken: LocalDate,
     val sizeBytes: Long,
+    val location: String? = null,
 )
