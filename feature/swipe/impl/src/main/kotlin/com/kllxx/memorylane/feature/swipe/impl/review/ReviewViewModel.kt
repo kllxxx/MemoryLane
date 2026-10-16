@@ -32,6 +32,8 @@ class ReviewViewModel @Inject constructor(
     // Type-safe navigation stores route arguments under their property name
     private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle.get<String>(DATE_ARG)))
 
+    private val totalPhotosCount: Int = checkNotNull(savedStateHandle.get<Int>(TOTAL_PHOTOS_ARG))
+
     private val _state = MutableStateFlow(ReviewState())
     val state: StateFlow<ReviewState> = _state.asStateFlow()
 
@@ -71,7 +73,7 @@ class ReviewViewModel @Inject constructor(
                 val idSet = ids.toSet()
                 onEvent(
                     ReviewEvent.StatsLoaded(
-                        keptCount = (photos.size - ids.size).coerceAtLeast(0),
+                        keptCount = (totalPhotosCount - ids.size).coerceAtLeast(0),
                         deletedCount = ids.size,
                         pendingDeleteIds = ids,
                         totalFreedBytes = swipeRepository.getCompletedSessions().first().sumOf { it.savedBytes },
@@ -104,9 +106,8 @@ class ReviewViewModel @Inject constructor(
 
     private fun onDeleted(freedBytes: Long) {
         viewModelScope.launch {
-            val session = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == date }
-                ?: SwipeSession(date, completed = true, savedBytes = 0)
-            swipeRepository.saveSession(session.copy(savedBytes = freedBytes))
+            // The session only counts as completed once the photos are really gone
+            swipeRepository.saveSession(SwipeSession(date, completed = true, savedBytes = freedBytes))
             swipeRepository.clearPendingDeletesByDate(date)
             _effects.emit(ReviewEffect.ShowFreedSpaceAnimation)
             // Gives the animation time to play before the screen is left
@@ -117,6 +118,7 @@ class ReviewViewModel @Inject constructor(
 
     internal companion object {
         const val DATE_ARG = "date"
+        const val TOTAL_PHOTOS_ARG = "totalPhotosCount"
         const val ANIMATION_DURATION_MS = 2_000L
     }
 }

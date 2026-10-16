@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -27,14 +28,16 @@ class SwipeViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SwipeState())
+    // Type-safe navigation stores route arguments under their property name
+    private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle.get<String>(DATE_ARG)))
+
+    private val _state = MutableStateFlow(SwipeState(date = date))
     val state: StateFlow<SwipeState> = _state.asStateFlow()
 
     private val _effects = MutableSharedFlow<SwipeEffect>(extraBufferCapacity = 8)
     val effects: SharedFlow<SwipeEffect> = _effects.asSharedFlow()
 
     init {
-        val date = LocalDate.parse(checkNotNull(savedStateHandle.get<String>("date")))
         onIntent(SwipeIntent.LoadPhotos(date))
     }
 
@@ -46,8 +49,13 @@ class SwipeViewModel @Inject constructor(
         when (intent) {
             is SwipeIntent.LoadPhotos -> loadPhotos(intent)
             SwipeIntent.SwipeLeft, SwipeIntent.SwipeRight -> {
-                if (after.pendingDeletes.size > before.pendingDeletes.size) {
-                    savePendingDelete(after.pendingDeletes.last(), after)
+                val photoId = before.photos.getOrNull(before.currentIndex)?.id
+                if (photoId != null) {
+                    if (after.pendingDeletes.size > before.pendingDeletes.size) {
+                        savePendingDelete(photoId, after)
+                    } else if (after.pendingDeletes.size < before.pendingDeletes.size) {
+                        removePendingDelete(photoId)
+                    }
                 }
                 if (after.isFinished && !before.isFinished) onAllSwiped(after)
             }
@@ -61,14 +69,22 @@ class SwipeViewModel @Inject constructor(
 
     private fun loadPhotos(intent: SwipeIntent.LoadPhotos) {
         viewModelScope.launch {
-            val photos = try {
-                photoRepository.getPhotosForDate(intent.date, includeLocation = true)
+            val event = try {
+                val photos = photoRepository.getPhotosForDate(intent.date, includeLocation = true)
+                val pendingIds = swipeRepository.getPendingDeletes()
+                    .filter { it.sessionDate == intent.date }
+                    .map { it.photoId }
+                SwipeEvent.PhotosLoaded(photos, pendingIds)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                emptyList()
+                // A failed load is not an empty day, so no session is recorded for it
+                _effects.emit(SwipeEffect.NavigateToTimeline)
+                return@launch
             }
-            onEvent(SwipeEvent.PhotosLoaded(photos))
+            onEvent(event)
+            // Nothing left to show: an empty day, or every photo was already marked on a previous run
+            _state.value.takeIf { it.isFinished }?.let(::onAllSwiped)
         }
     }
 
@@ -78,17 +94,32 @@ class SwipeViewModel @Inject constructor(
         }
     }
 
+    private fun removePendingDelete(photoId: Long) {
+        viewModelScope.launch {
+            swipeRepository.removePendingDelete(photoId)
+        }
+    }
+
     private fun onAllSwiped(state: SwipeState) {
         viewModelScope.launch {
-            // Bytes are counted by the Review screen once the photos are actually deleted
-            swipeRepository.saveSession(SwipeSession(state.date, completed = true, savedBytes = 0))
+            // Nothing to delete means nothing left to review, so the day is done. Otherwise it only
+            // completes once Review has deleted the photos, and an existing result is never reset.
+            val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
+            val completed = state.pendingDeletes.isEmpty() || existing?.completed == true
+            swipeRepository.saveSession(
+                SwipeSession(state.date, completed = completed, savedBytes = existing?.savedBytes ?: 0),
+            )
             _effects.emit(
                 if (state.pendingDeletes.isEmpty()) {
                     SwipeEffect.NavigateToTimeline
                 } else {
-                    SwipeEffect.NavigateToReview(state.date)
+                    SwipeEffect.NavigateToReview(state.date, totalPhotosCount = state.photos.size)
                 },
             )
         }
+    }
+
+    internal companion object {
+        const val DATE_ARG = "date"
     }
 }

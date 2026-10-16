@@ -103,16 +103,12 @@ fun AppNavHost(
             }
             composable<SwipeRoute> {
                 SwipeScreen(
-                    onNavigateToReview = { date ->
-                        navController.navigate(ReviewRoute(date.toString())) {
+                    onNavigateToReview = { date, totalPhotosCount ->
+                        navController.navigate(ReviewRoute(date.toString(), totalPhotosCount)) {
                             popUpTo<SwipeRoute> { inclusive = true }
                         }
                     },
-                    onNavigateToTimeline = {
-                        navController.navigate(TimelineRoute) {
-                            popUpTo<SwipeRoute> { inclusive = true }
-                        }
-                    },
+                    onNavigateToTimeline = { navController.navigateToTimeline() },
                 )
             }
             composable<ReviewRoute> { ReviewScreen() }
@@ -124,6 +120,23 @@ fun AppNavHost(
             composable<AchievementsRoute> { AchievementsScreen() }
             composable<ProfileRoute> { ProfileScreen() }
         }
+    }
+}
+
+/**
+ * Leaves Swipe/Review for Timeline without ever stacking a second Timeline. When Timeline is already
+ * on the back stack everything above it is popped; when it is not (Swipe was the start destination)
+ * Swipe is replaced instead.
+ */
+private fun NavHostController.navigateToTimeline() {
+    val timelineOnBackStack = runCatching { getBackStackEntry<TimelineRoute>() }.isSuccess
+    navigate(TimelineRoute) {
+        if (timelineOnBackStack) {
+            popUpTo<TimelineRoute> { inclusive = false }
+        } else {
+            popUpTo<SwipeRoute> { inclusive = true }
+        }
+        launchSingleTop = true
     }
 }
 

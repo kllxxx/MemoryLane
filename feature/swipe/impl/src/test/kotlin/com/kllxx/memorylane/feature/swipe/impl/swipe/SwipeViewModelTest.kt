@@ -15,6 +15,7 @@ import io.mockk.mockk
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -47,6 +48,12 @@ class SwipeViewModelTest {
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns photos
+        coEvery { swipeRepository.getPendingDeletes() } returns emptyList()
+        every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
+    }
+
+    // The ViewModel starts loading as soon as it is created, so tests stub the repositories first
+    private fun createViewModel() {
         val savedStateHandle = mockk<SavedStateHandle>()
         every { savedStateHandle.get<String>("date") } returns date.toString()
         viewModel = SwipeViewModel(photoRepository, swipeRepository, savedStateHandle)
@@ -59,6 +66,7 @@ class SwipeViewModelTest {
 
     // Photos for the route date are requested by the ViewModel's init
     private fun TestScope.load() {
+        if (!::viewModel.isInitialized) createViewModel()
         advanceUntilIdle()
     }
 
@@ -108,14 +116,81 @@ class SwipeViewModelTest {
             viewModel.onIntent(SwipeIntent.SwipeLeft)
             advanceUntilIdle()
             assertTrue(viewModel.state.value.isFinished)
-            assertEquals(SwipeEffect.NavigateToReview(date), awaitItem())
+            assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
         }
-        // Bytes are only counted by Review once the photos are really deleted
+        // Only Review completes the session, once the photos are really deleted
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0)) }
+    }
+
+    @Test
+    fun `finishing keeps the saved bytes of an already completed session`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300)))
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300)) }
+    }
+
+    @Test
+    fun `an empty day saves a completed session and goes to timeline, never to review`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns emptyList()
+        createViewModel()
+        viewModel.effects.test {
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+            expectNoEvents()
+        }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0)) }
     }
 
     @Test
+    fun `a failed photo load goes to timeline without recording a session`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws SecurityException("nope")
+        createViewModel()
+        viewModel.effects.test {
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+        }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `resuming skips photos already marked for deletion on this date`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletes() } returns listOf(
+            PendingDelete(1, date),
+            PendingDelete(99, LocalDate.of(2026, 3, 3)),
+        )
+        load()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.currentIndex)
+        assertEquals(listOf(1L), state.pendingDeletes)
+        assertEquals(false, state.isFinished)
+
+        viewModel.effects.test {
+            viewModel.onIntent(SwipeIntent.SwipeLeft)
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
+        }
+        coVerify(exactly = 1) { swipeRepository.savePendingDelete(PendingDelete(2, date)) }
+        coVerify(exactly = 0) { swipeRepository.savePendingDelete(PendingDelete(1, date)) }
+    }
+
+    @Test
+    fun `resuming with every photo already marked goes straight to review`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletes() } returns listOf(PendingDelete(1, date), PendingDelete(2, date))
+        createViewModel()
+        viewModel.effects.test {
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
+        }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0)) }
+    }
+
+    @Test
     fun `Close navigates to timeline`() = runTest(dispatcher) {
+        createViewModel()
         viewModel.effects.test {
             viewModel.onIntent(SwipeIntent.Close)
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())

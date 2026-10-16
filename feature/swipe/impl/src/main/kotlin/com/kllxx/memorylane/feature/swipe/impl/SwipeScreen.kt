@@ -10,14 +10,14 @@ import java.time.LocalDate
 
 @Composable
 fun SwipeScreen(
-    onNavigateToReview: (LocalDate) -> Unit,
+    onNavigateToReview: (date: LocalDate, totalPhotosCount: Int) -> Unit,
     onNavigateToTimeline: () -> Unit,
     viewModel: SwipeViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is SwipeEffect.NavigateToReview -> onNavigateToReview(effect.date)
+                is SwipeEffect.NavigateToReview -> onNavigateToReview(effect.date, effect.totalPhotosCount)
                 SwipeEffect.NavigateToTimeline -> onNavigateToTimeline()
             }
         }

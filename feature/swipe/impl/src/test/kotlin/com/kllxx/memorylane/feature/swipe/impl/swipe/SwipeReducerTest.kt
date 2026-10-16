@@ -47,16 +47,80 @@ class SwipeReducerTest {
     @Test
     fun `PhotosLoaded stores photos and stops loading`() {
         val photos = listOf(photo(1), photo(2))
-        val result = reduce(SwipeState(isLoading = true), SwipeEvent.PhotosLoaded(photos))
+        val result = reduce(SwipeState(date = date, isLoading = true), SwipeEvent.PhotosLoaded(photos))
         assertEquals(photos, result.photos)
+        assertEquals(0, result.currentIndex)
         assertFalse(result.isLoading)
         assertFalse(result.isFinished)
     }
 
     @Test
     fun `PhotosLoaded with no photos finishes immediately`() {
-        val result = reduce(SwipeState(isLoading = true), SwipeEvent.PhotosLoaded(emptyList()))
+        val result = reduce(SwipeState(date = date, isLoading = true), SwipeEvent.PhotosLoaded(emptyList()))
         assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `PhotosLoaded resumes at the first photo that is not pending`() {
+        val photos = listOf(photo(1), photo(2), photo(3))
+        val result = reduce(
+            SwipeState(date = date, isLoading = true),
+            SwipeEvent.PhotosLoaded(photos, pendingDeleteIds = listOf(1L, 2L)),
+        )
+        assertEquals(2, result.currentIndex)
+        assertEquals(listOf(1L, 2L), result.pendingDeletes)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `PhotosLoaded ignores pending ids of photos that no longer exist`() {
+        val result = reduce(
+            SwipeState(date = date, isLoading = true),
+            SwipeEvent.PhotosLoaded(listOf(photo(1), photo(2)), pendingDeleteIds = listOf(2L, 99L)),
+        )
+        assertEquals(listOf(2L), result.pendingDeletes)
+        assertEquals(0, result.currentIndex)
+    }
+
+    @Test
+    fun `PhotosLoaded with every photo pending finishes`() {
+        val result = reduce(
+            SwipeState(date = date, isLoading = true),
+            SwipeEvent.PhotosLoaded(listOf(photo(1), photo(2)), pendingDeleteIds = listOf(1L, 2L)),
+        )
+        assertTrue(result.isFinished)
+        assertEquals(2, result.currentIndex)
+        assertEquals(listOf(1L, 2L), result.pendingDeletes)
+    }
+
+    @Test
+    fun `swiping skips photos that are already pending`() {
+        val state = loaded(4).copy(currentIndex = 0, pendingDeletes = persistentListOf(2L, 3L))
+        val result = reduce(state, SwipeIntent.SwipeRight)
+        assertEquals(3, result.currentIndex)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `swiping the last unmarked photo finishes even when later photos are pending`() {
+        val state = loaded(3).copy(currentIndex = 0, pendingDeletes = persistentListOf(2L, 3L))
+        val result = reduce(state, SwipeIntent.SwipeRight)
+        assertEquals(3, result.currentIndex)
+        assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `SwipeRight on a pending photo removes it from pending`() {
+        val state = loaded(3).copy(pendingDeletes = persistentListOf(1L))
+        val result = reduce(state, SwipeIntent.SwipeRight)
+        assertTrue(result.pendingDeletes.isEmpty())
+    }
+
+    @Test
+    fun `SwipeLeft on a pending photo does not duplicate it`() {
+        val state = loaded(3).copy(pendingDeletes = persistentListOf(1L))
+        val result = reduce(state, SwipeIntent.SwipeLeft)
+        assertEquals(listOf(1L), result.pendingDeletes)
     }
 
     @Test
@@ -96,7 +160,7 @@ class SwipeReducerTest {
 
     @Test
     fun `swiping with no photos changes nothing`() {
-        val empty = SwipeState()
+        val empty = SwipeState(date = date)
         assertEquals(empty, reduce(empty, SwipeIntent.SwipeLeft))
     }
 

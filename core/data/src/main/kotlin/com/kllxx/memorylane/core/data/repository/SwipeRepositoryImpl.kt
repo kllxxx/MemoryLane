@@ -23,7 +23,9 @@ internal class SwipeRepositoryImpl @Inject constructor(
     override suspend fun getPendingDeletes(): List<PendingDelete> =
         pendingDeleteDao.getAll().map { it.toDomain() }
 
-    override suspend fun clearPendingDeletes() = pendingDeleteDao.clear()
+    override suspend fun removePendingDelete(photoId: Long) = pendingDeleteDao.deleteByPhotoId(photoId)
+
+    override suspend fun clearPendingDeletes()= pendingDeleteDao.clear()
 
     override suspend fun clearPendingDeletesByDate(date: LocalDate) = pendingDeleteDao.clearByDate(date)
 

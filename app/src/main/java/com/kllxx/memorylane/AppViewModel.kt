@@ -30,7 +30,8 @@ class AppViewModel @Inject constructor(
             val settings = appSettingsRepository.getSettings().first()
             _startDestination.value = when {
                 !settings.onboardingCompleted -> StartDestination.Onboarding
-                swipeRepository.getLastSession()?.date == LocalDate.now(clock) -> StartDestination.Main
+                // An incomplete session (e.g. the app was killed on Review) goes back to Swipe
+                swipeRepository.getLastSession()?.takeIf { it.completed }?.date == LocalDate.now(clock) -> StartDestination.Main
                 else -> StartDestination.Swipe
             }
         }

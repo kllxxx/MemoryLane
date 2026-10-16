@@ -8,6 +8,7 @@ import java.time.LocalDate
 interface SwipeRepository {
     suspend fun savePendingDelete(pendingDelete: PendingDelete)
     suspend fun getPendingDeletes(): List<PendingDelete>
+    suspend fun removePendingDelete(photoId: Long)
     suspend fun clearPendingDeletes()
 
     /** Clears only the pending deletes of the session on [date], keeping other sessions' deletes. */

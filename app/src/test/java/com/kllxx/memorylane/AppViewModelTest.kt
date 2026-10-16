@@ -40,11 +40,15 @@ class AppViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun givenState(onboardingCompleted: Boolean, lastSessionDate: LocalDate?) {
+    private fun givenState(
+        onboardingCompleted: Boolean,
+        lastSessionDate: LocalDate?,
+        sessionCompleted: Boolean = true,
+    ) {
         every { appSettingsRepository.getSettings() } returns
             flowOf(AppSettings(onboardingCompleted = onboardingCompleted))
         coEvery { swipeRepository.getLastSession() } returns
-            lastSessionDate?.let { SwipeSession(date = it, completed = true, savedBytes = 0L) }
+            lastSessionDate?.let { SwipeSession(date = it, completed = sessionCompleted, savedBytes = 0L) }
     }
 
     private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, clock)
@@ -76,7 +80,13 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `onboarded with session today starts at main`() = runTest {
+    fun `onboarded with incomplete session today starts at swipe`() = runTest {
+        givenState(onboardingCompleted = true, lastSessionDate = today, sessionCompleted = false)
+        assertResolvesTo(StartDestination.Swipe)
+    }
+
+    @Test
+    fun `onboarded with session today starts at main`()= runTest {
         givenState(onboardingCompleted = true, lastSessionDate = today)
         assertResolvesTo(StartDestination.Main)
     }

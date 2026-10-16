@@ -26,7 +26,17 @@ class SwipeRepositoryImplTest {
     }
 
     @Test
-    fun `clearPendingDeletesByDate clears only that date`() = runTest {
+    fun `removePendingDelete deletes only that photo`() = runTest {
+        coEvery { pendingDeleteDao.deleteByPhotoId(7L) } returns Unit
+
+        repository.removePendingDelete(7L)
+
+        coVerify(exactly = 1) { pendingDeleteDao.deleteByPhotoId(7L) }
+        coVerify(exactly = 0) { pendingDeleteDao.clear() }
+    }
+
+    @Test
+    fun `clearPendingDeletesByDate clears only that date`()= runTest {
         val date = LocalDate.of(2026, 10, 15)
         coEvery { pendingDeleteDao.clearByDate(date) } returns Unit
 

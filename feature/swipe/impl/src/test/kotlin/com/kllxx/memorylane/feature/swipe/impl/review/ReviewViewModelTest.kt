@@ -64,6 +64,7 @@ class ReviewViewModelTest {
         )
         val savedStateHandle = mockk<SavedStateHandle>()
         every { savedStateHandle.get<String>("date") } returns date.toString()
+        every { savedStateHandle.get<Int>("totalPhotosCount") } returns photos.size
         viewModel = ReviewViewModel(swipeRepository, photoRepository, savedStateHandle)
     }
 
@@ -88,6 +89,15 @@ class ReviewViewModelTest {
         assertEquals(500, state.sessionFreedBytes)
         assertEquals(1_000, state.totalFreedBytes)
         assertFalse(state.isFinished)
+    }
+
+    @Test
+    fun `keptCount comes from the route's total photo count`() = runTest(dispatcher) {
+        // The photo list could differ from what was swiped, e.g. a photo was added in between
+        coEvery { photoRepository.getPhotosForDate(date) } returns photos + photos
+        loadStats()
+
+        assertEquals(1, viewModel.state.value.keptCount)
     }
 
     @Test
