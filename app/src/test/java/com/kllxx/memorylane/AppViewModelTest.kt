@@ -6,6 +6,7 @@ import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.navigation.StartDestination
 import io.mockk.coEvery
 import io.mockk.every
@@ -35,6 +36,9 @@ class AppViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
     private val appSettingsRepository = mockk<AppSettingsRepository>()
     private val swipeRepository = mockk<SwipeRepository>()
+    private val photoRepository = mockk<PhotoRepository> {
+        every { hasMediaPermission() } returns true
+    }
 
     @Before
     fun setUp() = Dispatchers.setMain(StandardTestDispatcher())
@@ -53,7 +57,7 @@ class AppViewModelTest {
             lastSessionDate?.let { SwipeSession(date = it, completed = sessionCompleted, savedBytes = 0L) }
     }
 
-    private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, clock)
+    private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, photoRepository, clock)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
         viewModel().startDestination.test {
@@ -109,5 +113,19 @@ class AppViewModelTest {
     fun `onboarded with session today starts at main`()= runTest {
         givenState(onboardingCompleted = true, lastSessionDate = today)
         assertResolvesTo(StartDestination.Main)
+    }
+
+    @Test
+    fun `missing media permission starts at swipe even when today is completed`() = runTest {
+        every { photoRepository.hasMediaPermission() } returns false
+        givenState(onboardingCompleted = true, lastSessionDate = today)
+        assertResolvesTo(StartDestination.Swipe)
+    }
+
+    @Test
+    fun `onboarding not completed starts at onboarding even without media permission`() = runTest {
+        every { photoRepository.hasMediaPermission() } returns false
+        givenState(onboardingCompleted = false, lastSessionDate = null)
+        assertResolvesTo(StartDestination.Onboarding)
     }
 }

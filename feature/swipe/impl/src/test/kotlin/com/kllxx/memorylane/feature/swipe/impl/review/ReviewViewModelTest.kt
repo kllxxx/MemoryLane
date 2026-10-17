@@ -2,6 +2,7 @@ package com.kllxx.memorylane.feature.swipe.impl.review
 
 import android.content.IntentSender
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
@@ -14,6 +15,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,6 +54,9 @@ class ReviewViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
@@ -70,6 +76,7 @@ class ReviewViewModelTest {
 
     @After
     fun tearDown() {
+        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
@@ -146,6 +153,39 @@ class ReviewViewModelTest {
             coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
             coVerify(exactly = 0) { swipeRepository.clearPendingDeletes() }
         }
+
+    @Test
+    fun `failing to save the session after the delete still plays the animation and leaves review`() =
+        runTest(dispatcher) {
+            coEvery { photoRepository.deletePhotos(listOf(1L, 3L)) } returns DeleteResult.Deleted
+            coEvery { swipeRepository.saveSession(any()) } throws IllegalStateException("disk full")
+            loadStats()
+
+            viewModel.effects.test {
+                viewModel.onIntent(ReviewIntent.ConfirmDelete)
+                advanceUntilIdle()
+                assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
+                assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            }
+            assertTrue(viewModel.state.value.isFinished)
+            // The two writes are independent, so the second still runs
+            coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
+        }
+
+    @Test
+    fun `failing to clear the pending deletes after the delete still leaves review`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(listOf(1L, 3L)) } returns DeleteResult.Deleted
+        coEvery { swipeRepository.clearPendingDeletesByDate(any()) } throws IllegalStateException("disk full")
+        loadStats()
+
+        viewModel.effects.test {
+            viewModel.onIntent(ReviewIntent.ConfirmDelete)
+            advanceUntilIdle()
+            assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
+            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+        }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+    }
 
     @Test
     fun `delete requiring confirmation emits system delete effect and waits`() = runTest(dispatcher) {

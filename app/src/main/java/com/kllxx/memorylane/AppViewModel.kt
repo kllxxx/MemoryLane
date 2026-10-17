@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.navigation.StartDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class AppViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val swipeRepository: SwipeRepository,
+    private val photoRepository: PhotoRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -46,6 +48,8 @@ class AppViewModel @Inject constructor(
             val settings = appSettingsRepository.getSettings().first()
             _startDestination.value = when {
                 !settings.onboardingCompleted -> StartDestination.Onboarding
+                // Without access Swipe reports PermissionRequired, so a completed day must not hide that
+                !photoRepository.hasMediaPermission() -> StartDestination.Swipe
                 // An incomplete session (e.g. the app was killed on Review) goes back to Swipe
                 swipeRepository.getLastSession()?.takeIf { it.completed }?.date == LocalDate.now(clock) -> StartDestination.Main
                 else -> StartDestination.Swipe

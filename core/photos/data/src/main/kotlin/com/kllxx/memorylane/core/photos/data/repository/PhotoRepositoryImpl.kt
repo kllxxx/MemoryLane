@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
+import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
@@ -30,6 +31,15 @@ internal class PhotoRepositoryImpl @Inject constructor(
 ) : PhotoRepository {
 
     private val resolver: ContentResolver get() = context.contentResolver
+
+    override fun hasMediaPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
 
     override suspend fun getPhotosForDate(date: LocalDate, includeLocation: Boolean): List<Photo> =
         withContext(Dispatchers.IO) {
@@ -93,6 +103,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
     }
 
     private fun queryOnThisDay(date: LocalDate, limit: Int?): List<QueriedPhoto> {
+        // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
         val zone = ZoneId.systemDefault()
         val monthDay = MonthDay.from(date)
         val ranges = (date.year - 1 downTo date.year - MAX_YEARS_BACK)

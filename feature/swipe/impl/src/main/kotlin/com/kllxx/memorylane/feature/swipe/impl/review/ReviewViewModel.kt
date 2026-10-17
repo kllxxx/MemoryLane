@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.review
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +35,9 @@ class ReviewViewModel @Inject constructor(
     private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle.get<String>(DATE_ARG)))
 
     private val totalPhotosCount: Int = checkNotNull(savedStateHandle.get<Int>(TOTAL_PHOTOS_ARG))
+
+    // Safety net only: it logs, so one failed coroutine cannot take the whole app down
+    private val exceptionHandler = CoroutineExceptionHandler { _, e -> Log.e(TAG, "Unhandled error in Review", e) }
 
     private val _state = MutableStateFlow(ReviewState())
     val state: StateFlow<ReviewState> = _state.asStateFlow()
@@ -59,7 +64,7 @@ class ReviewViewModel @Inject constructor(
     }
 
     private fun loadStats() {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             try {
                 val ids = swipeRepository.getPendingDeletes()
                     .filter { it.sessionDate == date }
@@ -89,7 +94,7 @@ class ReviewViewModel @Inject constructor(
     }
 
     private fun deletePending(photoIds: List<Long>, expectedFreedBytes: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             try {
                 when (val result = photoRepository.deletePhotos(photoIds)) {
                     DeleteResult.Deleted -> onIntent(ReviewIntent.DeleteResult(success = true, freedBytes = expectedFreedBytes))
@@ -105,10 +110,24 @@ class ReviewViewModel @Inject constructor(
     }
 
     private fun onDeleted(freedBytes: Long) {
-        viewModelScope.launch {
+        viewModelScope.launch(exceptionHandler) {
             // The session only counts as completed once the photos are really gone
-            swipeRepository.saveSession(SwipeSession(date, completed = true, savedBytes = freedBytes))
-            swipeRepository.clearPendingDeletesByDate(date)
+            // The photos are already gone, so a failed write must never keep the user on this screen.
+            // The two writes are independent: one failing does not skip the other.
+            try {
+                swipeRepository.saveSession(SwipeSession(date, completed = true, savedBytes = freedBytes))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not save the completed session", e)
+            }
+            try {
+                swipeRepository.clearPendingDeletesByDate(date)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not clear the pending deletes", e)
+            }
             _effects.emit(ReviewEffect.ShowFreedSpaceAnimation)
             // Gives the animation time to play before the screen is left
             delay(ANIMATION_DURATION_MS)
@@ -117,6 +136,7 @@ class ReviewViewModel @Inject constructor(
     }
 
     internal companion object {
+        const val TAG = "ReviewViewModel"
         const val DATE_ARG = "date"
         const val TOTAL_PHOTOS_ARG = "totalPhotosCount"
         const val ANIMATION_DURATION_MS = 2_000L

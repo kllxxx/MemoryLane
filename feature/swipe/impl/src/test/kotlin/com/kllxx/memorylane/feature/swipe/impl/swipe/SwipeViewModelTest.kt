@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
@@ -151,6 +152,18 @@ class SwipeViewModelTest {
         viewModel.effects.test {
             advanceUntilIdle()
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+        }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `missing permission asks for it, records no session and does not navigate`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws PermissionDeniedException()
+        createViewModel()
+        viewModel.effects.test {
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.PermissionRequired, awaitItem())
+            expectNoEvents()
         }
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }

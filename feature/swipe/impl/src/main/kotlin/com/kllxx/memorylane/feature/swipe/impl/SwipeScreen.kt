@@ -19,6 +19,7 @@ fun SwipeScreen(
             when (effect) {
                 is SwipeEffect.NavigateToReview -> onNavigateToReview(effect.date, effect.totalPhotosCount)
                 SwipeEffect.NavigateToTimeline -> onNavigateToTimeline()
+                SwipeEffect.PermissionRequired -> Unit
             }
         }
     }

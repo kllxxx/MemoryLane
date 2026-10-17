@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -77,6 +78,10 @@ class SwipeViewModel @Inject constructor(
                 SwipeEvent.PhotosLoaded(photos, pendingIds)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: PermissionDeniedException) {
+                // Not an empty day: nothing is recorded and the user stays to grant access
+                _effects.emit(SwipeEffect.PermissionRequired)
+                return@launch
             } catch (e: Exception) {
                 // A failed load is not an empty day, so no session is recorded for it
                 _effects.emit(SwipeEffect.NavigateToTimeline)
