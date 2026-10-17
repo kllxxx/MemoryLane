@@ -17,4 +17,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.robolectric)
 }

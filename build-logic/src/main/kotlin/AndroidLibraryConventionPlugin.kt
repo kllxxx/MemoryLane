@@ -22,6 +22,10 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
                 targetCompatibility = JavaVersion.VERSION_11
                 isCoreLibraryDesugaringEnabled = true
             }
+            testOptions {
+                // Robolectric reads the generated test config to find the manifest and resources
+                unitTests.isIncludeAndroidResources = true
+            }
         }
 
         dependencies {

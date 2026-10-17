@@ -2,10 +2,7 @@ package com.kllxx.memorylane.feature.swipe.impl.review
 
 import android.content.IntentSender
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
-import androidx.navigation.toRoute
-import com.kllxx.memorylane.feature.swipe.impl.SAVED_STATE_HANDLE_EXTENSIONS
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -13,13 +10,10 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
-import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +32,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReviewViewModelTest {
 
@@ -58,10 +55,6 @@ class ReviewViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        // android.util.Log is not available in plain JVM tests
-        mockkStatic(Log::class)
-        mockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
-        every { Log.e(any(), any(), any()) } returns 0
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
@@ -73,17 +66,12 @@ class ReviewViewModelTest {
         every { swipeRepository.getCompletedSessions() } returns flowOf(
             listOf(SwipeSession(date, true, 0), SwipeSession(otherDate, true, 1_000)),
         )
-        val savedStateHandle = mockk<SavedStateHandle>()
-        // toRoute() builds a Bundle, which does not exist in plain JVM tests
-        every { savedStateHandle.toRoute(ReviewRoute::class, any()) } returns
-            ReviewRoute(date.toString(), photos.size)
+        val savedStateHandle = SavedStateHandle(mapOf("date" to date.toString(), "totalPhotosCount" to photos.size))
         viewModel = ReviewViewModel(swipeRepository, photoRepository, savedStateHandle)
     }
 
     @After
     fun tearDown() {
-        unmockkStatic(Log::class)
-        unmockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
         Dispatchers.resetMain()
     }
 

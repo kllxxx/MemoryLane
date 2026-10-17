@@ -184,12 +184,13 @@ Font license: `core/ui/OFL-Nunito.txt`
 - Review screen shows correct pending delete count
 - Bottom navigation between tabs
 
-**Room DAO tests (instrumented, requires emulator):**
+**Room DAO tests (JVM, Robolectric + in-memory Room database):**
 - Each DAO: insert, query, delete
-- Run separately from unit tests via ./gradlew connectedAndroidTest
+- Live in src/test with `@RunWith(RobolectricTestRunner::class)`, so they run with the other unit tests
 
 **Rules:**
 - Mock everything outside the unit under test
 - No business logic in Composables — so UI tests only verify rendering and gestures
-- MediaStore is never tested directly — always via PhotoRepository interface mock
+- Tests that need the Android runtime (Bundle, SavedStateHandle.toRoute(), Log, Room, ContentResolver) use `@RunWith(RobolectricTestRunner::class)`; do not mockkStatic Android framework classes in them
+- The real MediaStore is never queried: other layers mock the PhotoRepository interface, and PhotoRepositoryImpl tests use a fake ContentProvider registered with Robolectric
 - Test files mirror source structure: src/test/ for unit, src/androidTest/ for instrumented
