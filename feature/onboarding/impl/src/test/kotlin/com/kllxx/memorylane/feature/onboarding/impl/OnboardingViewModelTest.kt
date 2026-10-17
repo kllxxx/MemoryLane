@@ -56,7 +56,7 @@ class OnboardingViewModelTest {
             advanceUntilIdle()
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted() }
+        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
@@ -66,7 +66,7 @@ class OnboardingViewModelTest {
             advanceUntilIdle()
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted() }
+        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
@@ -86,7 +86,7 @@ class OnboardingViewModelTest {
             assertTrue(viewModel.state.value.permissionsGranted)
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted() }
+        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
@@ -97,7 +97,7 @@ class OnboardingViewModelTest {
             assertTrue(viewModel.state.value.showPermissionRationale)
             expectNoEvents()
         }
-        coVerify(exactly = 0) { repository.setOnboardingCompleted() }
+        coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
@@ -109,7 +109,7 @@ class OnboardingViewModelTest {
             assertFalse(viewModel.state.value.showPermissionRationale)
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted() }
+        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
     }
 
     @Test

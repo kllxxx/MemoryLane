@@ -118,7 +118,16 @@ fun AppNavHost(
                 )
             }
             composable<AchievementsRoute> { AchievementsScreen() }
-            composable<ProfileRoute> { ProfileScreen() }
+            composable<ProfileRoute> {
+                ProfileScreen(
+                    onNavigateToOnboarding = {
+                        // Full restart of the flow: nothing from the previous session stays on the back stack
+                        navController.navigate(OnboardingRoute) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                        }
+                    },
+                )
+            }
         }
     }
 }

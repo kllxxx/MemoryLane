@@ -47,7 +47,7 @@ class OnboardingViewModel @Inject constructor(
 
     private fun completeOnboarding() {
         viewModelScope.launch {
-            appSettingsRepository.setOnboardingCompleted()
+            appSettingsRepository.setOnboardingCompleted(true)
             _effects.emit(OnboardingEffect.NavigateToSwipe)
         }
     }

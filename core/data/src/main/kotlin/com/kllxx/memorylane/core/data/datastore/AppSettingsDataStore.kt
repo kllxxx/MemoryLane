@@ -35,8 +35,8 @@ internal class AppSettingsDataStore @Inject constructor(
             )
         }
 
-    suspend fun setOnboardingCompleted() {
-        dataStore.edit { it[ONBOARDING_COMPLETED] = true }
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { it[ONBOARDING_COMPLETED] = completed }
     }
 
     suspend fun setThemeMode(themeMode: ThemeMode) {

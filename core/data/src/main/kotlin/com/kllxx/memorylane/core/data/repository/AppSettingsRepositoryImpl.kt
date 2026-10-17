@@ -14,7 +14,8 @@ internal class AppSettingsRepositoryImpl @Inject constructor(
 
     override fun getSettings(): Flow<AppSettings> = dataStore.settings
 
-    override suspend fun setOnboardingCompleted() = dataStore.setOnboardingCompleted()
+    override suspend fun setOnboardingCompleted(completed: Boolean) =
+        dataStore.setOnboardingCompleted(completed)
 
     override suspend fun setThemeMode(themeMode: ThemeMode) = dataStore.setThemeMode(themeMode)
 

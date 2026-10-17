@@ -51,8 +51,10 @@ class AppSettingsDataStoreTest {
     fun `setOnboardingCompleted updates the flow`() = runTest {
         store.settings.test {
             assertEquals(false, awaitItem().onboardingCompleted)
-            store.setOnboardingCompleted()
+            store.setOnboardingCompleted(true)
             assertEquals(true, awaitItem().onboardingCompleted)
+            store.setOnboardingCompleted(false)
+            assertEquals(false, awaitItem().onboardingCompleted)
             cancelAndIgnoreRemainingEvents()
         }
     }

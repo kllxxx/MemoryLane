@@ -32,17 +32,17 @@ class AppSettingsRepositoryImplTest {
 
     @Test
     fun `setters delegate to the data store`() = runTest {
-        coEvery { dataStore.setOnboardingCompleted() } returns Unit
+        coEvery { dataStore.setOnboardingCompleted(any()) } returns Unit
         coEvery { dataStore.setThemeMode(any()) } returns Unit
         coEvery { dataStore.setNotificationsEnabled(any()) } returns Unit
         coEvery { dataStore.setStreakGoal(any()) } returns Unit
 
-        repository.setOnboardingCompleted()
+        repository.setOnboardingCompleted(true)
         repository.setThemeMode(ThemeMode.System)
         repository.setNotificationsEnabled(false)
         repository.setStreakGoal(StreakGoal.MONTH)
 
-        coVerify(exactly = 1) { dataStore.setOnboardingCompleted() }
+        coVerify(exactly = 1) { dataStore.setOnboardingCompleted(true) }
         coVerify(exactly = 1) { dataStore.setThemeMode(ThemeMode.System) }
         coVerify(exactly = 1) { dataStore.setNotificationsEnabled(false) }
         coVerify(exactly = 1) { dataStore.setStreakGoal(StreakGoal.MONTH) }
