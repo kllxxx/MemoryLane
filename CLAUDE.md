@@ -32,10 +32,10 @@ All processing is local — no network, no cloud, no uploads.
 :feature:onboarding:impl      — onboarding screens
 :feature:swipe:api          — swipe/timeline/review routes and contracts
 :feature:swipe:impl         — ViewModel, Composables, MVI implementation
-:feature:achievements:api
-:feature:achievements:impl
-:feature:profile:api
-:feature:profile:impl
+:feature:achievements:api  — achievements route
+:feature:achievements:impl — streak, freed space stats, MVI
+:feature:profile:api       — profile route
+:feature:profile:impl      — theme, notifications, streak goal settings, MVI
 :core:photos:domain         — repository interfaces, photo domain models
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
@@ -64,11 +64,11 @@ Intent → ViewModel → State → UI
 
 **Photo deletion flow:**
 
-1. Swipe left → photo ID written to Room as `PendingDelete`
-2. User taps "Delete X photos" on Review screen
-3. All photos swiped → navigate to Review screen
+1. Swipe left → photo ID written to Room as PendingDelete
+2. Swipe right → photo kept, PendingDelete removed if existed
+3. All photos swiped → navigate to Review screen (if nothing pending → navigate to Timeline)
 4. Review screen shows: kept count, marked for deletion count
-5. User taps "Delete X photos" → Single MediaStore.createDeleteRequest() system dialog
+5. User taps "Delete X photos" → single MediaStore.createDeleteRequest() system dialog
 6. On confirmation → animate freed space counter → navigate to Timeline
 
 **Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:core:ui`.
@@ -80,13 +80,21 @@ Intent → ViewModel → State → UI
 **Branch naming:**
 
 ```
-feat/MMLN-0-initial-setup
-feat/MMLN-1-tinder-card-animation
-fix/MMLN-2-read-permission
-chore/MMLN-3-setup-modules
+feat/MMLN-0: initial-setup
+feat/MMLN-1: tinder-card-animation
+fix/MMLN-2: read-permission
+chore: setup-modules
 ```
 
-Ticket numbers start from 0 and increment by 1.
+Each prefix has its own independent counter:
+- feat/MMLN-XX — feature commits, own sequence
+- fix/MMLN-XX — bug fix commits, own sequence
+- refactor/MMLN-XX — refactor commits, own sequence
+- chore, test, docs — no ticket number
+
+Current counters (update as you go):
+- feat: last used MMLN-16
+- refactor: last used MMLN-02
 
 **Commit format (Conventional Commits):**
 
@@ -156,20 +164,6 @@ Font license: `core/ui/OFL-Nunito.txt`
 - Changing Room schema (migration required)
 - Any change to :lib:lazycardstack (vendored code)
 - Anything touching AndroidManifest.xml permissions
-
-**Module status:** *(update as modules are implemented)*
-
-- [ ] :app
-- [ ] :feature:onboarding
-- [ ] :feature:swipe
-- [ ] :feature:achievements
-- [ ] :feature:profile
-- [✅] :core:photos (domain + data)
-- [✅] :core:ui
-- [✅] :core:domain
-- [✅] :core:data
-- [✅] :lib:lazycardstack
-- [✅] :build-logic
 
 ## Testing
 
