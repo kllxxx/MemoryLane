@@ -106,7 +106,7 @@ feat/MMLN-01: add green/red overlay on card drag
 fix/MMLN-02: handle missing READ_MEDIA_IMAGES permission
 refactor/MMLN-03: extract photo repository interface
 chore: add Room and Hilt dependencies
-test/MMLN-01: add ViewModel unit tests
+test: add ViewModel unit tests
 docs: update CLAUDE.md with new module
 ```
 
