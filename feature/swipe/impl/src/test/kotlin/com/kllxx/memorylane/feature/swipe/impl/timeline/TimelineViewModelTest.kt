@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import java.time.Clock
 import java.time.LocalDate
@@ -35,10 +36,13 @@ class TimelineViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         repository = mockk()
+        every { repository.hasMediaPermission() } returns false
         coEvery { repository.getFirstPhotoForDate(any()) } returns null
         coEvery { repository.getPhotosForDate(any()) } returns emptyList()
-        viewModel = TimelineViewModel(repository, clock)
+        viewModel = createViewModel()
     }
+
+    private fun createViewModel() = TimelineViewModel(repository, clock)
 
     @After
     fun tearDown() {
@@ -108,5 +112,42 @@ class TimelineViewModelTest {
 
         assertEquals("boom", viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `LoadDays without permission does not start loading`() = runTest(dispatcher) {
+        viewModel.onIntent(TimelineIntent.LoadDays)
+        advanceUntilIdle()
+        assertFalse(viewModel.state.value.isLoading)
+        assertFalse(viewModel.state.value.hasPermission)
+    }
+
+    @Test
+    fun `a granted permission at creation loads the year without any intent`() = runTest(dispatcher) {
+        every { repository.hasMediaPermission() } returns true
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state.hasPermission)
+        assertFalse(state.isLoading)
+        assertEquals(365, state.days.size)
+        coVerify(exactly = 1) { repository.getPhotosForDate(LocalDate.of(2026, 10, 1)) }
+    }
+
+    @Test
+    fun `a missing permission at creation loads nothing and shows no spinner`() = runTest(dispatcher) {
+        advanceUntilIdle()
+        assertFalse(viewModel.state.value.hasPermission)
+        assertFalse(viewModel.state.value.isLoading)
+        coVerify(exactly = 0) { repository.getPhotosForDate(any()) }
+    }
+
+    @Test
+    fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
+        viewModel.onIntent(TimelineIntent.RequestPermission)
+        viewModel.effects.test {
+            assertEquals(TimelineEffect.RequestPermissionLauncher, awaitItem())
+        }
     }
 }

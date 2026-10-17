@@ -9,18 +9,19 @@ object ReviewReducer {
         ReviewIntent.LoadStats -> state
         ReviewIntent.ConfirmDelete ->
             if (state.isDeleting || state.isFinished) state else state.copy(isDeleting = true)
-        is ReviewIntent.DeleteResult ->
-            if (intent.success) {
+        ReviewIntent.SystemDeleteConfirmed ->
+            // Counted once: a repeated confirmation must not add the freed bytes again
+            if (state.isFinished) {
+                state
+            } else {
                 state.copy(
                     pendingDeleteIds = persistentListOf(),
-                    sessionFreedBytes = intent.freedBytes,
-                    totalFreedBytes = state.totalFreedBytes + intent.freedBytes,
+                    totalFreedBytes = state.totalFreedBytes + state.sessionFreedBytes,
                     isDeleting = false,
                     isFinished = true,
                 )
-            } else {
-                state.copy(isDeleting = false)
             }
+        ReviewIntent.SystemDeleteCancelled -> state.copy(isDeleting = false)
     }
 
     internal fun reduce(state: ReviewState, event: ReviewEvent): ReviewState = when (event) {

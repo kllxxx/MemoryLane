@@ -8,12 +8,12 @@ import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -26,10 +26,15 @@ class TimelineViewModel @Inject constructor(
     private val _state = MutableStateFlow(TimelineState())
     val state: StateFlow<TimelineState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<TimelineEffect>(extraBufferCapacity = 8)
-    val effects: SharedFlow<TimelineEffect> = _effects.asSharedFlow()
+    private val _effects = Channel<TimelineEffect>(Channel.BUFFERED)
+    val effects: Flow<TimelineEffect> = _effects.receiveAsFlow()
 
     private val loadedDates = mutableSetOf<LocalDate>()
+
+    init {
+        // The real permission state decides whether to load, so a revoked permission never leaves a spinner
+        onIntent(TimelineIntent.PermissionResult(photoRepository.hasMediaPermission()))
+    }
 
     fun onIntent(intent: TimelineIntent) {
         _state.update { TimelineReducer.reduce(it, intent) }
@@ -39,9 +44,9 @@ class TimelineViewModel @Inject constructor(
             is TimelineIntent.LoadRange ->
                 if (_state.value.hasPermission) loadRange(intent.from, intent.to.plusDays(BUFFER_DAYS))
             TimelineIntent.RequestPermission ->
-                _effects.tryEmit(TimelineEffect.RequestPermissionLauncher)
+                _effects.trySend(TimelineEffect.RequestPermissionLauncher)
             is TimelineIntent.PermissionResult -> if (intent.granted) onIntent(TimelineIntent.LoadDays)
-            is TimelineIntent.OpenDay -> _effects.tryEmit(TimelineEffect.NavigateToSwipe(intent.date))
+            is TimelineIntent.OpenDay -> _effects.trySend(TimelineEffect.NavigateToSwipe(intent.date))
         }
     }
 

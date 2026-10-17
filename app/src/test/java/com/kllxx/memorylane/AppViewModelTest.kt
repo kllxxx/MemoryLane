@@ -1,5 +1,6 @@
 package com.kllxx.memorylane
 
+import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -11,6 +12,8 @@ import com.kllxx.memorylane.navigation.StartDestination
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,10 +44,18 @@ class AppViewModelTest {
     }
 
     @Before
-    fun setUp() = Dispatchers.setMain(StandardTestDispatcher())
+    fun setUp() {
+        Dispatchers.setMain(StandardTestDispatcher())
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
+    }
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        unmockkStatic(Log::class)
+        Dispatchers.resetMain()
+    }
 
     private fun givenState(
         onboardingCompleted: Boolean,
@@ -126,6 +137,13 @@ class AppViewModelTest {
     fun `onboarding not completed starts at onboarding even without media permission`() = runTest {
         every { photoRepository.hasMediaPermission() } returns false
         givenState(onboardingCompleted = false, lastSessionDate = null)
+        assertResolvesTo(StartDestination.Onboarding)
+    }
+
+    @Test
+    fun `a failure while resolving falls back to onboarding instead of hanging`() = runTest {
+        every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = true))
+        coEvery { swipeRepository.getLastSession() } throws IllegalStateException("db closed")
         assertResolvesTo(StartDestination.Onboarding)
     }
 }

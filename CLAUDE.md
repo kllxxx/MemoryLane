@@ -60,7 +60,7 @@ Intent → ViewModel → State → UI
 - `Intent` — user actions (SwipeLeft, SwipeRight, ConfirmDelete)
 - `ViewModel` — processes intents, emits new State via StateFlow
 - `State` — single immutable data class, UI renders from it
-- Side effects (navigation, system dialogs) — emitted via SharedFlow as `Effect`
+- Side effects (navigation, system dialogs) — sent via `Channel<Effect>(Channel.BUFFERED)` and exposed with `receiveAsFlow()` as `Effect`
 
 **Photo deletion flow:**
 
@@ -94,7 +94,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-16
-- fix: last used MMLN-01
+- fix: last used MMLN-02
 - refactor: last used MMLN-02
 
 **Commit format (Conventional Commits):**
@@ -154,7 +154,7 @@ Font license: `core/ui/OFL-Nunito.txt`
 
 - One ViewModel per screen
 - State is a single immutable data class; never mutate it directly
-- All side effects (navigation, system dialogs, toasts) go through `Effect` SharedFlow
+- All side effects (navigation, system dialogs, toasts) go through the `Effect` Channel (`receiveAsFlow()`)
 - No business logic in Composables — only UI
 - Repository interfaces live in `:core:domain`, implementations in `:core:data`
 - `:core:photos:data` is the only module allowed to touch MediaStore
@@ -175,7 +175,7 @@ Font license: `core/ui/OFL-Nunito.txt`
 - All mapper functions
 
 **Flow tests (Turbine) — mandatory for:**
-- Any StateFlow or SharedFlow emitted by ViewModel
+- Any StateFlow or effect Flow emitted by ViewModel
 - Repository methods returning Flow
 
 **Compose UI tests — required for key user scenarios:**

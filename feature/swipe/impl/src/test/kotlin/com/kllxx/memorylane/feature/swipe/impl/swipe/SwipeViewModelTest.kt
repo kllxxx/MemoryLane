@@ -1,7 +1,10 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
+import androidx.navigation.toRoute
+import com.kllxx.memorylane.feature.swipe.impl.SAVED_STATE_HANDLE_EXTENSIONS
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -9,10 +12,13 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,6 +52,10 @@ class SwipeViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        mockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
+        every { Log.e(any(), any(), any()) } returns 0
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns photos
@@ -56,12 +66,15 @@ class SwipeViewModelTest {
     // The ViewModel starts loading as soon as it is created, so tests stub the repositories first
     private fun createViewModel() {
         val savedStateHandle = mockk<SavedStateHandle>()
-        every { savedStateHandle.get<String>("date") } returns date.toString()
+        // toRoute() builds a Bundle, which does not exist in plain JVM tests
+        every { savedStateHandle.toRoute(SwipeRoute::class, any()) } returns SwipeRoute(date.toString())
         viewModel = SwipeViewModel(photoRepository, swipeRepository, savedStateHandle)
     }
 
     @After
     fun tearDown() {
+        unmockkStatic(Log::class)
+        unmockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
         Dispatchers.resetMain()
     }
 
@@ -154,6 +167,38 @@ class SwipeViewModelTest {
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
         }
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `a failing pending delete write does not stop swiping`() = runTest(dispatcher) {
+        coEvery { swipeRepository.savePendingDelete(any()) } throws IllegalStateException("disk full")
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.currentIndex)
+        assertEquals(listOf(1L), viewModel.state.value.pendingDeletes)
+    }
+
+    @Test
+    fun `a failing session write still navigates once everything is swiped`() = runTest(dispatcher) {
+        coEvery { swipeRepository.saveSession(any()) } throws IllegalStateException("disk full")
+        load()
+        viewModel.effects.test {
+            viewModel.onIntent(SwipeIntent.SwipeLeft)
+            viewModel.onIntent(SwipeIntent.SwipeLeft)
+            advanceUntilIdle()
+            assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
+        }
+    }
+
+    @Test
+    fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws PermissionDeniedException()
+        createViewModel()
+        advanceUntilIdle()
+        viewModel.effects.test {
+            assertEquals(SwipeEffect.PermissionRequired, awaitItem())
+        }
     }
 
     @Test

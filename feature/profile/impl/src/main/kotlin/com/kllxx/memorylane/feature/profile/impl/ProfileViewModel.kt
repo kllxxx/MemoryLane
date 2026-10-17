@@ -1,17 +1,19 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,8 +25,8 @@ class ProfileViewModel @Inject constructor(
     private val _state = MutableStateFlow(ProfileState())
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<ProfileEffect>(extraBufferCapacity = 8)
-    val effects: SharedFlow<ProfileEffect> = _effects.asSharedFlow()
+    private val _effects = Channel<ProfileEffect>(Channel.BUFFERED)
+    val effects: Flow<ProfileEffect> = _effects.receiveAsFlow()
 
     private var loadJob: Job? = null
 
@@ -34,14 +36,33 @@ class ProfileViewModel @Inject constructor(
         when (intent) {
             ProfileIntent.Load -> load()
             is ProfileIntent.SetTheme ->
-                viewModelScope.launch { appSettingsRepository.setThemeMode(intent.mode) }
+                launchCatching("theme") { appSettingsRepository.setThemeMode(intent.mode) }
             is ProfileIntent.SetNotifications ->
-                viewModelScope.launch { appSettingsRepository.setNotificationsEnabled(intent.enabled) }
+                launchCatching("notifications") { appSettingsRepository.setNotificationsEnabled(intent.enabled) }
             is ProfileIntent.SetStreakGoal ->
-                viewModelScope.launch { appSettingsRepository.setStreakGoal(intent.goal) }
+                launchCatching("streak goal") { appSettingsRepository.setStreakGoal(intent.goal) }
             ProfileIntent.RepeatOnboarding -> viewModelScope.launch {
-                appSettingsRepository.setOnboardingCompleted(false)
-                _effects.emit(ProfileEffect.NavigateToOnboarding)
+                // The flow starts over either way; a failed write only means the flag keeps its old value
+                try {
+                    appSettingsRepository.setOnboardingCompleted(false)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Could not reset the onboarding flag", e)
+                }
+                _effects.trySend(ProfileEffect.NavigateToOnboarding)
+            }
+        }
+    }
+
+    private fun launchCatching(setting: String, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not store the $setting setting", e)
             }
         }
     }
@@ -62,5 +83,9 @@ class ProfileViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "ProfileViewModel"
     }
 }

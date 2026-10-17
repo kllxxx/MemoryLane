@@ -5,7 +5,8 @@ import kotlinx.collections.immutable.toImmutableList
 object TimelineReducer {
 
     fun reduce(state: TimelineState, intent: TimelineIntent): TimelineState = when (intent) {
-        TimelineIntent.LoadDays -> state.copy(isLoading = true, error = null)
+        // Without permission nothing is loaded, so nothing would ever clear the spinner
+        TimelineIntent.LoadDays -> state.copy(isLoading = state.hasPermission, error = null)
         is TimelineIntent.LoadRange,
         TimelineIntent.RequestPermission,
         is TimelineIntent.OpenDay -> state

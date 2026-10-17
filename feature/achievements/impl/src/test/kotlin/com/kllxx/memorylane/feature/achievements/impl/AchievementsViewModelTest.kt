@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
+import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -10,6 +11,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +41,9 @@ class AchievementsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
         swipeRepository = mockk()
         appSettingsRepository = mockk()
         settings = MutableStateFlow(AppSettings())
@@ -46,7 +52,10 @@ class AchievementsViewModelTest {
     }
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        unmockkStatic(Log::class)
+        Dispatchers.resetMain()
+    }
 
     private fun viewModel(sessions: List<SwipeSession>): AchievementsViewModel {
         every { swipeRepository.getCompletedSessions() } returns flowOf(sessions)
@@ -122,5 +131,14 @@ class AchievementsViewModelTest {
             advanceUntilIdle()
             expectNoEvents()
         }
+    }
+
+    @Test
+    fun `a failing goal write does not crash and keeps the new goal in state`() = runTest(dispatcher) {
+        coEvery { appSettingsRepository.setStreakGoal(any()) } throws IllegalStateException("disk full")
+        val vm = viewModel(emptyList())
+        vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
+        advanceUntilIdle()
+        assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
     }
 }

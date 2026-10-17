@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -10,6 +11,8 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +39,9 @@ class ProfileViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
         settings = MutableStateFlow(AppSettings())
         repository = mockk()
         every { repository.getSettings() } returns settings
@@ -47,7 +53,10 @@ class ProfileViewModelTest {
     }
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        unmockkStatic(Log::class)
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `Load sets loading then applies stored settings`() = runTest(dispatcher) {
@@ -126,6 +135,24 @@ class ProfileViewModelTest {
             viewModel.onIntent(ProfileIntent.SetTheme(ThemeMode.Light))
             advanceUntilIdle()
             expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a failing settings write does not crash and keeps the new value in state`() = runTest(dispatcher) {
+        coEvery { repository.setThemeMode(any()) } throws IllegalStateException("disk full")
+        viewModel.onIntent(ProfileIntent.SetTheme(ThemeMode.Light))
+        advanceUntilIdle()
+        assertEquals(ThemeMode.Light, viewModel.state.value.themeMode)
+    }
+
+    @Test
+    fun `RepeatOnboarding navigates even when resetting the flag fails`() = runTest(dispatcher) {
+        coEvery { repository.setOnboardingCompleted(false) } throws IllegalStateException("disk full")
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.RepeatOnboarding)
+            advanceUntilIdle()
+            assertEquals(ProfileEffect.NavigateToOnboarding, awaitItem())
         }
     }
 }

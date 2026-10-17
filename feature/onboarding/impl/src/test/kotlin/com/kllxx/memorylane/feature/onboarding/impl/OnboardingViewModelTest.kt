@@ -1,9 +1,14 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
+import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
+import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -28,12 +33,16 @@ class OnboardingViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // android.util.Log is not available in plain JVM tests
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
         repository = mockk(relaxed = true)
         viewModel = OnboardingViewModel(repository)
     }
 
     @After
     fun tearDown() {
+        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
@@ -117,5 +126,23 @@ class OnboardingViewModelTest {
         viewModel.onIntent(OnboardingIntent.PermissionResult(false))
         viewModel.onIntent(OnboardingIntent.DismissRationale)
         assertFalse(viewModel.state.value.showPermissionRationale)
+    }
+
+    @Test
+    fun `a failing flag write still lets the user move on`() = runTest(dispatcher) {
+        coEvery { repository.setOnboardingCompleted(true) } throws IllegalStateException("disk full")
+        viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.Skip)
+            advanceUntilIdle()
+            assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
+        }
+    }
+
+    @Test
+    fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
+        viewModel.onIntent(OnboardingIntent.RequestPermissions)
+        viewModel.effects.test {
+            assertEquals(OnboardingEffect.RequestPermissionLauncher, awaitItem())
+        }
     }
 }

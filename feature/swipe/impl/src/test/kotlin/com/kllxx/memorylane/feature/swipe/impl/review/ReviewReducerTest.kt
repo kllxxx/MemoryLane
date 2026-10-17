@@ -60,11 +60,8 @@ class ReviewReducerTest {
     }
 
     @Test
-    fun `DeleteResult success finishes and adds freed bytes to the total`() {
-        val result = reduce(
-            loaded.copy(isDeleting = true),
-            ReviewIntent.DeleteResult(success = true, freedBytes = 300),
-        )
+    fun `SystemDeleteConfirmed finishes and adds the session's freed bytes to the total`() {
+        val result = reduce(loaded.copy(isDeleting = true), ReviewIntent.SystemDeleteConfirmed)
         assertTrue(result.isFinished)
         assertFalse(result.isDeleting)
         assertTrue(result.pendingDeleteIds.isEmpty())
@@ -75,11 +72,14 @@ class ReviewReducerTest {
     }
 
     @Test
-    fun `DeleteResult failure keeps pending deletes and totals`() {
-        val result = reduce(
-            loaded.copy(isDeleting = true),
-            ReviewIntent.DeleteResult(success = false, freedBytes = 0),
-        )
+    fun `SystemDeleteConfirmed is ignored once finished`() {
+        val finished = loaded.copy(isFinished = true, pendingDeleteIds = persistentListOf())
+        assertEquals(finished, reduce(finished, ReviewIntent.SystemDeleteConfirmed))
+    }
+
+    @Test
+    fun `SystemDeleteCancelled keeps pending deletes and totals`() {
+        val result = reduce(loaded.copy(isDeleting = true), ReviewIntent.SystemDeleteCancelled)
         assertFalse(result.isDeleting)
         assertFalse(result.isFinished)
         assertEquals(loaded.copy(isDeleting = false), result)

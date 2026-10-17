@@ -1,5 +1,6 @@
 package com.kllxx.memorylane
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.ThemeMode
@@ -8,6 +9,7 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.navigation.StartDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,19 +47,28 @@ class AppViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val settings = appSettingsRepository.getSettings().first()
-            _startDestination.value = when {
-                !settings.onboardingCompleted -> StartDestination.Onboarding
-                // Without access Swipe reports PermissionRequired, so a completed day must not hide that
-                !photoRepository.hasMediaPermission() -> StartDestination.Swipe
-                // An incomplete session (e.g. the app was killed on Review) goes back to Swipe
-                swipeRepository.getLastSession()?.takeIf { it.completed }?.date == LocalDate.now(clock) -> StartDestination.Main
-                else -> StartDestination.Swipe
+            _startDestination.value = try {
+                val settings = appSettingsRepository.getSettings().first()
+                when {
+                    !settings.onboardingCompleted -> StartDestination.Onboarding
+                    // Without access Swipe reports PermissionRequired, so a completed day must not hide that
+                    !photoRepository.hasMediaPermission() -> StartDestination.Swipe
+                    // An incomplete session (e.g. the app was killed on Review) goes back to Swipe
+                    swipeRepository.getLastSession()?.takeIf { it.completed }?.date == LocalDate.now(clock) -> StartDestination.Main
+                    else -> StartDestination.Swipe
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A start destination must always resolve, otherwise the app sits on the loading spinner
+                Log.e(TAG, "Could not resolve the start destination", e)
+                StartDestination.Onboarding
             }
         }
     }
 
     private companion object {
+        const val TAG = "AppViewModel"
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }

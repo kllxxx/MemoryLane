@@ -4,6 +4,8 @@ import android.content.IntentSender
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
+import androidx.navigation.toRoute
+import com.kllxx.memorylane.feature.swipe.impl.SAVED_STATE_HANDLE_EXTENSIONS
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -11,12 +13,14 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,6 +60,7 @@ class ReviewViewModelTest {
         Dispatchers.setMain(dispatcher)
         // android.util.Log is not available in plain JVM tests
         mockkStatic(Log::class)
+        mockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
         every { Log.e(any(), any(), any()) } returns 0
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
@@ -69,14 +74,16 @@ class ReviewViewModelTest {
             listOf(SwipeSession(date, true, 0), SwipeSession(otherDate, true, 1_000)),
         )
         val savedStateHandle = mockk<SavedStateHandle>()
-        every { savedStateHandle.get<String>("date") } returns date.toString()
-        every { savedStateHandle.get<Int>("totalPhotosCount") } returns photos.size
+        // toRoute() builds a Bundle, which does not exist in plain JVM tests
+        every { savedStateHandle.toRoute(ReviewRoute::class, any()) } returns
+            ReviewRoute(date.toString(), photos.size)
         viewModel = ReviewViewModel(swipeRepository, photoRepository, savedStateHandle)
     }
 
     @After
     fun tearDown() {
         unmockkStatic(Log::class)
+        unmockkStatic(SAVED_STATE_HANDLE_EXTENSIONS)
         Dispatchers.resetMain()
     }
 
@@ -208,7 +215,7 @@ class ReviewViewModelTest {
         loadStats()
 
         viewModel.effects.test {
-            viewModel.onIntent(ReviewIntent.DeleteResult(success = true, freedBytes = 500))
+            viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
             advanceUntilIdle()
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
             assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
@@ -222,7 +229,7 @@ class ReviewViewModelTest {
         loadStats()
 
         viewModel.effects.test {
-            viewModel.onIntent(ReviewIntent.DeleteResult(success = false, freedBytes = 0))
+            viewModel.onIntent(ReviewIntent.SystemDeleteCancelled)
             advanceUntilIdle()
             expectNoEvents()
         }
@@ -230,17 +237,45 @@ class ReviewViewModelTest {
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 
-    @Test
-    fun `SecurityException during delete is reported as a failure`() = runTest(dispatcher) {
-        coEvery { photoRepository.deletePhotos(any()) } throws SecurityException("nope")
+    private suspend fun TestScope.assertDeleteFailureIsReported(error: Exception) {
+        coEvery { photoRepository.deletePhotos(any()) } throws error
         loadStats()
 
-        viewModel.onIntent(ReviewIntent.ConfirmDelete)
+        viewModel.effects.test {
+            viewModel.onIntent(ReviewIntent.ConfirmDelete)
+            advanceUntilIdle()
+            assertEquals(ReviewEffect.ShowDeleteError, awaitItem())
+            expectNoEvents()
+        }
+        assertFalse(viewModel.state.value.isDeleting)
+        assertFalse(viewModel.state.value.isFinished)
+        assertEquals(listOf(1L, 3L), viewModel.state.value.pendingDeleteIds)
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+        coVerify(exactly = 0) { swipeRepository.clearPendingDeletesByDate(any()) }
+    }
+
+    @Test
+    fun `SecurityException during delete is reported as an error`() =
+        runTest(dispatcher) { assertDeleteFailureIsReported(SecurityException("nope")) }
+
+    @Test
+    fun `IllegalArgumentException during delete is reported as an error`() =
+        runTest(dispatcher) { assertDeleteFailureIsReported(IllegalArgumentException("gone")) }
+
+    @Test
+    fun `IOException during delete is reported as an error`() =
+        runTest(dispatcher) { assertDeleteFailureIsReported(IOException("io")) }
+
+    @Test
+    fun `confirming the delete twice records the session once`() = runTest(dispatcher) {
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
         advanceUntilIdle()
 
-        assertFalse(viewModel.state.value.isDeleting)
-        assertEquals(listOf(1L, 3L), viewModel.state.value.pendingDeleteIds)
-        coVerify(exactly = 0) { swipeRepository.clearPendingDeletesByDate(any()) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+        assertEquals(1_500, viewModel.state.value.totalFreedBytes)
     }
 
     @Test

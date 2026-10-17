@@ -4,6 +4,9 @@ sealed interface ReviewIntent {
     data object LoadStats : ReviewIntent
     data object ConfirmDelete : ReviewIntent
 
-    /** Sent after the system delete dialog closes. [freedBytes] is what the delete freed. */
-    data class DeleteResult(val success: Boolean, val freedBytes: Long) : ReviewIntent
+    /** Sent when the photos are really gone: after the system delete dialog is confirmed, or after a direct delete. */
+    data object SystemDeleteConfirmed : ReviewIntent
+
+    /** Sent when the system delete dialog is dismissed or the delete failed. Nothing was deleted. */
+    data object SystemDeleteCancelled : ReviewIntent
 }
