@@ -23,9 +23,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MemoryLaneTheme {
+            val viewModel: AppViewModel = hiltViewModel()
+            val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+
+            MemoryLaneTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val viewModel: AppViewModel = hiltViewModel()
                     val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
 
                     when (val start = startDestination) {

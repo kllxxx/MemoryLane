@@ -3,6 +3,7 @@ package com.kllxx.memorylane
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.navigation.StartDestination
@@ -11,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -57,6 +59,24 @@ class AppViewModelTest {
         viewModel().startDestination.test {
             assertNull(awaitItem())
             assertEquals(expected, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `themeMode starts with the stored value and follows later changes`() = runTest {
+        val settings = MutableStateFlow(AppSettings(themeMode = ThemeMode.Light))
+        every { appSettingsRepository.getSettings() } returns settings
+        coEvery { swipeRepository.getLastSession() } returns null
+
+        val viewModel = viewModel()
+        // Available immediately, before any coroutine has been dispatched
+        assertEquals(ThemeMode.Light, viewModel.themeMode.value)
+
+        viewModel.themeMode.test {
+            assertEquals(ThemeMode.Light, awaitItem())
+            settings.value = AppSettings(themeMode = ThemeMode.System)
+            assertEquals(ThemeMode.System, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
     }

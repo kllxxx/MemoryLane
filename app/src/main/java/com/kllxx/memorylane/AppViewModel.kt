@@ -2,14 +2,20 @@ package com.kllxx.memorylane
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.navigation.StartDestination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
@@ -25,6 +31,16 @@ class AppViewModel @Inject constructor(
     private val _startDestination = MutableStateFlow<StartDestination?>(null)
     val startDestination: StateFlow<StartDestination?> = _startDestination.asStateFlow()
 
+    // Read synchronously so the very first frame already uses the stored theme (no dark -> light flicker)
+    private val initialThemeMode: ThemeMode = runBlocking {
+        appSettingsRepository.getSettings().first().themeMode
+    }
+
+    val themeMode: StateFlow<ThemeMode> = appSettingsRepository.getSettings()
+        .map { it.themeMode }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), initialThemeMode)
+
     init {
         viewModelScope.launch {
             val settings = appSettingsRepository.getSettings().first()
@@ -35,5 +51,9 @@ class AppViewModel @Inject constructor(
                 else -> StartDestination.Swipe
             }
         }
+    }
+
+    private companion object {
+        const val STOP_TIMEOUT_MS = 5_000L
     }
 }
