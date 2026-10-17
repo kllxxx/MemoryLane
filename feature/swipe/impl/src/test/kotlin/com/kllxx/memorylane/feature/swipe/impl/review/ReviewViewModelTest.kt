@@ -15,7 +15,9 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -42,6 +44,9 @@ class ReviewViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val date = LocalDate.of(2026, 10, 15)
     private val otherDate = LocalDate.of(2026, 3, 3)
+    private val today = LocalDate.of(2026, 10, 20)
+    private val earlier = LocalDate.of(2026, 10, 16)
+    private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private val uri = mockk<Uri>(relaxed = true)
     private val photos = listOf(
         Photo(1, uri, LocalDate.of(2024, 10, 15), sizeBytes = 100),
@@ -64,10 +69,10 @@ class ReviewViewModelTest {
             PendingDelete(99, otherDate),
         )
         every { swipeRepository.getCompletedSessions() } returns flowOf(
-            listOf(SwipeSession(date, true, 0), SwipeSession(otherDate, true, 1_000)),
+            listOf(SwipeSession(date, true, 0, earlier), SwipeSession(otherDate, true, 1_000, earlier)),
         )
         val savedStateHandle = SavedStateHandle(mapOf("date" to date.toString(), "totalPhotosCount" to photos.size))
-        viewModel = ReviewViewModel(swipeRepository, photoRepository, savedStateHandle)
+        viewModel = ReviewViewModel(swipeRepository, photoRepository, clock, savedStateHandle)
     }
 
     @After
@@ -144,7 +149,7 @@ class ReviewViewModelTest {
             assertTrue(state.isFinished)
             assertFalse(state.isDeleting)
             assertEquals(1_500, state.totalFreedBytes)
-            coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+            coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
             coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
             coVerify(exactly = 0) { swipeRepository.clearPendingDeletes() }
         }
@@ -179,7 +184,29 @@ class ReviewViewModelTest {
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
             assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
+    }
+
+    @Test
+    fun `a day sorted again adds to the bytes it freed before`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 250, earlier)))
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 750, earlier)) }
+    }
+
+    @Test
+    fun `a day completed for the first time is completed today`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(otherDate, true, 1_000, earlier)))
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, today)) }
     }
 
     @Test
@@ -208,7 +235,7 @@ class ReviewViewModelTest {
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
             assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
         coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
     }
 
@@ -262,7 +289,7 @@ class ReviewViewModelTest {
         viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
         assertEquals(1_500, viewModel.state.value.totalFreedBytes)
     }
 

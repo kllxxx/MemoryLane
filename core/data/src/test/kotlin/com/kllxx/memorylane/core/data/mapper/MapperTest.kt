@@ -17,7 +17,7 @@ class MapperTest {
 
     @Test
     fun swipeSessionRoundTrip() {
-        val domain = SwipeSession(date = date, completed = true, savedBytes = 1_024L)
+        val domain = SwipeSession(date = date, completed = true, savedBytes = 1_024L, completedAt = date.plusDays(2))
         assertEquals(domain, domain.toEntity().toDomain())
     }
 }

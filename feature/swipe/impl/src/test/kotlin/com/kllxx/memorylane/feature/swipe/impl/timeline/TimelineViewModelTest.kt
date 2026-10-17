@@ -1,6 +1,8 @@
 package com.kllxx.memorylane.feature.swipe.impl.timeline
 
+import android.net.Uri
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -149,5 +151,43 @@ class TimelineViewModelTest {
         viewModel.effects.test {
             assertEquals(TimelineEffect.RequestPermissionLauncher, awaitItem())
         }
+    }
+
+    @Test
+    fun `OpenDay ignores a day in the future and opens today`() = runTest(dispatcher) {
+        viewModel.effects.test {
+            viewModel.onIntent(TimelineIntent.OpenDay(today.plusDays(1)))
+            expectNoEvents()
+            viewModel.onIntent(TimelineIntent.OpenDay(today))
+            assertEquals(TimelineEffect.NavigateToSwipe(today), awaitItem())
+            viewModel.onIntent(TimelineIntent.OpenDay(today.minusDays(30)))
+            assertEquals(TimelineEffect.NavigateToSwipe(today.minusDays(30)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `RefreshDay reloads only that day`() = runTest(dispatcher) {
+        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        advanceUntilIdle()
+        val day = LocalDate.of(2026, 10, 5)
+        val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2025, 10, 5), sizeBytes = 10)
+        coEvery { repository.getFirstPhotoForDate(day) } returns photo
+        coEvery { repository.getPhotosForDate(day) } returns listOf(photo)
+
+        viewModel.onIntent(TimelineIntent.RefreshDay(day))
+        advanceUntilIdle()
+
+        val item = viewModel.state.value.days.first { it.date == day }
+        assertEquals(1, item.totalCount)
+        assertEquals(photo, item.firstPhoto)
+        coVerify(exactly = 2) { repository.getPhotosForDate(day) }
+        coVerify(exactly = 1) { repository.getPhotosForDate(day.plusDays(1)) }
+    }
+
+    @Test
+    fun `RefreshDay without permission does nothing`() = runTest(dispatcher) {
+        viewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.of(2026, 10, 5)))
+        advanceUntilIdle()
+        coVerify(exactly = 0) { repository.getPhotosForDate(any()) }
     }
 }

@@ -53,6 +53,10 @@ class AchievementsViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** A session that was completed on [completedAt], about a different day: only completedAt matters for streaks. */
+    private fun session(completedAt: LocalDate, completed: Boolean, savedBytes: Long) =
+        SwipeSession(date = completedAt.minusYears(1), completed = completed, savedBytes = savedBytes, completedAt = completedAt)
+
     private fun viewModel(sessions: List<SwipeSession>): AchievementsViewModel {
         every { swipeRepository.getCompletedSessions() } returns flowOf(sessions)
         return AchievementsViewModel(swipeRepository, appSettingsRepository)
@@ -62,12 +66,12 @@ class AchievementsViewModelTest {
     fun `Load computes streaks and totals from completed sessions`() = runTest(dispatcher) {
         val vm = viewModel(
             listOf(
-                SwipeSession(today, true, 100),
-                SwipeSession(today.minusDays(1), true, 200),
-                SwipeSession(today.minusDays(5), true, 300),
-                SwipeSession(today.minusDays(6), true, 400),
-                SwipeSession(today.minusDays(7), true, 500),
-                SwipeSession(today.minusDays(2), false, 9_999),
+                session(today, true, 100),
+                session(today.minusDays(1), true, 200),
+                session(today.minusDays(5), true, 300),
+                session(today.minusDays(6), true, 400),
+                session(today.minusDays(7), true, 500),
+                session(today.minusDays(2), false, 9_999),
             ),
         )
 
@@ -96,7 +100,7 @@ class AchievementsViewModelTest {
     @Test
     fun `Load picks up the stored streak goal`() = runTest(dispatcher) {
         settings.value = AppSettings(streakGoal = StreakGoal.MONTH)
-        val vm = viewModel(listOf(SwipeSession(today, true, 1)))
+        val vm = viewModel(listOf(session(today, true, 1)))
 
         vm.onIntent(AchievementsIntent.Load)
         advanceUntilIdle()
@@ -107,7 +111,7 @@ class AchievementsViewModelTest {
 
     @Test
     fun `SetStreakGoal persists the goal and updates state`() = runTest(dispatcher) {
-        val vm = viewModel(listOf(SwipeSession(today, true, 1)))
+        val vm = viewModel(listOf(session(today, true, 1)))
         vm.onIntent(AchievementsIntent.Load)
         advanceUntilIdle()
 
@@ -136,5 +140,43 @@ class AchievementsViewModelTest {
         vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
         advanceUntilIdle()
         assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
+    }
+
+    @Test
+    fun `sorting several days in one sitting is a streak of one`() = runTest(dispatcher) {
+        // Three different days sorted today: the days they are about must not count
+        val vm = viewModel(
+            listOf(
+                SwipeSession(today.minusDays(3), true, 10, completedAt = today),
+                SwipeSession(today.minusDays(2), true, 10, completedAt = today),
+                SwipeSession(today.minusDays(1), true, 10, completedAt = today),
+            ),
+        )
+
+        vm.onIntent(AchievementsIntent.Load)
+        advanceUntilIdle()
+
+        assertEquals(1, vm.state.value.currentStreak)
+        assertEquals(1, vm.state.value.bestStreak)
+        assertEquals(3, vm.state.value.totalSortedDays)
+    }
+
+    @Test
+    fun `sessions from before completion days were tracked do not count towards streaks`() = runTest(dispatcher) {
+        val vm = viewModel(
+            listOf(
+                SwipeSession(today.minusDays(9), true, 700, completedAt = LocalDate.EPOCH),
+                SwipeSession(today.minusDays(8), true, 300, completedAt = LocalDate.EPOCH),
+            ),
+        )
+
+        vm.onIntent(AchievementsIntent.Load)
+        advanceUntilIdle()
+
+        assertEquals(0, vm.state.value.currentStreak)
+        assertEquals(0, vm.state.value.bestStreak)
+        // They still count as sorted days and freed space
+        assertEquals(2, vm.state.value.totalSortedDays)
+        assertEquals(1_000L, vm.state.value.totalFreedBytes)
     }
 }

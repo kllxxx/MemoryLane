@@ -10,15 +10,18 @@ interface PhotoRepository {
 
     /**
      * Photos taken on the same month/day as [date] in earlier years, oldest first.
-     * Geocoding is slow, so [Photo.location] is only resolved when [includeLocation] is true.
+     * [Photo.location] is always null here; geocoding is slow, so use [getPhotoLocation] per photo.
      *
      * @throws com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
      * if the media permission is not granted.
      */
-    suspend fun getPhotosForDate(date: LocalDate, includeLocation: Boolean = false): List<Photo>
+    suspend fun getPhotosForDate(date: LocalDate): List<Photo>
 
     /** The chronologically first photo from [getPhotosForDate], or null if there is none. */
-    suspend fun getFirstPhotoForDate(date: LocalDate, includeLocation: Boolean = false): Photo?
+    suspend fun getFirstPhotoForDate(date: LocalDate): Photo?
+
+    /** "City, Street" (or just "City") for one photo, or null when it has no usable location. Never throws. */
+    suspend fun getPhotoLocation(photoId: Long): String?
 
     suspend fun deletePhotos(photoIds: List<Long>): DeleteResult
 }

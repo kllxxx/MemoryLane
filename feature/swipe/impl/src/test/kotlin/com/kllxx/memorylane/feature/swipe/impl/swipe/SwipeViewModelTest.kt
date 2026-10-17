@@ -13,7 +13,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -37,6 +39,9 @@ class SwipeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val date = LocalDate.of(2026, 10, 15)
+    private val today = LocalDate.of(2026, 10, 20)
+    private val earlier = LocalDate.of(2026, 10, 16)
+    private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private val uri = mockk<Uri>(relaxed = true)
     private val photos = listOf(
         Photo(1, uri, LocalDate.of(2024, 10, 15), sizeBytes = 100),
@@ -51,7 +56,8 @@ class SwipeViewModelTest {
         Dispatchers.setMain(dispatcher)
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
-        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns photos
+        coEvery { photoRepository.getPhotosForDate(date) } returns photos
+        coEvery { photoRepository.getPhotoLocation(any()) } returns null
         coEvery { swipeRepository.getPendingDeletes() } returns emptyList()
         every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
     }
@@ -59,7 +65,7 @@ class SwipeViewModelTest {
     // The ViewModel starts loading as soon as it is created, so tests stub the repositories first
     private fun createViewModel() {
         val savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = SwipeViewModel(photoRepository, swipeRepository, savedStateHandle)
+        viewModel = SwipeViewModel(photoRepository, swipeRepository, clock, savedStateHandle)
     }
 
     @After
@@ -108,7 +114,7 @@ class SwipeViewModelTest {
             advanceUntilIdle()
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
 
     @Test
@@ -122,40 +128,91 @@ class SwipeViewModelTest {
             assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
         }
         // Only Review completes the session, once the photos are really deleted
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0, today)) }
     }
 
     @Test
     fun `finishing keeps the saved bytes of an already completed session`() = runTest(dispatcher) {
-        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300)))
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, earlier)))
         load()
         viewModel.onIntent(SwipeIntent.SwipeLeft)
         viewModel.onIntent(SwipeIntent.SwipeLeft)
         advanceUntilIdle()
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, earlier)) }
     }
 
     @Test
     fun `an empty day saves a completed session and goes to timeline, never to review`() = runTest(dispatcher) {
-        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } returns emptyList()
+        coEvery { photoRepository.getPhotosForDate(date) } returns emptyList()
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
             expectNoEvents()
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
 
     @Test
     fun `a failed photo load goes to timeline without recording a session`() = runTest(dispatcher) {
-        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws SecurityException("nope")
+        coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
         }
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `finishing an already completed day keeps the day it was completed on`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, earlier)))
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, earlier)) }
+    }
+
+    @Test
+    fun `the location of the first card is looked up after loading`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotoLocation(1) } returns "Paris, Rue de Rivoli"
+        load()
+        assertEquals("Paris, Rue de Rivoli", viewModel.state.value.photos[0].location)
+        assertEquals(null, viewModel.state.value.photos[1].location)
+        // Photos are never geocoded in bulk: only the card on top is requested
+        coVerify(exactly = 0) { photoRepository.getPhotoLocation(2) }
+    }
+
+    @Test
+    fun `the next card's location is looked up when it becomes current`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotoLocation(1) } returns "Paris"
+        coEvery { photoRepository.getPhotoLocation(2) } returns "Rome"
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+        assertEquals("Paris", viewModel.state.value.photos[0].location)
+        assertEquals("Rome", viewModel.state.value.photos[1].location)
+        coVerify(exactly = 1) { photoRepository.getPhotoLocation(1) }
+        coVerify(exactly = 1) { photoRepository.getPhotoLocation(2) }
+    }
+
+    @Test
+    fun `a photo without a location stays without one and is not asked again`() = runTest(dispatcher) {
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+        assertEquals(null, viewModel.state.value.photos[0].location)
+        coVerify(exactly = 1) { photoRepository.getPhotoLocation(1) }
+    }
+
+    @Test
+    fun `a failing location lookup does not stop swiping`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotoLocation(any()) } throws IllegalStateException("no network")
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+        assertEquals(1, viewModel.state.value.currentIndex)
     }
 
     @Test
@@ -182,7 +239,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
-        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws PermissionDeniedException()
+        coEvery { photoRepository.getPhotosForDate(date) } throws PermissionDeniedException()
         createViewModel()
         advanceUntilIdle()
         viewModel.effects.test {
@@ -192,7 +249,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `missing permission asks for it, records no session and does not navigate`() = runTest(dispatcher) {
-        coEvery { photoRepository.getPhotosForDate(date, includeLocation = true) } throws PermissionDeniedException()
+        coEvery { photoRepository.getPhotosForDate(date) } throws PermissionDeniedException()
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
@@ -232,7 +289,7 @@ class SwipeViewModelTest {
             advanceUntilIdle()
             assertEquals(SwipeEffect.NavigateToReview(date, totalPhotosCount = 2), awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0, today)) }
     }
 
     @Test

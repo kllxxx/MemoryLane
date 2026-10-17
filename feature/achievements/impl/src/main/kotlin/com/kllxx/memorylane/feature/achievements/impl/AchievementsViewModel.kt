@@ -68,7 +68,9 @@ class AchievementsViewModel @Inject constructor(
             viewModelScope.launch {
                 swipeRepository.getCompletedSessions().collect { sessions ->
                     val completed = sessions.filter { it.completed }
-                    val dates = completed.map { it.date }
+                    // Streaks follow the day the work was done; sessions saved before that was tracked
+                    // carry the epoch marker and have no real day to count
+                    val dates = completed.map { it.completedAt }.filter { it != LocalDate.EPOCH }
                     onEvent(
                         AchievementsEvent.StatsLoaded(
                             currentStreak = StreakCalculator.currentStreak(dates, LocalDate.now()),

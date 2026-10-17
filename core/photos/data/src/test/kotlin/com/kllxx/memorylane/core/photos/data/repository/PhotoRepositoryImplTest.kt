@@ -10,6 +10,8 @@ import android.net.Uri
 import android.provider.MediaStore
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import java.time.Instant
 import java.time.LocalDate
@@ -74,7 +76,7 @@ class PhotoRepositoryImplTest {
     private val date = LocalDate.of(2026, 10, 15)
     private val zone = ZoneId.systemDefault()
 
-    // Never reached without includeLocation, so any call to it fails the test
+    // Locations are only looked up per photo; any unexpected geocoding call fails the test
     private val geocoder = mockk<LocationGeocoder>()
     private lateinit var repository: PhotoRepositoryImpl
 
@@ -170,5 +172,88 @@ class PhotoRepositoryImplTest {
         assertEquals(date.minusYears(1), Instant.ofEpochMilli(args.first()).atZone(zone).toLocalDate())
         val startYears = args.chunked(2).map { Instant.ofEpochMilli(it.first()).atZone(zone).year }
         assertFalse(date.year in startYears)
+    }
+
+    @Test
+    fun `photos from the date queries carry no location`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(
+            mapOf(
+                MediaStore.Images.Media._ID to 1L,
+                MediaStore.Images.Media.DATE_TAKEN to date.minusYears(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                MediaStore.Images.Media.SIZE to 1L,
+            ),
+        )
+        assertNull(repository.getPhotosForDate(date).single().location)
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun coordinates(latitude: Double?, longitude: Double?) = mapOf(
+        MediaStore.Images.ImageColumns.LATITUDE to latitude,
+        MediaStore.Images.ImageColumns.LONGITUDE to longitude,
+    )
+
+    @Test
+    @Config(sdk = [28])
+    fun `getPhotoLocation geocodes the MediaStore coordinates below API 29`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        coEvery { geocoder.getLocation(48.85, 2.35) } returns "Paris, Rue de Rivoli"
+
+        assertEquals("Paris, Rue de Rivoli", repository.getPhotoLocation(7))
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `getPhotoLocation treats 0 0 as no location and does not geocode`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(0.0, 0.0))
+
+        assertNull(repository.getPhotoLocation(7))
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `getPhotoLocation is null for a photo without coordinates`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(null, null))
+
+        assertNull(repository.getPhotoLocation(7))
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `getPhotoLocation is null when the geocoder finds nothing`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        coEvery { geocoder.getLocation(any(), any()) } returns null
+
+        assertNull(repository.getPhotoLocation(7))
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `getPhotoLocation never throws`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        coEvery { geocoder.getLocation(any(), any()) } throws IllegalStateException("boom")
+
+        assertNull(repository.getPhotoLocation(7))
+    }
+
+    @Test
+    fun `getPhotoLocation without ACCESS_MEDIA_LOCATION does not read the photo or geocode`() = runTest {
+        shadowOf(application).denyPermissions(Manifest.permission.ACCESS_MEDIA_LOCATION)
+
+        assertNull(repository.getPhotoLocation(7))
+        assertEquals(0, FakeMediaProvider.queries)
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Test
+    fun `getPhotoLocation is null when the original file cannot be read`() = runTest {
+        // The fake provider has no file behind the photo, so the EXIF read fails and yields no location
+        shadowOf(application).grantPermissions(Manifest.permission.ACCESS_MEDIA_LOCATION)
+
+        assertNull(repository.getPhotoLocation(7))
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
     }
 }

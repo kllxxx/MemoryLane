@@ -51,6 +51,7 @@ class TimelineReducerTest {
     fun `RequestPermission OpenDay and LoadRange leave state unchanged`() {
         assertEquals(initial, reduce(initial, TimelineIntent.RequestPermission))
         assertEquals(initial, reduce(initial, TimelineIntent.OpenDay(d1)))
+        assertEquals(initial, reduce(initial, TimelineIntent.RefreshDay(d1)))
         assertEquals(initial, reduce(initial, TimelineIntent.LoadRange(d1, d2)))
     }
 

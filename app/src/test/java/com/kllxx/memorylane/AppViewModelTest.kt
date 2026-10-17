@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.navigation.StartDestination
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -58,13 +59,14 @@ class AppViewModelTest {
 
     private fun givenState(
         onboardingCompleted: Boolean,
-        lastSessionDate: LocalDate?,
-        sessionCompleted: Boolean = true,
+        sortedToday: Boolean = false,
     ) {
         every { appSettingsRepository.getSettings() } returns
             flowOf(AppSettings(onboardingCompleted = onboardingCompleted))
-        coEvery { swipeRepository.getLastSession() } returns
-            lastSessionDate?.let { SwipeSession(date = it, completed = sessionCompleted, savedBytes = 0L) }
+        // A day from the past that was sorted today: only completedAt decides the routing
+        coEvery { swipeRepository.getSessionByCompletedAt(today) } returns
+            if (sortedToday) SwipeSession(today.minusDays(3), completed = true, savedBytes = 0L, completedAt = today) else null
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
     }
 
     private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, photoRepository, clock)
@@ -81,7 +83,8 @@ class AppViewModelTest {
     fun `themeMode starts with the stored value and follows later changes`() = runTest {
         val settings = MutableStateFlow(AppSettings(themeMode = ThemeMode.Light))
         every { appSettingsRepository.getSettings() } returns settings
-        coEvery { swipeRepository.getLastSession() } returns null
+        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
 
         val viewModel = viewModel()
         // Available immediately, before any coroutine has been dispatched
@@ -97,52 +100,63 @@ class AppViewModelTest {
 
     @Test
     fun `onboarding not completed starts at onboarding`() = runTest {
-        givenState(onboardingCompleted = false, lastSessionDate = today)
+        givenState(onboardingCompleted = false, sortedToday = true)
         assertResolvesTo(StartDestination.Onboarding)
     }
 
     @Test
-    fun `onboarded without any session starts at swipe`() = runTest {
-        givenState(onboardingCompleted = true, lastSessionDate = null)
+    fun `onboarded with nothing sorted today starts at swipe`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = false)
         assertResolvesTo(StartDestination.Swipe)
     }
 
     @Test
-    fun `onboarded with session from a previous day starts at swipe`() = runTest {
-        givenState(onboardingCompleted = true, lastSessionDate = today.minusDays(1))
-        assertResolvesTo(StartDestination.Swipe)
-    }
-
-    @Test
-    fun `onboarded with incomplete session today starts at swipe`() = runTest {
-        givenState(onboardingCompleted = true, lastSessionDate = today, sessionCompleted = false)
-        assertResolvesTo(StartDestination.Swipe)
-    }
-
-    @Test
-    fun `onboarded with session today starts at main`()= runTest {
-        givenState(onboardingCompleted = true, lastSessionDate = today)
+    fun `onboarded with a day sorted today starts at main`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = true)
         assertResolvesTo(StartDestination.Main)
+    }
+
+    @Test
+    fun `routing asks for sessions completed today, not for the date a session is about`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = false)
+        assertResolvesTo(StartDestination.Swipe)
+        coVerify(exactly = 1) { swipeRepository.getSessionByCompletedAt(today) }
+        coVerify(exactly = 0) { swipeRepository.getLastSession() }
     }
 
     @Test
     fun `missing media permission starts at swipe even when today is completed`() = runTest {
         every { photoRepository.hasMediaPermission() } returns false
-        givenState(onboardingCompleted = true, lastSessionDate = today)
+        givenState(onboardingCompleted = true, sortedToday = true)
         assertResolvesTo(StartDestination.Swipe)
     }
 
     @Test
     fun `onboarding not completed starts at onboarding even without media permission`() = runTest {
         every { photoRepository.hasMediaPermission() } returns false
-        givenState(onboardingCompleted = false, lastSessionDate = null)
+        givenState(onboardingCompleted = false)
         assertResolvesTo(StartDestination.Onboarding)
     }
 
     @Test
     fun `a failure while resolving falls back to onboarding instead of hanging`() = runTest {
         every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = true))
-        coEvery { swipeRepository.getLastSession() } throws IllegalStateException("db closed")
+        coEvery { swipeRepository.getSessionByCompletedAt(any()) } throws IllegalStateException("db closed")
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
         assertResolvesTo(StartDestination.Onboarding)
+    }
+
+    @Test
+    fun `stale pending deletes are cleaned up after routing`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = true)
+        assertResolvesTo(StartDestination.Main)
+        coVerify(exactly = 1) { swipeRepository.cleanupStalePendingDeletes() }
+    }
+
+    @Test
+    fun `a failing cleanup does not change where the app starts`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = true)
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } throws IllegalStateException("db locked")
+        assertResolvesTo(StartDestination.Main)
     }
 }

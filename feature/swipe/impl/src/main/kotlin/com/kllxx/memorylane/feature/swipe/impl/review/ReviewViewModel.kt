@@ -11,6 +11,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 class ReviewViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val photoRepository: PhotoRepository,
+    private val clock: Clock,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -124,7 +126,16 @@ class ReviewViewModel @Inject constructor(
             // The session only counts as completed once the photos are really gone. The two writes
             // are independent: one failing does not skip the other.
             try {
-                swipeRepository.saveSession(SwipeSession(date, completed = true, savedBytes = freedBytes))
+                // A day sorted again adds to what it freed before and keeps the day it was first completed
+                val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == date }
+                swipeRepository.saveSession(
+                    SwipeSession(
+                        date = date,
+                        completed = true,
+                        savedBytes = (existing?.savedBytes ?: 0) + freedBytes,
+                        completedAt = existing?.completedAt ?: LocalDate.now(clock),
+                    ),
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

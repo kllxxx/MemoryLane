@@ -9,4 +9,7 @@ internal sealed interface SwipeEvent {
         val photos: List<Photo>,
         val pendingDeleteIds: List<Long> = emptyList(),
     ) : SwipeEvent
+
+    /** The place of one photo, looked up when its card became the current one. Null if it has none. */
+    data class LocationLoaded(val photoId: Long, val location: String?) : SwipeEvent
 }

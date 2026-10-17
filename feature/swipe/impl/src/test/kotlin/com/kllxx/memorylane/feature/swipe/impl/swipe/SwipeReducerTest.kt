@@ -169,4 +169,23 @@ class SwipeReducerTest {
         val state = loaded(2)
         assertEquals(state, reduce(state, SwipeIntent.Close))
     }
+
+    @Test
+    fun `LocationLoaded sets the location of that photo only`() {
+        val result = reduce(loaded(2), SwipeEvent.LocationLoaded(photoId = 2, location = "Paris"))
+        assertEquals(null, result.photos[0].location)
+        assertEquals("Paris", result.photos[1].location)
+    }
+
+    @Test
+    fun `LocationLoaded without a location leaves the state unchanged`() {
+        val state = loaded(2)
+        assertEquals(state, reduce(state, SwipeEvent.LocationLoaded(photoId = 1, location = null)))
+    }
+
+    @Test
+    fun `LocationLoaded for an unknown photo leaves the state unchanged`() {
+        val state = loaded(2)
+        assertEquals(state, reduce(state, SwipeEvent.LocationLoaded(photoId = 99, location = "Paris")))
+    }
 }

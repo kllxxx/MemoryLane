@@ -2,11 +2,15 @@ package com.kllxx.memorylane.core.data.repository
 
 import com.kllxx.memorylane.core.data.db.dao.PendingDeleteDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
+import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
+import com.kllxx.memorylane.core.data.mapper.toDomain
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SwipeRepositoryImplTest {
@@ -43,6 +47,33 @@ class SwipeRepositoryImplTest {
         repository.clearPendingDeletesByDate(date)
 
         coVerify(exactly = 1) { pendingDeleteDao.clearByDate(date) }
+        coVerify(exactly = 0) { pendingDeleteDao.clear() }
+    }
+
+    @Test
+    fun `getSessionByCompletedAt maps the completed session of that day`() = runTest {
+        val day = LocalDate.of(2026, 10, 20)
+        val entity = SwipeSessionEntity(LocalDate.of(2026, 10, 15), completed = true, savedBytes = 9, completedAt = day)
+        coEvery { swipeSessionDao.getCompletedOn(day) } returns entity
+
+        assertEquals(entity.toDomain(), repository.getSessionByCompletedAt(day))
+    }
+
+    @Test
+    fun `getSessionByCompletedAt is null when nothing was completed that day`() = runTest {
+        val day = LocalDate.of(2026, 10, 20)
+        coEvery { swipeSessionDao.getCompletedOn(day) } returns null
+
+        assertNull(repository.getSessionByCompletedAt(day))
+    }
+
+    @Test
+    fun `cleanupStalePendingDeletes clears the pending deletes of completed sessions`() = runTest {
+        coEvery { pendingDeleteDao.clearForCompletedSessions() } returns Unit
+
+        repository.cleanupStalePendingDeletes()
+
+        coVerify(exactly = 1) { pendingDeleteDao.clearForCompletedSessions() }
         coVerify(exactly = 0) { pendingDeleteDao.clear() }
     }
 }

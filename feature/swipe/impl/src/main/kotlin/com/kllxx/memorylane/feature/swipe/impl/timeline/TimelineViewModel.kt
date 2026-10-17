@@ -46,7 +46,15 @@ class TimelineViewModel @Inject constructor(
             TimelineIntent.RequestPermission ->
                 _effects.trySend(TimelineEffect.RequestPermissionLauncher)
             is TimelineIntent.PermissionResult -> if (intent.granted) onIntent(TimelineIntent.LoadDays)
-            is TimelineIntent.OpenDay -> _effects.trySend(TimelineEffect.NavigateToSwipe(intent.date))
+            is TimelineIntent.OpenDay ->
+                // A day that has not happened yet has no photos to sort
+                if (!intent.date.isAfter(LocalDate.now(clock))) {
+                    _effects.trySend(TimelineEffect.NavigateToSwipe(intent.date))
+                }
+            is TimelineIntent.RefreshDay -> if (_state.value.hasPermission) {
+                loadedDates.remove(intent.date)
+                loadRange(intent.date, intent.date)
+            }
         }
     }
 

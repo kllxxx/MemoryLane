@@ -17,6 +17,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -41,15 +42,24 @@ internal class PhotoRepositoryImpl @Inject constructor(
         return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    override suspend fun getPhotosForDate(date: LocalDate, includeLocation: Boolean): List<Photo> =
-        withContext(Dispatchers.IO) {
-            queryOnThisDay(date, limit = null).map { resolveLocation(it, includeLocation) }
-        }
+    override suspend fun getPhotosForDate(date: LocalDate): List<Photo> =
+        withContext(Dispatchers.IO) { queryOnThisDay(date, limit = null) }
 
-    override suspend fun getFirstPhotoForDate(date: LocalDate, includeLocation: Boolean): Photo? =
-        withContext(Dispatchers.IO) {
-            queryOnThisDay(date, limit = 1).firstOrNull()?.let { resolveLocation(it, includeLocation) }
+    override suspend fun getFirstPhotoForDate(date: LocalDate): Photo? =
+        withContext(Dispatchers.IO) { queryOnThisDay(date, limit = 1).firstOrNull() }
+
+    override suspend fun getPhotoLocation(photoId: Long): String? = withContext(Dispatchers.IO) {
+        try {
+            val (latitude, longitude) = coordinatesOf(ContentUris.withAppendedId(COLLECTION_URI, photoId))
+                ?: return@withContext null
+            geocoder.getLocation(latitude, longitude)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A location is a nice-to-have, so any failure just means there is none
+            null
         }
+    }
 
     /**
      * On API 30+ the user must confirm via the returned [DeleteResult.RequiresConfirmation].
@@ -69,30 +79,28 @@ internal class PhotoRepositoryImpl @Inject constructor(
             }
         }
 
-    /** A photo plus the coordinates the MediaStore columns provide (API 24-28 only). */
-    private class QueriedPhoto(val photo: Photo, val latitude: Double?, val longitude: Double?)
-
-    private suspend fun resolveLocation(queried: QueriedPhoto, includeLocation: Boolean): Photo {
-        if (!includeLocation) return queried.photo
-        val (latitude, longitude) = coordinatesOf(queried) ?: return queried.photo
-        return queried.photo.copy(location = geocoder.getLocation(latitude, longitude))
-    }
-
-    private fun coordinatesOf(queried: QueriedPhoto): Pair<Double, Double>? {
+    /**
+     * API 29+ redacts GPS data in MediaStore, so it is read from the original file's EXIF (needs
+     * ACCESS_MEDIA_LOCATION). Below that the deprecated MediaStore columns still hold it.
+     */
+    private fun coordinatesOf(uri: Uri): Pair<Double, Double>? {
         val coordinates = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val granted = context.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
-            if (granted) readExifCoordinates(queried.photo.uri) else null
-        } else if (queried.latitude != null && queried.longitude != null) {
-            queried.latitude to queried.longitude
+            if (granted) readExifCoordinates(uri) else null
         } else {
-            null
+            queryLegacyCoordinates(uri)
         }
         // 0/0 is how missing GPS data is commonly stored
         return coordinates?.takeUnless { it.first == 0.0 && it.second == 0.0 }
     }
 
-    /** Since API 29 MediaStore redacts GPS data, so it is read from the original file's EXIF. */
+    private fun queryLegacyCoordinates(uri: Uri): Pair<Double, Double>? =
+        resolver.query(uri, arrayOf(LATITUDE_COLUMN, LONGITUDE_COLUMN), null, null, null)?.use {
+            if (it.moveToFirst() && !it.isNull(0) && !it.isNull(1)) it.getDouble(0) to it.getDouble(1) else null
+        }
+
+    /** Reads the GPS position from the original file's EXIF. */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun readExifCoordinates(uri: Uri): Pair<Double, Double>? = try {
         resolver.openInputStream(MediaStore.setRequireOriginal(uri))?.use { stream ->
@@ -102,7 +110,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         null
     }
 
-    private fun queryOnThisDay(date: LocalDate, limit: Int?): List<QueriedPhoto> {
+    private fun queryOnThisDay(date: LocalDate, limit: Int?): List<Photo> {
         // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
         val zone = ZoneId.systemDefault()
@@ -139,25 +147,17 @@ internal class PhotoRepositoryImpl @Inject constructor(
             val idCol = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             val takenCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
             val sizeCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
-            val latCol = it.getColumnIndex(LATITUDE_COLUMN)
-            val lonCol = it.getColumnIndex(LONGITUDE_COLUMN)
             buildList {
                 while (it.moveToNext()) {
                     val id = it.getLong(idCol)
-                    val photo = Photo(
-                        id = id,
-                        uri = ContentUris.withAppendedId(COLLECTION_URI, id),
-                        dateTaken = Instant.ofEpochMilli(it.getLong(takenCol))
-                            .atZone(zone)
-                            .toLocalDate(),
-                        sizeBytes = it.getLong(sizeCol),
-                    )
-                    val hasCoordinates = latCol >= 0 && lonCol >= 0 && !it.isNull(latCol) && !it.isNull(lonCol)
                     add(
-                        QueriedPhoto(
-                            photo = photo,
-                            latitude = if (hasCoordinates) it.getDouble(latCol) else null,
-                            longitude = if (hasCoordinates) it.getDouble(lonCol) else null,
+                        Photo(
+                            id = id,
+                            uri = ContentUris.withAppendedId(COLLECTION_URI, id),
+                            dateTaken = Instant.ofEpochMilli(it.getLong(takenCol))
+                                .atZone(zone)
+                                .toLocalDate(),
+                            sizeBytes = it.getLong(sizeCol),
                         ),
                     )
                 }
@@ -170,21 +170,17 @@ internal class PhotoRepositoryImpl @Inject constructor(
         val COLLECTION_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         // The LATITUDE/LONGITUDE columns are deprecated and empty since API 29, so they are
-        // only queried below it (see readExifCoordinates for API 29+).
+        // only read below it, for a single photo (see readExifCoordinates for API 29+).
         @Suppress("DEPRECATION")
         const val LATITUDE_COLUMN = MediaStore.Images.ImageColumns.LATITUDE
 
         @Suppress("DEPRECATION")
         const val LONGITUDE_COLUMN = MediaStore.Images.ImageColumns.LONGITUDE
 
-        val PROJECTION: Array<String> = buildList {
-            add(MediaStore.Images.Media._ID)
-            add(MediaStore.Images.Media.DATE_TAKEN)
-            add(MediaStore.Images.Media.SIZE)
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                add(LATITUDE_COLUMN)
-                add(LONGITUDE_COLUMN)
-            }
-        }.toTypedArray()
+        val PROJECTION: Array<String> = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.SIZE,
+        )
     }
 }

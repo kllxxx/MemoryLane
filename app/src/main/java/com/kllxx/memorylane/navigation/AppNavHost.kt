@@ -12,17 +12,23 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.kllxx.memorylane.R
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsScreen
@@ -34,7 +40,9 @@ import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineIntent
 import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineScreen
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineViewModel
 import java.time.LocalDate
 import kotlin.reflect.KClass
 
@@ -56,6 +64,8 @@ fun AppNavHost(
     startDestination: StartDestination,
     navController: NavHostController = rememberNavController(),
 ) {
+    // ISO date of the day last opened in Swipe or Review, waiting to be reloaded on Timeline
+    var lastSortedDate by rememberSaveable { mutableStateOf<String?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     // Bottom bar only on the tab screens; hidden during Onboarding and Swipe.
@@ -104,7 +114,9 @@ fun AppNavHost(
                     },
                 )
             }
-            composable<SwipeRoute> {
+            composable<SwipeRoute> { entry ->
+                // Remembered so Timeline can reload this day once the user is back on it
+                LaunchedEffect(entry) { lastSortedDate = entry.toRoute<SwipeRoute>().date }
                 SwipeScreen(
                     onNavigateToReview = { date, totalPhotosCount ->
                         navController.navigate(ReviewRoute(date.toString(), totalPhotosCount)) {
@@ -114,10 +126,22 @@ fun AppNavHost(
                     onNavigateToTimeline = { navController.navigateToTimeline() },
                 )
             }
-            composable<ReviewRoute> { ReviewScreen() }
+            composable<ReviewRoute> { entry ->
+                LaunchedEffect(entry) { lastSortedDate = entry.toRoute<ReviewRoute>().date }
+                ReviewScreen()
+            }
             composable<TimelineRoute> {
+                val timelineViewModel: TimelineViewModel = hiltViewModel()
+                // Timeline caches each day, so the day that was just sorted has to be reloaded
+                LaunchedEffect(lastSortedDate) {
+                    lastSortedDate?.let { date ->
+                        timelineViewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.parse(date)))
+                        lastSortedDate = null
+                    }
+                }
                 TimelineScreen(
                     onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
+                    viewModel = timelineViewModel,
                 )
             }
             composable<AchievementsRoute> { AchievementsScreen() }

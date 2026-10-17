@@ -12,9 +12,11 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,7 @@ import kotlinx.coroutines.launch
 class SwipeViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
+    private val clock: Clock,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -39,6 +42,10 @@ class SwipeViewModel @Inject constructor(
 
     private val _effects = Channel<SwipeEffect>(Channel.BUFFERED)
     val effects: Flow<SwipeEffect> = _effects.receiveAsFlow()
+
+    // Geocoding is slow, so only the card on top is looked up, and an older lookup is dropped
+    private var locationJob: Job? = null
+    private val requestedLocations = mutableSetOf<Long>()
 
     init {
         onIntent(SwipeIntent.LoadPhotos(date))
@@ -61,6 +68,7 @@ class SwipeViewModel @Inject constructor(
                     }
                 }
                 if (after.isFinished && !before.isFinished) onAllSwiped(after)
+                if (after.currentIndex != before.currentIndex) loadLocationOfCurrentCard()
             }
             SwipeIntent.Close -> _effects.trySend(SwipeEffect.NavigateToTimeline)
         }
@@ -71,9 +79,11 @@ class SwipeViewModel @Inject constructor(
     }
 
     private fun loadPhotos(intent: SwipeIntent.LoadPhotos) {
+        locationJob?.cancel()
+        requestedLocations.clear()
         viewModelScope.launch {
             val event = try {
-                val photos = photoRepository.getPhotosForDate(intent.date, includeLocation = true)
+                val photos = photoRepository.getPhotosForDate(intent.date)
                 val pendingIds = swipeRepository.getPendingDeletes()
                     .filter { it.sessionDate == intent.date }
                     .map { it.photoId }
@@ -93,6 +103,23 @@ class SwipeViewModel @Inject constructor(
             onEvent(event)
             // Nothing left to show: an empty day, or every photo was already marked on a previous run
             _state.value.takeIf { it.isFinished }?.let(::onAllSwiped)
+            loadLocationOfCurrentCard()
+        }
+    }
+
+    private fun loadLocationOfCurrentCard() {
+        val state = _state.value
+        val photo = state.photos.getOrNull(state.currentIndex) ?: return
+        if (state.isFinished || photo.location != null || !requestedLocations.add(photo.id)) return
+        locationJob?.cancel()
+        locationJob = viewModelScope.launch {
+            try {
+                onEvent(SwipeEvent.LocationLoaded(photo.id, photoRepository.getPhotoLocation(photo.id)))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not look up the location of photo ${photo.id}", e)
+            }
         }
     }
 
@@ -129,7 +156,13 @@ class SwipeViewModel @Inject constructor(
                 val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
                 val completed = state.pendingDeletes.isEmpty() || existing?.completed == true
                 swipeRepository.saveSession(
-                    SwipeSession(state.date, completed = completed, savedBytes = existing?.savedBytes ?: 0),
+                    SwipeSession(
+                        date = state.date,
+                        completed = completed,
+                        savedBytes = existing?.savedBytes ?: 0,
+                        // A day that was already completed keeps the day it was completed on
+                        completedAt = existing?.completedAt ?: LocalDate.now(clock),
+                    ),
                 )
             } catch (e: CancellationException) {
                 throw e

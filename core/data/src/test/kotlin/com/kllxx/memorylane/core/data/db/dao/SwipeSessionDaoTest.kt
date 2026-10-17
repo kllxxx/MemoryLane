@@ -26,6 +26,14 @@ class SwipeSessionDaoTest {
     private lateinit var database: AppDatabase
     private lateinit var dao: SwipeSessionDao
 
+    /** By default a session was completed on the day it is about. */
+    private fun session(
+        date: LocalDate,
+        completed: Boolean,
+        savedBytes: Long,
+        completedAt: LocalDate = date,
+    ) = SwipeSessionEntity(date, completed, savedBytes, completedAt)
+
     @Before
     fun setUp() {
         database = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), AppDatabase::class.java)
@@ -46,31 +54,50 @@ class SwipeSessionDaoTest {
 
     @Test
     fun `insert then getLast returns the row`() = runTest {
-        val session = SwipeSessionEntity(monday, completed = true, savedBytes = 100)
+        val session = session(monday, completed = true, savedBytes = 100, completedAt = wednesday)
         dao.insert(session)
         assertEquals(session, dao.getLast())
     }
 
     @Test
     fun `getLast returns the latest date whether or not it is completed`() = runTest {
-        dao.insert(SwipeSessionEntity(tuesday, completed = true, savedBytes = 10))
-        dao.insert(SwipeSessionEntity(wednesday, completed = false, savedBytes = 0))
-        dao.insert(SwipeSessionEntity(monday, completed = true, savedBytes = 5))
+        dao.insert(session(tuesday, completed = true, savedBytes = 10))
+        dao.insert(session(wednesday, completed = false, savedBytes = 0))
+        dao.insert(session(monday, completed = true, savedBytes = 5))
         assertEquals(wednesday, dao.getLast()?.date)
     }
 
     @Test
     fun `inserting the same date replaces the session`() = runTest {
-        dao.insert(SwipeSessionEntity(monday, completed = false, savedBytes = 0))
-        dao.insert(SwipeSessionEntity(monday, completed = true, savedBytes = 300))
-        assertEquals(SwipeSessionEntity(monday, completed = true, savedBytes = 300), dao.getLast())
+        dao.insert(session(monday, completed = false, savedBytes = 0))
+        dao.insert(session(monday, completed = true, savedBytes = 300))
+        assertEquals(session(monday, completed = true, savedBytes = 300), dao.getLast())
+    }
+
+    @Test
+    fun `getCompletedOn finds a completed session by the day it was completed`() = runTest {
+        // Sorted on Wednesday although it is about Monday
+        dao.insert(session(monday, completed = true, savedBytes = 1, completedAt = wednesday))
+        assertEquals(monday, dao.getCompletedOn(wednesday)?.date)
+    }
+
+    @Test
+    fun `getCompletedOn does not match the date the session is about`() = runTest {
+        dao.insert(session(monday, completed = true, savedBytes = 1, completedAt = wednesday))
+        assertNull(dao.getCompletedOn(monday))
+    }
+
+    @Test
+    fun `getCompletedOn ignores sessions that are not completed`() = runTest {
+        dao.insert(session(monday, completed = false, savedBytes = 0, completedAt = wednesday))
+        assertNull(dao.getCompletedOn(wednesday))
     }
 
     @Test
     fun `observeCompleted keeps only completed sessions, newest first`() = runTest {
-        dao.insert(SwipeSessionEntity(monday, completed = true, savedBytes = 1))
-        dao.insert(SwipeSessionEntity(tuesday, completed = false, savedBytes = 0))
-        dao.insert(SwipeSessionEntity(wednesday, completed = true, savedBytes = 3))
+        dao.insert(session(monday, completed = true, savedBytes = 1))
+        dao.insert(session(tuesday, completed = false, savedBytes = 0))
+        dao.insert(session(wednesday, completed = true, savedBytes = 3))
 
         dao.observeCompleted().test {
             assertEquals(listOf(wednesday, monday), awaitItem().map { it.date })
@@ -80,12 +107,12 @@ class SwipeSessionDaoTest {
 
     @Test
     fun `observeCompleted emits again when a session is completed`() = runTest {
-        dao.insert(SwipeSessionEntity(monday, completed = false, savedBytes = 0))
+        dao.insert(session(monday, completed = false, savedBytes = 0))
 
         dao.observeCompleted().test {
             assertEquals(emptyList<SwipeSessionEntity>(), awaitItem())
-            dao.insert(SwipeSessionEntity(monday, completed = true, savedBytes = 42))
-            assertEquals(listOf(SwipeSessionEntity(monday, completed = true, savedBytes = 42)), awaitItem())
+            dao.insert(session(monday, completed = true, savedBytes = 42))
+            assertEquals(listOf(session(monday, completed = true, savedBytes = 42)), awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
     }

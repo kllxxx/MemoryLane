@@ -34,6 +34,16 @@ object SwipeReducer {
                 isFinished = firstToShow >= event.photos.size,
             )
         }
+        is SwipeEvent.LocationLoaded ->
+            if (event.location == null || state.photos.none { it.id == event.photoId }) {
+                state
+            } else {
+                state.copy(
+                    photos = state.photos
+                        .map { if (it.id == event.photoId) it.copy(location = event.location) else it }
+                        .toImmutableList(),
+                )
+            }
     }
 
     private fun advance(state: SwipeState, delete: Boolean): SwipeState {

@@ -9,7 +9,8 @@ object TimelineReducer {
         TimelineIntent.LoadDays -> state.copy(isLoading = state.hasPermission, error = null)
         is TimelineIntent.LoadRange,
         TimelineIntent.RequestPermission,
-        is TimelineIntent.OpenDay -> state
+        is TimelineIntent.OpenDay,
+        is TimelineIntent.RefreshDay -> state
         is TimelineIntent.PermissionResult -> state.copy(hasPermission = intent.granted)
     }
 

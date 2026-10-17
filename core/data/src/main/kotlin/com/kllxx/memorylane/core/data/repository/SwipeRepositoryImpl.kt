@@ -25,7 +25,7 @@ internal class SwipeRepositoryImpl @Inject constructor(
 
     override suspend fun removePendingDelete(photoId: Long) = pendingDeleteDao.deleteByPhotoId(photoId)
 
-    override suspend fun clearPendingDeletes()= pendingDeleteDao.clear()
+    override suspend fun clearPendingDeletes() = pendingDeleteDao.clear()
 
     override suspend fun clearPendingDeletesByDate(date: LocalDate) = pendingDeleteDao.clearByDate(date)
 
@@ -34,6 +34,11 @@ internal class SwipeRepositoryImpl @Inject constructor(
 
     override suspend fun getLastSession(): SwipeSession? =
         swipeSessionDao.getLast()?.toDomain()
+
+    override suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession? =
+        swipeSessionDao.getCompletedOn(date)?.toDomain()
+
+    override suspend fun cleanupStalePendingDeletes() = pendingDeleteDao.clearForCompletedSessions()
 
     override fun getCompletedSessions(): Flow<List<SwipeSession>> =
         swipeSessionDao.observeCompleted().map { list -> list.map { it.toDomain() } }

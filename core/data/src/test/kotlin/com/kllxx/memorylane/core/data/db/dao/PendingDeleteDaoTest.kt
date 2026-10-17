@@ -3,6 +3,7 @@ package com.kllxx.memorylane.core.data.db.dao
 import androidx.room.Room
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.PendingDeleteEntity
+import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 import java.time.LocalDate
 import java.util.concurrent.Executor
 import kotlinx.coroutines.test.runTest
@@ -77,5 +78,24 @@ class PendingDeleteDaoTest {
         dao.insert(PendingDeleteEntity(2, otherDay))
         dao.clearByDate(day)
         assertEquals(listOf(PendingDeleteEntity(2, otherDay)), dao.getAll())
+    }
+
+    @Test
+    fun `clearForCompletedSessions removes only the pending deletes of completed sessions`() = runTest {
+        val sessions = database.swipeSessionDao()
+        sessions.insert(SwipeSessionEntity(day, completed = true, savedBytes = 1, completedAt = day))
+        sessions.insert(SwipeSessionEntity(otherDay, completed = false, savedBytes = 0, completedAt = otherDay))
+        val thirdDay = LocalDate.of(2026, 5, 5)
+        dao.insert(PendingDeleteEntity(1, day))
+        dao.insert(PendingDeleteEntity(2, otherDay))
+        dao.insert(PendingDeleteEntity(3, thirdDay))
+
+        dao.clearForCompletedSessions()
+
+        // The incomplete session and the date without any session keep their rows
+        assertEquals(
+            listOf(PendingDeleteEntity(2, otherDay), PendingDeleteEntity(3, thirdDay)),
+            dao.getAll().sortedBy { it.photoId },
+        )
     }
 }

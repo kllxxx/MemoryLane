@@ -53,8 +53,9 @@ class AppViewModel @Inject constructor(
                     !settings.onboardingCompleted -> StartDestination.Onboarding
                     // Without access Swipe reports PermissionRequired, so a completed day must not hide that
                     !photoRepository.hasMediaPermission() -> StartDestination.Swipe
-                    // An incomplete session (e.g. the app was killed on Review) goes back to Swipe
-                    swipeRepository.getLastSession()?.takeIf { it.completed }?.date == LocalDate.now(clock) -> StartDestination.Main
+                    // Some day was already sorted today; otherwise (including an unfinished session,
+                    // e.g. the app was killed on Review) it goes back to Swipe
+                    swipeRepository.getSessionByCompletedAt(LocalDate.now(clock)) != null -> StartDestination.Main
                     else -> StartDestination.Swipe
                 }
             } catch (e: CancellationException) {
@@ -64,6 +65,18 @@ class AppViewModel @Inject constructor(
                 Log.e(TAG, "Could not resolve the start destination", e)
                 StartDestination.Onboarding
             }
+            cleanupStalePendingDeletes()
+        }
+    }
+
+    /** Housekeeping after routing: a failure here is logged and never affects where the app starts. */
+    private suspend fun cleanupStalePendingDeletes() {
+        try {
+            swipeRepository.cleanupStalePendingDeletes()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not clean up the stale pending deletes", e)
         }
     }
 

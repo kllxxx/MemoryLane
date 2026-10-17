@@ -15,5 +15,14 @@ interface SwipeRepository {
     suspend fun clearPendingDeletesByDate(date: LocalDate)
     suspend fun saveSession(session: SwipeSession)
     suspend fun getLastSession(): SwipeSession?
+
+    /** A completed session whose [SwipeSession.completedAt] is [date], or null. */
+    suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession?
+
+    /**
+     * Removes pending deletes left behind for dates whose session is already completed, e.g. when
+     * the app was killed after the photos were deleted but before Review cleaned up.
+     */
+    suspend fun cleanupStalePendingDeletes()
     fun getCompletedSessions(): Flow<List<SwipeSession>>
 }
