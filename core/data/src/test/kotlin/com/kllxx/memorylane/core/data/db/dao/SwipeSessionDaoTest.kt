@@ -6,6 +6,7 @@ import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 import java.time.LocalDate
 import java.util.concurrent.Executor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -48,30 +49,17 @@ class SwipeSessionDaoTest {
     fun tearDown() = database.close()
 
     @Test
-    fun `getLast is null when there are no sessions`() = runTest {
-        assertNull(dao.getLast())
-    }
-
-    @Test
-    fun `insert then getLast returns the row`() = runTest {
+    fun `insert then observeCompleted returns the row`() = runTest {
         val session = session(monday, completed = true, savedBytes = 100, completedAt = wednesday)
         dao.insert(session)
-        assertEquals(session, dao.getLast())
-    }
-
-    @Test
-    fun `getLast returns the latest date whether or not it is completed`() = runTest {
-        dao.insert(session(tuesday, completed = true, savedBytes = 10))
-        dao.insert(session(wednesday, completed = false, savedBytes = 0))
-        dao.insert(session(monday, completed = true, savedBytes = 5))
-        assertEquals(wednesday, dao.getLast()?.date)
+        assertEquals(listOf(session), dao.observeCompleted().first())
     }
 
     @Test
     fun `inserting the same date replaces the session`() = runTest {
         dao.insert(session(monday, completed = false, savedBytes = 0))
         dao.insert(session(monday, completed = true, savedBytes = 300))
-        assertEquals(session(monday, completed = true, savedBytes = 300), dao.getLast())
+        assertEquals(listOf(session(monday, completed = true, savedBytes = 300)), dao.observeCompleted().first())
     }
 
     @Test

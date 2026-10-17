@@ -14,7 +14,6 @@ interface SwipeRepository {
     /** Clears only the pending deletes of the session on [date], keeping other sessions' deletes. */
     suspend fun clearPendingDeletesByDate(date: LocalDate)
     suspend fun saveSession(session: SwipeSession)
-    suspend fun getLastSession(): SwipeSession?
 
     /** A completed session whose [SwipeSession.completedAt] is [date], or null. */
     suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession?

@@ -13,9 +13,6 @@ interface SwipeSessionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: SwipeSessionEntity)
 
-    @Query("SELECT * FROM swipe_sessions ORDER BY date DESC LIMIT 1")
-    suspend fun getLast(): SwipeSessionEntity?
-
     @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND completed_at = :date LIMIT 1")
     suspend fun getCompletedOn(date: LocalDate): SwipeSessionEntity?
 

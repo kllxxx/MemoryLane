@@ -121,7 +121,6 @@ class AppViewModelTest {
         givenState(onboardingCompleted = true, sortedToday = false)
         assertResolvesTo(StartDestination.Swipe)
         coVerify(exactly = 1) { swipeRepository.getSessionByCompletedAt(today) }
-        coVerify(exactly = 0) { swipeRepository.getLastSession() }
     }
 
     @Test

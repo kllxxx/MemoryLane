@@ -32,9 +32,6 @@ internal class SwipeRepositoryImpl @Inject constructor(
     override suspend fun saveSession(session: SwipeSession) =
         swipeSessionDao.insert(session.toEntity())
 
-    override suspend fun getLastSession(): SwipeSession? =
-        swipeSessionDao.getLast()?.toDomain()
-
     override suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession? =
         swipeSessionDao.getCompletedOn(date)?.toDomain()
 

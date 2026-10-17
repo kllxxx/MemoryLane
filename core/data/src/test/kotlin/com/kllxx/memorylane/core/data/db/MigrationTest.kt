@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,9 +67,12 @@ class MigrationTest {
 
     @Test
     fun `the unfinished session and the pending deletes are kept`() = runTest {
-        val last = database.swipeSessionDao().getLast()
-        assertEquals(LocalDate.ofEpochDay(20001), last?.date)
-        assertEquals(false, last?.completed)
+        // Not completed, so it is not visible through the DAO queries: read the row directly
+        database.openHelper.readableDatabase.query("SELECT completed, completed_at FROM swipe_sessions WHERE date = 20001").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+            assertEquals(0L, it.getLong(1))
+        }
         assertNotNull(database.pendingDeleteDao().getAll().singleOrNull { it.photoId == 7L })
     }
 
