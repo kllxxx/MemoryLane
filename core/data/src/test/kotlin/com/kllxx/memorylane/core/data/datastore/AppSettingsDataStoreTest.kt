@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +73,25 @@ class AppSettingsDataStoreTest {
             assertEquals(true, awaitItem().notificationsEnabled)
             store.setNotificationsEnabled(false)
             assertEquals(false, awaitItem().notificationsEnabled)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `setStreakGoal updates the flow`() = runTest {
+        store.settings.test {
+            assertEquals(StreakGoal.WEEK, awaitItem().streakGoal)
+            store.setStreakGoal(StreakGoal.YEAR)
+            assertEquals(StreakGoal.YEAR, awaitItem().streakGoal)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `unknown stored streak goal falls back to default`() = runTest {
+        prefs.edit { it[stringPreferencesKey("streak_goal")] = "DECADE" }
+        store.settings.test {
+            assertEquals(AppSettings().streakGoal, awaitItem().streakGoal)
             cancelAndIgnoreRemainingEvents()
         }
     }

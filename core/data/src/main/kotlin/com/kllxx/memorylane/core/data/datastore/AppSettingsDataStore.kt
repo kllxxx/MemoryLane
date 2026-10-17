@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -28,6 +29,9 @@ internal class AppSettingsDataStore @Inject constructor(
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: defaults.themeMode,
                 notificationsEnabled = prefs[NOTIFICATIONS_ENABLED] ?: defaults.notificationsEnabled,
+                streakGoal = prefs[STREAK_GOAL]
+                    ?.let { name -> StreakGoal.entries.firstOrNull { it.name == name } }
+                    ?: defaults.streakGoal,
             )
         }
 
@@ -43,9 +47,14 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[NOTIFICATIONS_ENABLED] = enabled }
     }
 
+    suspend fun setStreakGoal(goal: StreakGoal) {
+        dataStore.edit { it[STREAK_GOAL] = goal.name }
+    }
+
     private companion object {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
+        val STREAK_GOAL = stringPreferencesKey("streak_goal")
     }
 }

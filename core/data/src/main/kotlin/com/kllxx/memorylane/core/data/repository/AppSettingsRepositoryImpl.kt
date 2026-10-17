@@ -2,6 +2,7 @@ package com.kllxx.memorylane.core.data.repository
 
 import com.kllxx.memorylane.core.data.datastore.AppSettingsDataStore
 import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -19,4 +20,6 @@ internal class AppSettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setNotificationsEnabled(enabled: Boolean) =
         dataStore.setNotificationsEnabled(enabled)
+
+    override suspend fun setStreakGoal(goal: StreakGoal) = dataStore.setStreakGoal(goal)
 }
