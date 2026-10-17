@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.feature.profile.impl
 
-import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -11,8 +10,6 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +24,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
 
@@ -39,9 +39,6 @@ class ProfileViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        // android.util.Log is not available in plain JVM tests
-        mockkStatic(Log::class)
-        every { Log.e(any(), any(), any()) } returns 0
         settings = MutableStateFlow(AppSettings())
         repository = mockk()
         every { repository.getSettings() } returns settings
@@ -54,7 +51,6 @@ class ProfileViewModelTest {
 
     @After
     fun tearDown() {
-        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 

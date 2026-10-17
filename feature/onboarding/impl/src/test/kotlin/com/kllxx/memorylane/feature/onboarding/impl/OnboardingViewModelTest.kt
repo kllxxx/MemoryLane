@@ -1,14 +1,10 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
-import android.util.Log
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -22,7 +18,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest {
 
@@ -33,16 +32,12 @@ class OnboardingViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        // android.util.Log is not available in plain JVM tests
-        mockkStatic(Log::class)
-        every { Log.e(any(), any(), any()) } returns 0
         repository = mockk(relaxed = true)
         viewModel = OnboardingViewModel(repository)
     }
 
     @After
     fun tearDown() {
-        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 

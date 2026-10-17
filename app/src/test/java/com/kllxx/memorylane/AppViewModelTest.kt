@@ -1,6 +1,6 @@
 package com.kllxx.memorylane
 
-import android.util.Log
+import android.app.Application
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -12,8 +12,6 @@ import com.kllxx.memorylane.navigation.StartDestination
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,11 +25,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
+@RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppViewModelTest {
 
@@ -46,14 +49,10 @@ class AppViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(StandardTestDispatcher())
-        // android.util.Log is not available in plain JVM tests
-        mockkStatic(Log::class)
-        every { Log.e(any(), any(), any()) } returns 0
     }
 
     @After
     fun tearDown() {
-        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
