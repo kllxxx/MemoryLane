@@ -10,8 +10,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
+import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
@@ -72,6 +74,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             throw e
         } catch (e: Exception) {
             // A location is a nice-to-have, so any failure just means there is none
+            Log.e(TAG, "Could not look up the location of photo $photoId", e)
             null
         }
     }
@@ -107,7 +110,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
             queryLegacyCoordinates(uri)
         }
         // 0/0 is how missing GPS data is commonly stored
-        return coordinates?.takeUnless { it.first == 0.0 && it.second == 0.0 }
+        return coordinates?.takeUnless {
+            it.first == LocationGeocoder.INVALID_COORDINATE && it.second == LocationGeocoder.INVALID_COORDINATE
+        }
     }
 
     private fun queryLegacyCoordinates(uri: Uri): Pair<Double, Double>? =
@@ -122,6 +127,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             ExifInterface(stream).latLong?.let { it[0] to it[1] }
         }
     } catch (e: Exception) {
+        Log.e(TAG, "Could not read the EXIF coordinates", e)
         null
     }
 
@@ -134,7 +140,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
         // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
         val monthDay = MonthDay.from(date)
-        val ranges = (date.year - 1 downTo date.year - MAX_YEARS_BACK)
+        val ranges = (date.year - 1 downTo date.year - PhotosConstants.MAX_YEARS_BACK)
+            // A Feb 29 photo is only looked up in leap years, by design: other years are skipped,
+            // not mapped to Feb 28 or Mar 1
             .filter { monthDay.isValidYear(it) }
             .map { year ->
                 val day = monthDay.atYear(year)
@@ -174,7 +182,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     }
 
     private companion object {
-        const val MAX_YEARS_BACK = 30
+        const val TAG = "PhotoRepositoryImpl"
         val COLLECTION_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         // The LATITUDE/LONGITUDE columns are deprecated and empty since API 29, so they are

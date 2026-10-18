@@ -1,8 +1,10 @@
 package com.kllxx.memorylane.feature.swipe.impl.timeline
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.feature.swipe.impl.SwipeConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -42,7 +44,7 @@ class TimelineViewModel @Inject constructor(
         when (intent) {
             TimelineIntent.LoadDays -> if (_state.value.hasPermission) loadInitial()
             is TimelineIntent.LoadRange ->
-                if (_state.value.hasPermission) loadRange(intent.from, intent.to.plusDays(BUFFER_DAYS))
+                if (_state.value.hasPermission) loadRange(intent.from, intent.to.plusDays(SwipeConstants.BUFFER_DAYS))
             TimelineIntent.RequestPermission ->
                 _effects.trySend(TimelineEffect.RequestPermissionLauncher)
             is TimelineIntent.PermissionResult -> if (intent.granted) onIntent(TimelineIntent.LoadDays)
@@ -72,7 +74,7 @@ class TimelineViewModel @Inject constructor(
         onEvent(TimelineEvent.DaysInitialized(skeleton))
 
         val from = today.withDayOfMonth(1)
-        loadRange(from, from.plusDays(INITIAL_WINDOW_DAYS - 1))
+        loadRange(from, from.plusDays(SwipeConstants.INITIAL_WINDOW_DAYS - 1))
     }
 
     private fun loadRange(from: LocalDate, to: LocalDate) {
@@ -101,13 +103,13 @@ class TimelineViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 loadedDates.removeAll(toLoad.toSet())
-                onEvent(TimelineEvent.LoadFailed(e.message ?: "Failed to load photos"))
+                Log.e(TAG, "Could not load ${toLoad.size} timeline days", e)
+                onEvent(TimelineEvent.LoadFailed)
             }
         }
     }
 
     private companion object {
-        const val INITIAL_WINDOW_DAYS = 45L
-        const val BUFFER_DAYS = 14L
+        const val TAG = "TimelineViewModel"
     }
 }

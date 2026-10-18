@@ -14,9 +14,9 @@ class AchievementsReducerTest {
     }
 
     @Test
-    fun `SetStreakGoal updates goal and recomputes progress`() {
+    fun `GoalLoaded updates goal and recomputes progress`() {
         val state = AchievementsState(currentStreak = 3, streakGoalProgress = 3f / 7)
-        val result = AchievementsReducer.reduce(state, AchievementsIntent.SetStreakGoal(StreakGoal.MONTH))
+        val result = AchievementsReducer.reduce(state, AchievementsEvent.GoalLoaded(StreakGoal.MONTH))
         assertEquals(StreakGoal.MONTH, result.streakGoal)
         assertEquals(3f / 30, result.streakGoalProgress, 0.0001f)
         assertEquals(3, result.currentStreak)
@@ -25,7 +25,7 @@ class AchievementsReducerTest {
     @Test
     fun `progress is coerced to one`() {
         val state = AchievementsState(currentStreak = 20)
-        val result = AchievementsReducer.reduce(state, AchievementsIntent.SetStreakGoal(StreakGoal.WEEK))
+        val result = AchievementsReducer.reduce(state, AchievementsEvent.GoalLoaded(StreakGoal.WEEK))
         assertEquals(1f, result.streakGoalProgress, 0f)
     }
 

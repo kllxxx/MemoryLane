@@ -24,8 +24,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
 class TimelineViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
@@ -131,7 +134,7 @@ class TimelineViewModelTest {
         viewModel.onIntent(TimelineIntent.PermissionResult(true))
         advanceUntilIdle()
 
-        assertEquals("boom", viewModel.state.value.error)
+        assertEquals(TimelineError.LoadFailed, viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
     }
 

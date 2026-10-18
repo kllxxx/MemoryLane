@@ -28,5 +28,5 @@ internal object SettingsProvidesModule {
     @Provides
     @Singleton
     fun provideSettingsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-        PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("app_settings") }
+        PreferenceDataStoreFactory.create { context.preferencesDataStoreFile(DataConstants.SETTINGS_NAME) }
 }

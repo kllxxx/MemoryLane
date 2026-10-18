@@ -11,7 +11,4 @@ internal sealed interface AchievementsEvent {
     ) : AchievementsEvent
 
     data class GoalLoaded(val goal: StreakGoal) : AchievementsEvent
-
-    /** The write failed, so the goal goes back to the value it had before the change. */
-    data class GoalReverted(val goal: StreakGoal) : AchievementsEvent
 }

@@ -6,7 +6,6 @@ object AchievementsReducer {
 
     fun reduce(state: AchievementsState, intent: AchievementsIntent): AchievementsState = when (intent) {
         AchievementsIntent.Load -> state.copy(isLoading = true)
-        is AchievementsIntent.SetStreakGoal -> state.withGoal(intent.goal)
     }
 
     internal fun reduce(state: AchievementsState, event: AchievementsEvent): AchievementsState = when (event) {
@@ -19,7 +18,6 @@ object AchievementsReducer {
             isLoading = false,
         )
         is AchievementsEvent.GoalLoaded -> state.withGoal(event.goal)
-        is AchievementsEvent.GoalReverted -> state.withGoal(event.goal)
     }
 
     private fun AchievementsState.withGoal(goal: StreakGoal) = copy(

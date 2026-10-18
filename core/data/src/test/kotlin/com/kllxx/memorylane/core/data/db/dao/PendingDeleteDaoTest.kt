@@ -75,14 +75,6 @@ class PendingDeleteDaoTest {
     }
 
     @Test
-    fun `clear removes every row`() = runTest {
-        dao.insert(PendingDeleteEntity(1, day))
-        dao.insert(PendingDeleteEntity(2, otherDay))
-        dao.clear()
-        assertTrue(dao.getAll().isEmpty())
-    }
-
-    @Test
     fun `clearByDate removes only that date`() = runTest {
         dao.insert(PendingDeleteEntity(1, day))
         dao.insert(PendingDeleteEntity(2, otherDay))

@@ -4,5 +4,5 @@ package com.kllxx.memorylane.feature.swipe.impl.timeline
 internal sealed interface TimelineEvent {
     data class DaysInitialized(val days: List<DayItem>) : TimelineEvent
     data class DaysLoaded(val days: List<DayItem>) : TimelineEvent
-    data class LoadFailed(val message: String) : TimelineEvent
+    data object LoadFailed : TimelineEvent
 }

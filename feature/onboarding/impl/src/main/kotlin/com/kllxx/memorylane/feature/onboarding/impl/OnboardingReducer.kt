@@ -22,7 +22,7 @@ object OnboardingReducer {
             } else {
                 state.copy(
                     isLoading = false,
-                    showPermissionRationale = permissionDenials <= 1,
+                    showPermissionRationale = permissionDenials < OnboardingConstants.PERMISSION_DENIAL_THRESHOLD,
                 )
             }
         OnboardingIntent.DismissRationale -> state.copy(showPermissionRationale = false)

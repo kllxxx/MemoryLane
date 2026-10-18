@@ -170,7 +170,7 @@ class ReviewViewModelTest {
                 advanceTimeBy(1)
                 assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
                 expectNoEvents()
-                advanceTimeBy(ReviewViewModel.ANIMATION_DURATION_MS)
+                advanceTimeBy(ReviewConstants.FREED_SPACE_ANIMATION_DELAY_MS)
                 assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
             }
 
@@ -180,7 +180,6 @@ class ReviewViewModelTest {
             assertEquals(1_500, state.totalFreedBytes)
             coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
             coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
-            coVerify(exactly = 0) { swipeRepository.clearPendingDeletes() }
         }
 
     @Test

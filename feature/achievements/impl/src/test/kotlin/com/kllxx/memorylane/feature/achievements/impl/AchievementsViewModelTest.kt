@@ -6,8 +6,6 @@ import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Clock
@@ -48,7 +46,6 @@ class AchievementsViewModelTest {
         appSettingsRepository = mockk()
         settings = MutableStateFlow(AppSettings())
         every { appSettingsRepository.getSettings() } returns settings
-        coEvery { appSettingsRepository.setStreakGoal(any()) } returns Unit
     }
 
     @After
@@ -66,7 +63,7 @@ class AchievementsViewModelTest {
     }
 
     @Test
-    fun `Load computes streaks and totals from completed sessions`() = runTest(dispatcher) {
+    fun `Load computes streaks and totals from the sessions`() = runTest(dispatcher) {
         val vm = viewModel(
             listOf(
                 session(today, true, 100),
@@ -74,7 +71,6 @@ class AchievementsViewModelTest {
                 session(today.minusDays(5), true, 300),
                 session(today.minusDays(6), true, 400),
                 session(today.minusDays(7), true, 500),
-                session(today.minusDays(2), false, 9_999),
             ),
         )
 
@@ -112,19 +108,6 @@ class AchievementsViewModelTest {
         assertEquals(1f / 30, vm.state.value.streakGoalProgress, 0.0001f)
     }
 
-    @Test
-    fun `SetStreakGoal persists the goal and updates state`() = runTest(dispatcher) {
-        val vm = viewModel(listOf(session(today, true, 1)))
-        vm.onIntent(AchievementsIntent.Load)
-        advanceUntilIdle()
-
-        vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
-        assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
-        assertEquals(1f / 365, vm.state.value.streakGoalProgress, 0.0001f)
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { appSettingsRepository.setStreakGoal(StreakGoal.YEAR) }
-    }
 
     @Test
     fun `emits no effects`() = runTest(dispatcher) {
@@ -133,20 +116,6 @@ class AchievementsViewModelTest {
             vm.onIntent(AchievementsIntent.Load)
             advanceUntilIdle()
             expectNoEvents()
-        }
-    }
-
-    @Test
-    fun `a failing goal write puts the old goal back and reports the error`() = runTest(dispatcher) {
-        coEvery { appSettingsRepository.setStreakGoal(any()) } throws IllegalStateException("disk full")
-        val vm = viewModel(emptyList())
-        val oldGoal = vm.state.value.streakGoal
-        vm.effects.test {
-            vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
-            assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
-            advanceUntilIdle()
-            assertEquals(oldGoal, vm.state.value.streakGoal)
-            assertEquals(AchievementsEffect.ShowSettingsError, awaitItem())
         }
     }
 

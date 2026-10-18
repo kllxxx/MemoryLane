@@ -7,5 +7,5 @@ data class TimelineState(
     val days: ImmutableList<DayItem> = persistentListOf(),
     val isLoading: Boolean = false,
     val hasPermission: Boolean = false,
-    val error: String? = null,
+    val error: TimelineError? = null,
 )

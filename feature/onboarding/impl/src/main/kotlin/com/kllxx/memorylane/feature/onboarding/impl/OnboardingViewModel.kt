@@ -47,7 +47,7 @@ class OnboardingViewModel @Inject constructor(
             OnboardingIntent.RequestPermissions ->
                 _effects.trySend(OnboardingEffect.RequestPermissionLauncher)
             is OnboardingIntent.PermissionResult ->
-                if (intent.granted || permissionDenials >= 2) completeOnboarding()
+                if (intent.granted || permissionDenials >= OnboardingConstants.PERMISSION_DENIAL_THRESHOLD) completeOnboarding()
             OnboardingIntent.PreviousPage,
             OnboardingIntent.DismissRationale -> Unit
         }

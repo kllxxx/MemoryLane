@@ -56,6 +56,7 @@ class ReviewViewModel @Inject constructor(
 
         when (intent) {
             ReviewIntent.LoadStats -> loadStats()
+            // Besides the reducer guard, this stops a second system delete request from being started
             ReviewIntent.ConfirmDelete ->
                 if (!before.isDeleting && !before.isFinished && before.pendingDeleteIds.isNotEmpty()) {
                     deletePending(before.pendingDeleteIds)
@@ -167,14 +168,12 @@ class ReviewViewModel @Inject constructor(
                 Log.e(TAG, "Could not clear the pending deletes", e)
             }
             _effects.trySend(ReviewEffect.ShowFreedSpaceAnimation)
-            // Gives the animation time to play before the screen is left
-            delay(ANIMATION_DURATION_MS)
+            delay(ReviewConstants.FREED_SPACE_ANIMATION_DELAY_MS)
             _effects.trySend(ReviewEffect.NavigateToTimeline)
         }
     }
 
     internal companion object {
         const val TAG = "ReviewViewModel"
-        const val ANIMATION_DURATION_MS = 2_000L
     }
 }

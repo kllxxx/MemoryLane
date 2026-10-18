@@ -23,6 +23,6 @@ object TimelineReducer {
                 isLoading = false,
             )
         }
-        is TimelineEvent.LoadFailed -> state.copy(error = event.message, isLoading = false)
+        is TimelineEvent.LoadFailed -> state.copy(error = TimelineError.LoadFailed, isLoading = false)
     }
 }

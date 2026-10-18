@@ -27,14 +27,14 @@ class TimelineReducerTest {
 
     @Test
     fun `LoadDays with permission starts loading and clears error`() {
-        val result = reduce(initial.copy(hasPermission = true, error = "boom"), TimelineIntent.LoadDays)
+        val result = reduce(initial.copy(hasPermission = true, error = TimelineError.LoadFailed), TimelineIntent.LoadDays)
         assertTrue(result.isLoading)
         assertNull(result.error)
     }
 
     @Test
     fun `LoadDays without permission does not start loading but clears error`() {
-        val result = reduce(initial.copy(hasPermission = false, error = "boom"), TimelineIntent.LoadDays)
+        val result = reduce(initial.copy(hasPermission = false, error = TimelineError.LoadFailed), TimelineIntent.LoadDays)
         assertFalse(result.isLoading)
         assertNull(result.error)
     }
@@ -82,8 +82,8 @@ class TimelineReducerTest {
 
     @Test
     fun `LoadFailed sets error and stops loading`() {
-        val result = reduce(initial.copy(isLoading = true), TimelineEvent.LoadFailed("boom"))
-        assertEquals("boom", result.error)
+        val result = reduce(initial.copy(isLoading = true), TimelineEvent.LoadFailed)
+        assertEquals(TimelineError.LoadFailed, result.error)
         assertFalse(result.isLoading)
     }
 }

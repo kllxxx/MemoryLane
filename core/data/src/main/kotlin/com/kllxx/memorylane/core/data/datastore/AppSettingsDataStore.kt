@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.data.datastore
 
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -20,7 +21,11 @@ internal class AppSettingsDataStore @Inject constructor(
 ) {
 
     val settings: Flow<AppSettings> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e ->
+            if (e !is IOException) throw e
+            Log.e(TAG, "Could not read the settings, using the defaults", e)
+            emit(emptyPreferences())
+        }
         .map { prefs ->
             val defaults = AppSettings()
             AppSettings(
@@ -52,6 +57,7 @@ internal class AppSettingsDataStore @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "AppSettingsDataStore"
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")

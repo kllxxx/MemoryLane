@@ -21,9 +21,6 @@ interface PendingDeleteDao {
     @Query("DELETE FROM pending_deletes WHERE photoId = :photoId")
     suspend fun deleteByPhotoId(photoId: Long)
 
-    @Query("DELETE FROM pending_deletes")
-    suspend fun clear()
-
     @Query("DELETE FROM pending_deletes WHERE sessionDate IN (SELECT date FROM swipe_sessions WHERE completed = 1)")
     suspend fun clearForCompletedSessions()
 

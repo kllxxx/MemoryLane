@@ -22,16 +22,6 @@ class SwipeRepositoryImplTest {
     private val repository = SwipeRepositoryImpl(pendingDeleteDao, swipeSessionDao)
 
     @Test
-    fun `clearPendingDeletes clears every date`() = runTest {
-        coEvery { pendingDeleteDao.clear() } returns Unit
-
-        repository.clearPendingDeletes()
-
-        coVerify(exactly = 1) { pendingDeleteDao.clear() }
-        coVerify(exactly = 0) { pendingDeleteDao.clearByDate(any()) }
-    }
-
-    @Test
     fun `getPendingDeletesByDate reads only that date and maps to domain`() = runTest {
         val date = LocalDate.of(2026, 10, 15)
         coEvery { pendingDeleteDao.getByDate(date) } returns listOf(PendingDeleteEntity(7L, date))
@@ -48,7 +38,6 @@ class SwipeRepositoryImplTest {
         repository.removePendingDelete(7L)
 
         coVerify(exactly = 1) { pendingDeleteDao.deleteByPhotoId(7L) }
-        coVerify(exactly = 0) { pendingDeleteDao.clear() }
     }
 
     @Test
@@ -59,7 +48,6 @@ class SwipeRepositoryImplTest {
         repository.clearPendingDeletesByDate(date)
 
         coVerify(exactly = 1) { pendingDeleteDao.clearByDate(date) }
-        coVerify(exactly = 0) { pendingDeleteDao.clear() }
     }
 
     @Test
@@ -86,6 +74,5 @@ class SwipeRepositoryImplTest {
         repository.cleanupStalePendingDeletes()
 
         coVerify(exactly = 1) { pendingDeleteDao.clearForCompletedSessions() }
-        coVerify(exactly = 0) { pendingDeleteDao.clear() }
     }
 }

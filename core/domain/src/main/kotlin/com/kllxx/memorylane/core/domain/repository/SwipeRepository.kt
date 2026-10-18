@@ -10,7 +10,6 @@ interface SwipeRepository {
     /** The pending deletes of the session on [date] only. */
     suspend fun getPendingDeletesByDate(date: LocalDate): List<PendingDelete>
     suspend fun removePendingDelete(photoId: Long)
-    suspend fun clearPendingDeletes()
 
     /** Clears only the pending deletes of the session on [date], keeping other sessions' deletes. */
     suspend fun clearPendingDeletesByDate(date: LocalDate)
