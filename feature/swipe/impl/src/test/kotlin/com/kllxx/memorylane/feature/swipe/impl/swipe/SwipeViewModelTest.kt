@@ -58,7 +58,7 @@ class SwipeViewModelTest {
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
         coEvery { photoRepository.getPhotoLocation(any()) } returns null
-        coEvery { swipeRepository.getPendingDeletes() } returns emptyList()
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
         every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
     }
 
@@ -261,9 +261,8 @@ class SwipeViewModelTest {
 
     @Test
     fun `resuming skips photos already marked for deletion on this date`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletes() } returns listOf(
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
             PendingDelete(1, date),
-            PendingDelete(99, LocalDate.of(2026, 3, 3)),
         )
         load()
 
@@ -283,7 +282,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `resuming with every photo already marked goes straight to review`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletes() } returns listOf(PendingDelete(1, date), PendingDelete(2, date))
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(PendingDelete(1, date), PendingDelete(2, date))
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()

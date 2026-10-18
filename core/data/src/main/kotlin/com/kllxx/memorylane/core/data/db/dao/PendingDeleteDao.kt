@@ -15,6 +15,9 @@ interface PendingDeleteDao {
     @Query("SELECT * FROM pending_deletes")
     suspend fun getAll(): List<PendingDeleteEntity>
 
+    @Query("SELECT * FROM pending_deletes WHERE sessionDate = :date")
+    suspend fun getByDate(date: LocalDate): List<PendingDeleteEntity>
+
     @Query("DELETE FROM pending_deletes WHERE photoId = :photoId")
     suspend fun deleteByPhotoId(photoId: Long)
 

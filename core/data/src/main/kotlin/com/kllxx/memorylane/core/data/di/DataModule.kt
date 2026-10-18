@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.MIGRATION_1_2
+import com.kllxx.memorylane.core.data.db.MIGRATION_2_3
 import com.kllxx.memorylane.core.data.db.dao.PendingDeleteDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
 import com.kllxx.memorylane.core.data.repository.SwipeRepositoryImpl
@@ -30,7 +31,7 @@ internal object DataProvidesModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "memorylane.db")
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides

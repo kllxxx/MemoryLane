@@ -50,6 +50,16 @@ class PendingDeleteDaoTest {
     }
 
     @Test
+    fun `getByDate returns only the rows of that date`() = runTest {
+        dao.insert(PendingDeleteEntity(1, day))
+        dao.insert(PendingDeleteEntity(2, otherDay))
+        dao.insert(PendingDeleteEntity(3, day))
+
+        assertEquals(listOf(1L, 3L), dao.getByDate(day).map { it.photoId }.sorted())
+        assertTrue(dao.getByDate(LocalDate.of(2000, 1, 1)).isEmpty())
+    }
+
+    @Test
     fun `inserting the same photo again replaces the row`() = runTest {
         dao.insert(PendingDeleteEntity(1, otherDay))
         dao.insert(PendingDeleteEntity(1, day))

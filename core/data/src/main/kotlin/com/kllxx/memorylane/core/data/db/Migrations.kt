@@ -12,3 +12,10 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("ALTER TABLE swipe_sessions ADD COLUMN completed_at INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/** Indexes pending deletes by session date, which is how they are read and cleared. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_deletes_sessionDate` ON `pending_deletes` (`sessionDate`)")
+    }
+}

@@ -10,7 +10,7 @@ import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 
 @Database(
     entities = [PendingDeleteEntity::class, SwipeSessionEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

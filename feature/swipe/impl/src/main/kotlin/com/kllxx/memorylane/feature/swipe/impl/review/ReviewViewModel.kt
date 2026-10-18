@@ -72,9 +72,7 @@ class ReviewViewModel @Inject constructor(
     private fun loadStats() {
         viewModelScope.launch(exceptionHandler) {
             try {
-                val ids = swipeRepository.getPendingDeletes()
-                    .filter { it.sessionDate == date }
-                    .map { it.photoId }
+                val ids = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
                 if (ids.isEmpty()) {
                     // Nothing to review, so the review screen is not shown at all
                     _effects.trySend(ReviewEffect.NavigateToTimeline)

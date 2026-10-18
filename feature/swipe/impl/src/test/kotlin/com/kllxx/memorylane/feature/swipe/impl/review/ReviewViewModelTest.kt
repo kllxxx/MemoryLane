@@ -63,10 +63,9 @@ class ReviewViewModelTest {
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
-        coEvery { swipeRepository.getPendingDeletes() } returns listOf(
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
             PendingDelete(1, date),
             PendingDelete(3, date),
-            PendingDelete(99, otherDate),
         )
         every { swipeRepository.getCompletedSessions() } returns flowOf(
             listOf(SwipeSession(date, true, 0, earlier), SwipeSession(otherDate, true, 1_000, earlier)),
@@ -109,7 +108,7 @@ class ReviewViewModelTest {
 
     @Test
     fun `LoadStats with nothing pending for the date navigates to timeline`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletes() } returns listOf(PendingDelete(99, otherDate))
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)

@@ -84,9 +84,7 @@ class SwipeViewModel @Inject constructor(
         viewModelScope.launch {
             val event = try {
                 val photos = photoRepository.getPhotosForDate(intent.date)
-                val pendingIds = swipeRepository.getPendingDeletes()
-                    .filter { it.sessionDate == intent.date }
-                    .map { it.photoId }
+                val pendingIds = swipeRepository.getPendingDeletesByDate(intent.date).map { it.photoId }
                 SwipeEvent.PhotosLoaded(photos, pendingIds)
             } catch (e: CancellationException) {
                 throw e

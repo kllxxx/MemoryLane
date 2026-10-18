@@ -2,7 +2,9 @@ package com.kllxx.memorylane.core.data.repository
 
 import com.kllxx.memorylane.core.data.db.dao.PendingDeleteDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
+import com.kllxx.memorylane.core.data.db.entity.PendingDeleteEntity
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
+import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.data.mapper.toDomain
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -27,6 +29,16 @@ class SwipeRepositoryImplTest {
 
         coVerify(exactly = 1) { pendingDeleteDao.clear() }
         coVerify(exactly = 0) { pendingDeleteDao.clearByDate(any()) }
+    }
+
+    @Test
+    fun `getPendingDeletesByDate reads only that date and maps to domain`() = runTest {
+        val date = LocalDate.of(2026, 10, 15)
+        coEvery { pendingDeleteDao.getByDate(date) } returns listOf(PendingDeleteEntity(7L, date))
+
+        assertEquals(listOf(PendingDelete(7L, date)), repository.getPendingDeletesByDate(date))
+
+        coVerify(exactly = 0) { pendingDeleteDao.getAll() }
     }
 
     @Test

@@ -17,7 +17,7 @@ import java.time.LocalDate
 
 /**
  * Builds a version 1 database by hand (the SQL is the one exported to schemas/.../1.json), then lets
- * Room open it with the real migration and validate the result against the version 2 entities.
+ * Room open it with the real migrations and validate the result against the current entities.
  */
 @RunWith(RobolectricTestRunner::class)
 class MigrationTest {
@@ -44,7 +44,7 @@ class MigrationTest {
         v1.close()
 
         database = Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .allowMainThreadQueries()
             .build()
     }
@@ -74,6 +74,16 @@ class MigrationTest {
             assertEquals(0L, it.getLong(1))
         }
         assertNotNull(database.pendingDeleteDao().getAll().singleOrNull { it.photoId == 7L })
+    }
+
+    @Test
+    fun `the session date index exists after migrating`() {
+        database.openHelper.readableDatabase.query(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'pending_deletes'",
+        ).use {
+            val names = generateSequence { if (it.moveToNext()) it.getString(0) else null }.toList()
+            assertTrue(names.contains("index_pending_deletes_sessionDate"))
+        }
     }
 
     private companion object {
