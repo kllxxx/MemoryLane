@@ -8,9 +8,15 @@ import org.junit.Test
 class OnboardingReducerTest {
 
     private val initial = OnboardingState()
+    private val photoPage = initial.copy(currentPage = OnboardingConstants.PHOTO_PAGE)
 
     private fun reduce(state: OnboardingState, intent: OnboardingIntent, denials: Int = 0) =
         OnboardingReducer.reduce(state, intent, denials)
+
+    @Test
+    fun `there are four pages`() {
+        assertEquals(4, initial.totalPages)
+    }
 
     @Test
     fun `NextPage increments page without reaching last page`() {
@@ -21,21 +27,21 @@ class OnboardingReducerTest {
 
     @Test
     fun `NextPage onto final page sets isLastPage`() {
-        val result = reduce(initial.copy(currentPage = 1), OnboardingIntent.NextPage)
-        assertEquals(2, result.currentPage)
+        val result = reduce(photoPage, OnboardingIntent.NextPage)
+        assertEquals(3, result.currentPage)
         assertTrue(result.isLastPage)
     }
 
     @Test
     fun `NextPage on last page does not go past the end`() {
-        val last = initial.copy(currentPage = 2, isLastPage = true)
+        val last = initial.copy(currentPage = 3, isLastPage = true)
         assertEquals(last, reduce(last, OnboardingIntent.NextPage))
     }
 
     @Test
     fun `PreviousPage decrements page and clears isLastPage`() {
-        val result = reduce(initial.copy(currentPage = 2, isLastPage = true), OnboardingIntent.PreviousPage)
-        assertEquals(1, result.currentPage)
+        val result = reduce(initial.copy(currentPage = 3, isLastPage = true), OnboardingIntent.PreviousPage)
+        assertEquals(2, result.currentPage)
         assertFalse(result.isLastPage)
     }
 
@@ -45,43 +51,60 @@ class OnboardingReducerTest {
     }
 
     @Test
-    fun `Skip leaves state unchanged`() {
+    fun `Skip and OpenSettings leave state unchanged`() {
         assertEquals(initial, reduce(initial, OnboardingIntent.Skip))
+        assertEquals(initial, reduce(initial, OnboardingIntent.OpenSettings))
     }
 
     @Test
-    fun `RequestPermissions sets isLoading`() {
-        assertTrue(reduce(initial, OnboardingIntent.RequestPermissions).isLoading)
+    fun `permission requests set isLoading`() {
+        assertTrue(reduce(photoPage, OnboardingIntent.RequestPhotoPermission).isLoading)
+        assertTrue(reduce(photoPage, OnboardingIntent.RequestNotificationPermission).isLoading)
     }
 
     @Test
-    fun `PermissionResult granted updates flags`() {
-        val start = initial.copy(isLoading = true, showPermissionRationale = true)
-        val result = reduce(start, OnboardingIntent.PermissionResult(true), denials = 1)
+    fun `photo permission granted moves to the notification page`() {
+        val start = photoPage.copy(isLoading = true, showPermissionRationale = true)
+        val result = reduce(start, OnboardingIntent.PhotoPermissionResult(true), denials = 1)
         assertTrue(result.permissionsGranted)
         assertFalse(result.isLoading)
         assertFalse(result.showPermissionRationale)
+        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, result.currentPage)
+        assertTrue(result.isLastPage)
     }
 
     @Test
-    fun `PermissionResult denied first time shows rationale`() {
-        val result = reduce(initial.copy(isLoading = true), OnboardingIntent.PermissionResult(false), denials = 1)
+    fun `photo permission denied below the threshold stays on the page without rationale`() {
+        val result = reduce(photoPage.copy(isLoading = true), OnboardingIntent.PhotoPermissionResult(false), denials = 1)
         assertFalse(result.permissionsGranted)
         assertFalse(result.isLoading)
-        assertTrue(result.showPermissionRationale)
+        assertFalse(result.showPermissionRationale)
+        assertEquals(OnboardingConstants.PHOTO_PAGE, result.currentPage)
     }
 
     @Test
-    fun `PermissionResult denied second time hides rationale`() {
-        val start = initial.copy(isLoading = true, showPermissionRationale = true)
-        val result = reduce(start, OnboardingIntent.PermissionResult(false), denials = 2)
+    fun `photo permission denied at the threshold shows rationale`() {
+        val result = reduce(
+            photoPage.copy(isLoading = true),
+            OnboardingIntent.PhotoPermissionResult(false),
+            denials = OnboardingConstants.PERMISSION_DENIAL_THRESHOLD,
+        )
         assertFalse(result.isLoading)
-        assertFalse(result.showPermissionRationale)
+        assertTrue(result.showPermissionRationale)
+        assertEquals(OnboardingConstants.PHOTO_PAGE, result.currentPage)
     }
 
     @Test
-    fun `DismissRationale hides rationale`() {
-        val result = reduce(initial.copy(showPermissionRationale = true), OnboardingIntent.DismissRationale)
+    fun `notification result only clears loading`() {
+        val start = initial.copy(currentPage = 3, isLastPage = true, isLoading = true)
+        assertEquals(start.copy(isLoading = false), reduce(start, OnboardingIntent.NotificationPermissionResult(false)))
+        assertEquals(start.copy(isLoading = false), reduce(start, OnboardingIntent.NotificationPermissionResult(true)))
+    }
+
+    @Test
+    fun `DismissRationale hides rationale and moves on`() {
+        val result = reduce(photoPage.copy(showPermissionRationale = true), OnboardingIntent.DismissRationale)
         assertFalse(result.showPermissionRationale)
+        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, result.currentPage)
     }
 }

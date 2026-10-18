@@ -29,12 +29,12 @@ class OnboardingViewModel @Inject constructor(
     private val _effects = Channel<OnboardingEffect>(Channel.BUFFERED)
     val effects: Flow<OnboardingEffect> = _effects.receiveAsFlow()
 
-    // Kept across process death, so the "second denial moves on" rule does not start over
+    // Kept across process death, so the rationale threshold does not start over
     private var permissionDenials: Int = savedStateHandle[PERMISSION_DENIALS_KEY] ?: 0
 
     fun onIntent(intent: OnboardingIntent) {
         val wasLastPage = _state.value.isLastPage
-        if (intent == OnboardingIntent.PermissionResult(granted = false)) {
+        if (intent == OnboardingIntent.PhotoPermissionResult(granted = false)) {
             permissionDenials++
             savedStateHandle[PERMISSION_DENIALS_KEY] = permissionDenials
         }
@@ -44,10 +44,14 @@ class OnboardingViewModel @Inject constructor(
         when (intent) {
             OnboardingIntent.Skip -> completeOnboarding()
             OnboardingIntent.NextPage -> if (wasLastPage) completeOnboarding()
-            OnboardingIntent.RequestPermissions ->
-                _effects.trySend(OnboardingEffect.RequestPermissionLauncher)
-            is OnboardingIntent.PermissionResult ->
-                if (intent.granted || permissionDenials >= OnboardingConstants.PERMISSION_DENIAL_THRESHOLD) completeOnboarding()
+            OnboardingIntent.RequestPhotoPermission ->
+                _effects.trySend(OnboardingEffect.RequestPhotoPermissionLauncher)
+            OnboardingIntent.RequestNotificationPermission ->
+                _effects.trySend(OnboardingEffect.RequestNotificationPermissionLauncher)
+            // Notifications are the last step: whatever the answer, onboarding is done
+            is OnboardingIntent.NotificationPermissionResult -> completeOnboarding()
+            OnboardingIntent.OpenSettings -> _effects.trySend(OnboardingEffect.OpenAppSettings)
+            is OnboardingIntent.PhotoPermissionResult,
             OnboardingIntent.PreviousPage,
             OnboardingIntent.DismissRationale -> Unit
         }

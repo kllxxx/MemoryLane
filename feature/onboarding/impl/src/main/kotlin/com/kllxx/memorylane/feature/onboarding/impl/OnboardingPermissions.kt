@@ -5,18 +5,20 @@ import android.os.Build
 
 internal object OnboardingPermissions {
 
-    /** Everything requested together in one system flow at the end of onboarding. */
-    fun required(sdkInt: Int = Build.VERSION.SDK_INT): List<String> = buildList {
+    /** Requested together on the gallery slide. */
+    fun photo(sdkInt: Int = Build.VERSION.SDK_INT): List<String> = buildList {
         add(mediaReadPermission(sdkInt))
         // Lets the app read GPS data of photos, used to show where a photo was taken
         if (sdkInt >= Build.VERSION_CODES.Q) add(Manifest.permission.ACCESS_MEDIA_LOCATION)
-        // Runtime permission only since API 33; before that notifications are always allowed
-        if (sdkInt >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    /** Runtime permission only since API 33; before that notifications are always allowed, so null. */
+    fun notification(sdkInt: Int = Build.VERSION.SDK_INT): String? =
+        if (sdkInt >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.POST_NOTIFICATIONS else null
+
     /**
-     * Access to the photos is what the app needs to work. The location and notification
-     * permissions are optional: denying them only means no photo locations or notifications.
+     * Access to the photos is what the app needs to work. The location permission is optional:
+     * denying it only means no photo locations.
      */
     fun isMediaAccessGranted(
         result: Map<String, Boolean>,

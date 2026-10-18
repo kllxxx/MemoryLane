@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_skip">Пропустить</string>
+    <string name="onboarding_back">Назад</string>
+    <string name="onboarding_next">Далее →</string>
+    <string name="onboarding_allow">Разрешить →</string>
+
+    <string name="onboarding_slide1_title">Твои воспоминания, упорядоченные</string>
+    <string name="onboarding_slide1_subtitle">Показываем фото из этого дня в прошлые годы. Свайп вправо — оставить, влево — отправить в корзину.</string>
+    <string name="onboarding_slide1_caption">18 окт · Сегодня</string>
+
+    <string name="onboarding_slide2_title">Свайп вправо или влево</string>
+    <string name="onboarding_slide2_subtitle">Разобрал все — день засчитан в стрик.</string>
+    <string name="onboarding_slide2_caption">Июль 2022 · 14:32</string>
+    <string name="onboarding_slide2_delete">УДАЛИТЬ</string>
+    <string name="onboarding_slide2_keep">СОХРАНИТЬ</string>
+    <string name="onboarding_slide2_row_streak">Разобрал все фото дня — день засчитан в стрик</string>
+    <string name="onboarding_slide2_row_request">После свайпов — один запрос на удаление</string>
+
+    <string name="onboarding_slide3_title">Доступ к галерее</string>
+    <string name="onboarding_slide3_subtitle">Откроется системный диалог Android. Без этого разрешения приложение не запустится.</string>
+    <string name="onboarding_slide3_row_access">Просмотр и удаление фото из галереи</string>
+    <string name="onboarding_slide3_row_local">Фото остаются локально и не уходят в сеть</string>
+
+    <string name="onboarding_slide4_title">Напоминания о стрике</string>
+    <string name="onboarding_slide4_subtitle">Одно уведомление в день — чтобы не терять стрик. Выключить можно в настройках.</string>
+    <string name="onboarding_notification_app">MemoryLane</string>
+    <string name="onboarding_notification_app_now">MemoryLane · сейчас</string>
+    <string name="onboarding_notification_unsorted">Вчера этот день остался несортированным…</string>
+    <string name="onboarding_notification_unsorted_time">вчера</string>
+    <string name="onboarding_notification_waiting">18 октября — 7 воспоминаний ждут тебя</string>
+    <string name="onboarding_notification_waiting_time">3 дн</string>
+    <string name="onboarding_notification_streak">🔥 Стрик 7 дней! Не пропусти сегодня</string>
+    <string name="onboarding_notification_streak_time">сейчас</string>
+
+    <string name="onboarding_rationale_title">Нужен доступ к фото</string>
+    <string name="onboarding_rationale_text">Без доступа к галерее приложение не сможет работать. Разрешите его в настройках.</string>
+    <string name="onboarding_rationale_settings">Открыть настройки</string>
+    <string name="onboarding_rationale_continue">Продолжить без доступа</string>
+</resources>

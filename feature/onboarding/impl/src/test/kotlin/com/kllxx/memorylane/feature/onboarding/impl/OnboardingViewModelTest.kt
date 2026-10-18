@@ -44,6 +44,10 @@ class OnboardingViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun goToPhotoPage() {
+        repeat(OnboardingConstants.PHOTO_PAGE) { viewModel.onIntent(OnboardingIntent.NextPage) }
+    }
+
     @Test
     fun `NextPage and PreviousPage update state`() = runTest(dispatcher) {
         viewModel.onIntent(OnboardingIntent.NextPage)
@@ -55,8 +59,7 @@ class OnboardingViewModelTest {
     @Test
     fun `NextPage on last page completes onboarding`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.NextPage)
-            viewModel.onIntent(OnboardingIntent.NextPage)
+            repeat(3) { viewModel.onIntent(OnboardingIntent.NextPage) }
             advanceUntilIdle()
             expectNoEvents()
             viewModel.onIntent(OnboardingIntent.NextPage)
@@ -67,8 +70,9 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `Skip completes onboarding`() = runTest(dispatcher) {
+    fun `Skip completes onboarding from any page`() = runTest(dispatcher) {
         viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.NextPage)
             viewModel.onIntent(OnboardingIntent.Skip)
             advanceUntilIdle()
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
@@ -77,72 +81,104 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `RequestPermissions sets loading and emits launcher effect`() = runTest(dispatcher) {
+    fun `RequestPhotoPermission sets loading and emits launcher effect`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.RequestPermissions)
+            viewModel.onIntent(OnboardingIntent.RequestPhotoPermission)
             assertTrue(viewModel.state.value.isLoading)
-            assertEquals(OnboardingEffect.RequestPermissionLauncher, awaitItem())
+            assertEquals(OnboardingEffect.RequestPhotoPermissionLauncher, awaitItem())
         }
     }
 
     @Test
-    fun `PermissionResult granted completes onboarding`() = runTest(dispatcher) {
+    fun `RequestNotificationPermission emits launcher effect`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.PermissionResult(true))
+            viewModel.onIntent(OnboardingIntent.RequestNotificationPermission)
+            assertEquals(OnboardingEffect.RequestNotificationPermissionLauncher, awaitItem())
+        }
+    }
+
+    @Test
+    fun `photo permission granted moves to the notification page without completing`() = runTest(dispatcher) {
+        goToPhotoPage()
+        viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(true))
             advanceUntilIdle()
             assertTrue(viewModel.state.value.permissionsGranted)
-            assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
-        }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
-    }
-
-    @Test
-    fun `first denial shows rationale without completing`() = runTest(dispatcher) {
-        viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.PermissionResult(false))
-            advanceUntilIdle()
-            assertTrue(viewModel.state.value.showPermissionRationale)
+            assertEquals(OnboardingConstants.NOTIFICATION_PAGE, viewModel.state.value.currentPage)
             expectNoEvents()
         }
         coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
-    fun `second denial hides rationale and completes onboarding`() = runTest(dispatcher) {
+    fun `first photo denial stays on the page without rationale`() = runTest(dispatcher) {
+        goToPhotoPage()
         viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.PermissionResult(false))
-            viewModel.onIntent(OnboardingIntent.PermissionResult(false))
+            viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
             advanceUntilIdle()
+            assertEquals(OnboardingConstants.PHOTO_PAGE, viewModel.state.value.currentPage)
             assertFalse(viewModel.state.value.showPermissionRationale)
-            assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
+            expectNoEvents()
         }
-        coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
+        coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
-    fun `denials are saved`() = runTest(dispatcher) {
-        viewModel.onIntent(OnboardingIntent.PermissionResult(false))
+    fun `second photo denial shows rationale and still does not complete`() = runTest(dispatcher) {
+        goToPhotoPage()
+        viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
+            viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
+            advanceUntilIdle()
+            assertTrue(viewModel.state.value.showPermissionRationale)
+            assertEquals(OnboardingConstants.PHOTO_PAGE, viewModel.state.value.currentPage)
+            expectNoEvents()
+        }
+        coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
+    }
+
+    @Test
+    fun `photo denials are saved`() = runTest(dispatcher) {
+        viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
         assertEquals(1, savedStateHandle.get<Int>(OnboardingViewModel.PERMISSION_DENIALS_KEY))
     }
 
     @Test
-    fun `a restored denial makes the next one the second`() = runTest(dispatcher) {
+    fun `a restored denial makes the next one reach the rationale`() = runTest(dispatcher) {
         savedStateHandle = SavedStateHandle(mapOf(OnboardingViewModel.PERMISSION_DENIALS_KEY to 1))
         viewModel = OnboardingViewModel(repository, savedStateHandle)
 
+        viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
+        assertTrue(viewModel.state.value.showPermissionRationale)
+    }
+
+    @Test
+    fun `OpenSettings emits the settings effect`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(OnboardingIntent.PermissionResult(false))
-            advanceUntilIdle()
-            assertFalse(viewModel.state.value.showPermissionRationale)
-            assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
+            viewModel.onIntent(OnboardingIntent.OpenSettings)
+            assertEquals(OnboardingEffect.OpenAppSettings, awaitItem())
         }
     }
 
     @Test
-    fun `DismissRationale hides rationale`() = runTest(dispatcher) {
-        viewModel.onIntent(OnboardingIntent.PermissionResult(false))
+    fun `DismissRationale hides rationale and moves on`() = runTest(dispatcher) {
+        goToPhotoPage()
+        repeat(2) { viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false)) }
         viewModel.onIntent(OnboardingIntent.DismissRationale)
         assertFalse(viewModel.state.value.showPermissionRationale)
+        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, viewModel.state.value.currentPage)
+    }
+
+    @Test
+    fun `notification result completes onboarding whether granted or denied`() = runTest(dispatcher) {
+        listOf(true, false).forEach { granted ->
+            viewModel.effects.test {
+                viewModel.onIntent(OnboardingIntent.NotificationPermissionResult(granted))
+                advanceUntilIdle()
+                assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
+            }
+        }
+        coVerify(exactly = 2) { repository.setOnboardingCompleted(true) }
     }
 
     @Test
@@ -157,9 +193,9 @@ class OnboardingViewModelTest {
 
     @Test
     fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
-        viewModel.onIntent(OnboardingIntent.RequestPermissions)
+        viewModel.onIntent(OnboardingIntent.RequestPhotoPermission)
         viewModel.effects.test {
-            assertEquals(OnboardingEffect.RequestPermissionLauncher, awaitItem())
+            assertEquals(OnboardingEffect.RequestPhotoPermissionLauncher, awaitItem())
         }
     }
 }
