@@ -50,6 +50,7 @@ class SwipeViewModelTest {
     private lateinit var photoRepository: PhotoRepository
     private lateinit var swipeRepository: SwipeRepository
     private lateinit var viewModel: SwipeViewModel
+    private lateinit var savedStateHandle: SavedStateHandle
 
     @Before
     fun setUp() {
@@ -63,8 +64,13 @@ class SwipeViewModelTest {
     }
 
     // The ViewModel starts loading as soon as it is created, so tests stub the repositories first
-    private fun createViewModel() {
-        val savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
+    private fun createViewModel(restoredIndex: Int? = null) {
+        savedStateHandle = SavedStateHandle(
+            buildMap {
+                put("date", date.toString())
+                restoredIndex?.let { put(SwipeViewModel.CURRENT_INDEX_KEY, it) }
+            },
+        )
         viewModel = SwipeViewModel(photoRepository, swipeRepository, clock, savedStateHandle)
     }
 
@@ -86,6 +92,28 @@ class SwipeViewModelTest {
         assertEquals(photos, state.photos)
         assertEquals(false, state.isLoading)
         assertEquals(date, state.date)
+    }
+
+    @Test
+    fun `the current index is saved while swiping`() = runTest(dispatcher) {
+        load()
+        assertEquals(0, savedStateHandle.get<Int>(SwipeViewModel.CURRENT_INDEX_KEY))
+
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+
+        assertEquals(1, savedStateHandle.get<Int>(SwipeViewModel.CURRENT_INDEX_KEY))
+    }
+
+    @Test
+    fun `a saved index is restored and not overwritten while loading`() = runTest(dispatcher) {
+        createViewModel(restoredIndex = 1)
+        // Loading has not finished yet: the saved value must still be the restored one
+        assertEquals(1, savedStateHandle.get<Int>(SwipeViewModel.CURRENT_INDEX_KEY))
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.state.value.currentIndex)
+        assertEquals(1, savedStateHandle.get<Int>(SwipeViewModel.CURRENT_INDEX_KEY))
     }
 
     @Test

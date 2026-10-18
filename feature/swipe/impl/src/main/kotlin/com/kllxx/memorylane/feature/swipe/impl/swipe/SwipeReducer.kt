@@ -1,20 +1,11 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import com.kllxx.memorylane.core.photos.domain.model.Photo
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
 object SwipeReducer {
 
     fun reduce(state: SwipeState, intent: SwipeIntent): SwipeState = when (intent) {
-        is SwipeIntent.LoadPhotos -> state.copy(
-            photos = persistentListOf(),
-            currentIndex = 0,
-            pendingDeletes = persistentListOf(),
-            isLoading = true,
-            isFinished = false,
-            date = intent.date,
-        )
         SwipeIntent.SwipeRight -> advance(state, delete = false)
         SwipeIntent.SwipeLeft -> advance(state, delete = true)
         SwipeIntent.Close -> state
@@ -25,7 +16,12 @@ object SwipeReducer {
             // Resume: photos already marked for deletion on an earlier run are not shown again
             val photoIds = event.photos.mapTo(mutableSetOf()) { it.id }
             val pending = event.pendingDeleteIds.filter { it in photoIds }.distinct()
-            val firstToShow = firstIndexToShow(event.photos, from = 0, pending = pending)
+            // A restored index also skips the photos that were kept before the process died
+            val firstToShow = firstIndexToShow(
+                event.photos,
+                from = event.restoredIndex.coerceIn(0, event.photos.size),
+                pending = pending,
+            )
             state.copy(
                 photos = event.photos.toImmutableList(),
                 pendingDeletes = pending.toImmutableList(),

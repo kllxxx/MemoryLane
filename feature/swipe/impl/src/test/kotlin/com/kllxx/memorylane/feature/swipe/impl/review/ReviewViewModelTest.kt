@@ -107,6 +107,36 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `a pending delete whose photo is gone is left out and removed`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
+            PendingDelete(1, date),
+            PendingDelete(77, date),
+        )
+        loadStats()
+
+        val state = viewModel.state.value
+        assertEquals(listOf(1L), state.pendingDeleteIds)
+        assertEquals(1, state.deletedCount)
+        assertEquals(2, state.keptCount)
+        assertEquals(100, state.sessionFreedBytes)
+        coVerify(exactly = 1) { swipeRepository.removePendingDelete(77) }
+        coVerify(exactly = 0) { swipeRepository.removePendingDelete(1) }
+    }
+
+    @Test
+    fun `when every pending delete is stale review navigates to timeline`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(PendingDelete(77, date))
+
+        viewModel.effects.test {
+            viewModel.onIntent(ReviewIntent.LoadStats)
+            advanceUntilIdle()
+            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+        }
+        coVerify(exactly = 1) { swipeRepository.removePendingDelete(77) }
+        assertEquals(ReviewState(), viewModel.state.value)
+    }
+
+    @Test
     fun `LoadStats with nothing pending for the date navigates to timeline`() = runTest(dispatcher) {
         coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
 

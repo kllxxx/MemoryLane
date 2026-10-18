@@ -17,7 +17,7 @@ class TimelineReducerTest {
     private val d1 = LocalDate.of(2026, 1, 1)
     private val d2 = LocalDate.of(2026, 1, 2)
 
-    private fun skeleton() = listOf(DayItem(d1, null, 0), DayItem(d2, null, 0))
+    private fun skeleton() = listOf(DayItem(d1, DayLoadState.NotLoaded), DayItem(d2, DayLoadState.NotLoaded))
 
     private fun reduce(state: TimelineState, event: TimelineEvent) =
         TimelineReducer.reduce(state, event)
@@ -65,18 +65,18 @@ class TimelineReducerTest {
     fun `DaysLoaded replaces matching days and stops loading`() {
         val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 1, 2), 10)
         val state = initial.copy(days = skeleton().toImmutableList(), isLoading = true)
-        val loaded = DayItem(d2, photo, 3)
+        val loaded = DayItem(d2, DayLoadState.Loaded(photo, 3))
 
         val result = reduce(state, TimelineEvent.DaysLoaded(listOf(loaded)))
 
-        assertEquals(listOf(DayItem(d1, null, 0), loaded), result.days)
+        assertEquals(listOf(DayItem(d1, DayLoadState.NotLoaded), loaded), result.days)
         assertFalse(result.isLoading)
     }
 
     @Test
     fun `DaysLoaded ignores dates not in the list`() {
         val state = initial.copy(days = skeleton().toImmutableList())
-        val stray = DayItem(LocalDate.of(2027, 5, 5), null, 9)
+        val stray = DayItem(LocalDate.of(2027, 5, 5), DayLoadState.Empty)
         assertEquals(skeleton(), reduce(state, TimelineEvent.DaysLoaded(listOf(stray))).days)
     }
 

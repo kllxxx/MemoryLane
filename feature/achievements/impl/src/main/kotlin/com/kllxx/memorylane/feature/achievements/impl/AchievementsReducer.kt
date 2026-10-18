@@ -19,6 +19,7 @@ object AchievementsReducer {
             isLoading = false,
         )
         is AchievementsEvent.GoalLoaded -> state.withGoal(event.goal)
+        is AchievementsEvent.GoalReverted -> state.withGoal(event.goal)
     }
 
     private fun AchievementsState.withGoal(goal: StreakGoal) = copy(

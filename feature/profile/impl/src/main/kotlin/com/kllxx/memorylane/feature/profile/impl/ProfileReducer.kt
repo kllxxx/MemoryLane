@@ -17,5 +17,8 @@ object ProfileReducer {
             streakGoal = event.streakGoal,
             isLoading = false,
         )
+        is ProfileEvent.ThemeReverted -> state.copy(themeMode = event.themeMode)
+        is ProfileEvent.NotificationsReverted -> state.copy(notificationsEnabled = event.enabled)
+        is ProfileEvent.StreakGoalReverted -> state.copy(streakGoal = event.goal)
     }
 }

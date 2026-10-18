@@ -32,12 +32,12 @@ class SwipeViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
     private val clock: Clock,
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val date: LocalDate = LocalDate.parse(savedStateHandle.toRoute<SwipeRoute>().date)
 
-    private val _state = MutableStateFlow(SwipeState(date = date))
+    private val _state = MutableStateFlow(SwipeState(date = date, isLoading = true))
     val state: StateFlow<SwipeState> = _state.asStateFlow()
 
     private val _effects = Channel<SwipeEffect>(Channel.BUFFERED)
@@ -47,17 +47,20 @@ class SwipeViewModel @Inject constructor(
     private var locationJob: Job? = null
     private val requestedLocations = mutableSetOf<Long>()
 
+    // Read before anything is saved, so the loading state can never overwrite it
+    private val restoredIndex: Int = savedStateHandle[CURRENT_INDEX_KEY] ?: 0
+
     init {
-        onIntent(SwipeIntent.LoadPhotos(date))
+        loadPhotos()
     }
 
     fun onIntent(intent: SwipeIntent) {
         val before = _state.value
         _state.update { SwipeReducer.reduce(it, intent) }
         val after = _state.value
+        persistIndex(after)
 
         when (intent) {
-            is SwipeIntent.LoadPhotos -> loadPhotos(intent)
             SwipeIntent.SwipeLeft, SwipeIntent.SwipeRight -> {
                 val photoId = before.photos.getOrNull(before.currentIndex)?.id
                 if (photoId != null) {
@@ -76,16 +79,23 @@ class SwipeViewModel @Inject constructor(
 
     private fun onEvent(event: SwipeEvent) {
         _state.update { SwipeReducer.reduce(it, event) }
+        persistIndex(_state.value)
     }
 
-    private fun loadPhotos(intent: SwipeIntent.LoadPhotos) {
+    /** Survives process death; not written while loading, when the index is still the reset 0. */
+    private fun persistIndex(state: SwipeState) {
+        if (!state.isLoading) savedStateHandle[CURRENT_INDEX_KEY] = state.currentIndex
+    }
+
+    /** Only called once, from init: the screen has no way to start a second load. */
+    private fun loadPhotos() {
         locationJob?.cancel()
         requestedLocations.clear()
         viewModelScope.launch {
             val event = try {
-                val photos = photoRepository.getPhotosForDate(intent.date)
-                val pendingIds = swipeRepository.getPendingDeletesByDate(intent.date).map { it.photoId }
-                SwipeEvent.PhotosLoaded(photos, pendingIds)
+                val photos = photoRepository.getPhotosForDate(date)
+                val pendingIds = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
+                SwipeEvent.PhotosLoaded(photos, pendingIds, restoredIndex)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: PermissionDeniedException) {
@@ -179,5 +189,6 @@ class SwipeViewModel @Inject constructor(
 
     internal companion object {
         const val TAG = "SwipeViewModel"
+        const val CURRENT_INDEX_KEY = "current_index"
     }
 }

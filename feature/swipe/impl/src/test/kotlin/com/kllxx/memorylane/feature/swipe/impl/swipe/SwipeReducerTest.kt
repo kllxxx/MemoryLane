@@ -28,23 +28,6 @@ class SwipeReducerTest {
     private fun reduce(state: SwipeState, event: SwipeEvent) = SwipeReducer.reduce(state, event)
 
     @Test
-    fun `LoadPhotos resets state and starts loading`() {
-        val dirty = loaded(2).copy(
-            currentIndex = 1,
-            pendingDeletes = persistentListOf(1L),
-            isFinished = true,
-        )
-        val newDate = LocalDate.of(2026, 1, 1)
-        val result = reduce(dirty, SwipeIntent.LoadPhotos(newDate))
-        assertTrue(result.isLoading)
-        assertEquals(newDate, result.date)
-        assertEquals(0, result.currentIndex)
-        assertTrue(result.photos.isEmpty())
-        assertTrue(result.pendingDeletes.isEmpty())
-        assertFalse(result.isFinished)
-    }
-
-    @Test
     fun `PhotosLoaded stores photos and stops loading`() {
         val photos = listOf(photo(1), photo(2))
         val result = reduce(SwipeState(date = date, isLoading = true), SwipeEvent.PhotosLoaded(photos))
@@ -52,6 +35,35 @@ class SwipeReducerTest {
         assertEquals(0, result.currentIndex)
         assertFalse(result.isLoading)
         assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `PhotosLoaded resumes after the restored index`() {
+        val photos = listOf(photo(1), photo(2), photo(3))
+        val result = reduce(
+            SwipeState(date = date, isLoading = true),
+            SwipeEvent.PhotosLoaded(photos, restoredIndex = 1),
+        )
+        assertEquals(1, result.currentIndex)
+    }
+
+    @Test
+    fun `a restored index still skips photos marked for deletion`() {
+        val photos = listOf(photo(1), photo(2), photo(3))
+        val result = reduce(
+            SwipeState(date = date, isLoading = true),
+            SwipeEvent.PhotosLoaded(photos, pendingDeleteIds = listOf(2L), restoredIndex = 1),
+        )
+        assertEquals(2, result.currentIndex)
+    }
+
+    @Test
+    fun `a restored index past the end finishes and a negative one is clamped`() {
+        val photos = listOf(photo(1), photo(2))
+        val past = reduce(SwipeState(date = date, isLoading = true), SwipeEvent.PhotosLoaded(photos, restoredIndex = 9))
+        assertTrue(past.isFinished)
+        val negative = reduce(SwipeState(date = date, isLoading = true), SwipeEvent.PhotosLoaded(photos, restoredIndex = -4))
+        assertEquals(0, negative.currentIndex)
     }
 
     @Test

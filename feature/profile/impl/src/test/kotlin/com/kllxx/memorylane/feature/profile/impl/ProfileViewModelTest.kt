@@ -135,12 +135,49 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun `a failing settings write does not crash and keeps the new value in state`() = runTest(dispatcher) {
+    fun `a failing theme write puts the old theme back and reports the error`() = runTest(dispatcher) {
+        coEvery { repository.setThemeMode(any()) } throws IllegalStateException("disk full")
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.SetTheme(ThemeMode.Light))
+            assertEquals(ThemeMode.Light, viewModel.state.value.themeMode)
+            advanceUntilIdle()
+            assertEquals(ProfileState().themeMode, viewModel.state.value.themeMode)
+            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a failing notifications write puts the old value back and reports the error`() = runTest(dispatcher) {
+        coEvery { repository.setNotificationsEnabled(any()) } throws IllegalStateException("disk full")
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.SetNotifications(false))
+            advanceUntilIdle()
+            assertEquals(ProfileState().notificationsEnabled, viewModel.state.value.notificationsEnabled)
+            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a failing streak goal write puts the old goal back and reports the error`() = runTest(dispatcher) {
+        coEvery { repository.setStreakGoal(any()) } throws IllegalStateException("disk full")
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.SetStreakGoal(StreakGoal.YEAR))
+            advanceUntilIdle()
+            assertEquals(ProfileState().streakGoal, viewModel.state.value.streakGoal)
+            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a failed write reverts only its own setting`() = runTest(dispatcher) {
         coEvery { repository.setThemeMode(any()) } throws IllegalStateException("disk full")
         viewModel.onIntent(ProfileIntent.SetTheme(ThemeMode.Light))
+        viewModel.onIntent(ProfileIntent.SetNotifications(false))
         advanceUntilIdle()
-        assertEquals(ThemeMode.Light, viewModel.state.value.themeMode)
+        assertEquals(ProfileState().themeMode, viewModel.state.value.themeMode)
+        assertEquals(false, viewModel.state.value.notificationsEnabled)
     }
+
 
     @Test
     fun `RepeatOnboarding navigates even when resetting the flag fails`() = runTest(dispatcher) {

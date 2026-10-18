@@ -15,6 +15,7 @@ fun ProfileScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 ProfileEffect.NavigateToOnboarding -> onNavigateToOnboarding()
+                ProfileEffect.ShowSettingsError -> Unit
             }
         }
     }

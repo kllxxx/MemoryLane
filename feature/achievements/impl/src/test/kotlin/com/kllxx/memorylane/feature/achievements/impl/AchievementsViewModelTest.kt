@@ -137,13 +137,37 @@ class AchievementsViewModelTest {
     }
 
     @Test
-    fun `a failing goal write does not crash and keeps the new goal in state`() = runTest(dispatcher) {
+    fun `a failing goal write puts the old goal back and reports the error`() = runTest(dispatcher) {
         coEvery { appSettingsRepository.setStreakGoal(any()) } throws IllegalStateException("disk full")
         val vm = viewModel(emptyList())
-        vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
-        advanceUntilIdle()
-        assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
+        val oldGoal = vm.state.value.streakGoal
+        vm.effects.test {
+            vm.onIntent(AchievementsIntent.SetStreakGoal(StreakGoal.YEAR))
+            assertEquals(StreakGoal.YEAR, vm.state.value.streakGoal)
+            advanceUntilIdle()
+            assertEquals(oldGoal, vm.state.value.streakGoal)
+            assertEquals(AchievementsEffect.ShowSettingsError, awaitItem())
+        }
     }
+
+    @Test
+    fun `repeated Load intents leave a single active load`() = runTest(dispatcher) {
+        val sessions = MutableStateFlow(emptyList<SwipeSession>())
+        every { swipeRepository.getCompletedSessions() } returns sessions
+        val vm = AchievementsViewModel(swipeRepository, appSettingsRepository, clock)
+
+        vm.onIntent(AchievementsIntent.Load)
+        vm.onIntent(AchievementsIntent.Load)
+        vm.onIntent(AchievementsIntent.Load)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isLoading)
+
+        sessions.value = listOf(session(today, true, 300))
+        advanceUntilIdle()
+        assertEquals(300L, vm.state.value.totalFreedBytes)
+        assertEquals(1, vm.state.value.currentStreak)
+    }
+
 
     @Test
     fun `sorting several days in one sitting is a streak of one`() = runTest(dispatcher) {

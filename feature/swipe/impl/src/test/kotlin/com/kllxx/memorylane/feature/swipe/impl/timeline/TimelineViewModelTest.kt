@@ -92,6 +92,26 @@ class TimelineViewModelTest {
     }
 
     @Test
+    fun `a loaded day without photos is Empty and a day not looked up stays NotLoaded`() = runTest(dispatcher) {
+        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        advanceUntilIdle()
+
+        val days = viewModel.state.value.days.associateBy { it.date }
+        assertEquals(DayLoadState.Empty, days.getValue(LocalDate.of(2026, 10, 1)).loadState)
+        assertEquals(DayLoadState.NotLoaded, days.getValue(LocalDate.of(2026, 9, 30)).loadState)
+    }
+
+    @Test
+    fun `a failed load leaves the days NotLoaded`() = runTest(dispatcher) {
+        coEvery { repository.getDayInfo(any()) } throws IllegalStateException("boom")
+
+        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.days.all { it.loadState == DayLoadState.NotLoaded })
+    }
+
+    @Test
     fun `LoadRange loads only dates that are not loaded yet`() = runTest(dispatcher) {
         viewModel.onIntent(TimelineIntent.PermissionResult(true))
         advanceUntilIdle()
@@ -176,8 +196,7 @@ class TimelineViewModelTest {
         advanceUntilIdle()
 
         val item = viewModel.state.value.days.first { it.date == day }
-        assertEquals(1, item.totalCount)
-        assertEquals(photo, item.firstPhoto)
+        assertEquals(DayLoadState.Loaded(photo, 1), item.loadState)
         coVerify(exactly = 2) { repository.getDayInfo(day) }
         coVerify(exactly = 1) { repository.getDayInfo(day.plusDays(1)) }
     }

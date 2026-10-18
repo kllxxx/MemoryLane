@@ -31,16 +31,23 @@ class ProfileViewModel @Inject constructor(
     private var loadJob: Job? = null
 
     fun onIntent(intent: ProfileIntent) {
+        val before = _state.value
         _state.update { ProfileReducer.reduce(it, intent) }
 
         when (intent) {
             ProfileIntent.Load -> load()
-            is ProfileIntent.SetTheme ->
-                launchCatching("theme") { appSettingsRepository.setThemeMode(intent.mode) }
-            is ProfileIntent.SetNotifications ->
-                launchCatching("notifications") { appSettingsRepository.setNotificationsEnabled(intent.enabled) }
-            is ProfileIntent.SetStreakGoal ->
-                launchCatching("streak goal") { appSettingsRepository.setStreakGoal(intent.goal) }
+            is ProfileIntent.SetTheme -> launchCatching(
+                setting = "theme",
+                revert = ProfileEvent.ThemeReverted(before.themeMode),
+            ) { appSettingsRepository.setThemeMode(intent.mode) }
+            is ProfileIntent.SetNotifications -> launchCatching(
+                setting = "notifications",
+                revert = ProfileEvent.NotificationsReverted(before.notificationsEnabled),
+            ) { appSettingsRepository.setNotificationsEnabled(intent.enabled) }
+            is ProfileIntent.SetStreakGoal -> launchCatching(
+                setting = "streak goal",
+                revert = ProfileEvent.StreakGoalReverted(before.streakGoal),
+            ) { appSettingsRepository.setStreakGoal(intent.goal) }
             ProfileIntent.RepeatOnboarding -> viewModelScope.launch {
                 // The flow starts over either way; a failed write only means the flag keeps its old value
                 try {
@@ -55,7 +62,8 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    private fun launchCatching(setting: String, block: suspend () -> Unit) {
+    /** The state already shows the new value, so a failed write puts [revert] back and tells the UI. */
+    private fun launchCatching(setting: String, revert: ProfileEvent, block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
                 block()
@@ -63,6 +71,8 @@ class ProfileViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Could not store the $setting setting", e)
+                _state.update { ProfileReducer.reduce(it, revert) }
+                _effects.trySend(ProfileEffect.ShowSettingsError)
             }
         }
     }

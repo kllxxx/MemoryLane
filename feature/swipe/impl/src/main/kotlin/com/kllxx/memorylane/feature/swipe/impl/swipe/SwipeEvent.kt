@@ -8,6 +8,8 @@ internal sealed interface SwipeEvent {
     data class PhotosLoaded(
         val photos: List<Photo>,
         val pendingDeleteIds: List<Long> = emptyList(),
+        /** The card index saved before the process died; photos before it were already swiped. */
+        val restoredIndex: Int = 0,
     ) : SwipeEvent
 
     /** The place of one photo, looked up when its card became the current one. Null if it has none. */

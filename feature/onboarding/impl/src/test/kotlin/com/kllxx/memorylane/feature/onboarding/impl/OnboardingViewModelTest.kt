@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
+import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import io.mockk.coEvery
@@ -28,12 +29,14 @@ class OnboardingViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var repository: AppSettingsRepository
     private lateinit var viewModel: OnboardingViewModel
+    private lateinit var savedStateHandle: SavedStateHandle
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         repository = mockk(relaxed = true)
-        viewModel = OnboardingViewModel(repository)
+        savedStateHandle = SavedStateHandle()
+        viewModel = OnboardingViewModel(repository, savedStateHandle)
     }
 
     @After
@@ -114,6 +117,25 @@ class OnboardingViewModelTest {
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
         coVerify(exactly = 1) { repository.setOnboardingCompleted(true) }
+    }
+
+    @Test
+    fun `denials are saved`() = runTest(dispatcher) {
+        viewModel.onIntent(OnboardingIntent.PermissionResult(false))
+        assertEquals(1, savedStateHandle.get<Int>(OnboardingViewModel.PERMISSION_DENIALS_KEY))
+    }
+
+    @Test
+    fun `a restored denial makes the next one the second`() = runTest(dispatcher) {
+        savedStateHandle = SavedStateHandle(mapOf(OnboardingViewModel.PERMISSION_DENIALS_KEY to 1))
+        viewModel = OnboardingViewModel(repository, savedStateHandle)
+
+        viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.PermissionResult(false))
+            advanceUntilIdle()
+            assertFalse(viewModel.state.value.showPermissionRationale)
+            assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
+        }
     }
 
     @Test

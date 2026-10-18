@@ -39,12 +39,13 @@ class AchievementsViewModel @Inject constructor(
     private var loadJobs: List<Job> = emptyList()
 
     fun onIntent(intent: AchievementsIntent) {
+        val before = _state.value
         _state.update { AchievementsReducer.reduce(it, intent) }
 
         when (intent) {
             AchievementsIntent.Load -> load()
             is AchievementsIntent.SetStreakGoal ->
-                setStreakGoal(intent.goal)
+                setStreakGoal(intent.goal, previous = before.streakGoal)
         }
     }
 
@@ -52,7 +53,8 @@ class AchievementsViewModel @Inject constructor(
         _state.update { AchievementsReducer.reduce(it, event) }
     }
 
-    private fun setStreakGoal(goal: StreakGoal) {
+    /** The state already shows [goal], so a failed write puts [previous] back and tells the UI. */
+    private fun setStreakGoal(goal: StreakGoal, previous: StreakGoal) {
         viewModelScope.launch {
             try {
                 appSettingsRepository.setStreakGoal(goal)
@@ -60,11 +62,15 @@ class AchievementsViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Could not store the streak goal", e)
+                onEvent(AchievementsEvent.GoalReverted(previous))
+                _effects.trySend(AchievementsEffect.ShowSettingsError)
             }
         }
     }
 
     private fun load() {
+        // Repeated Load taps: the reducer does not guard them, but the earlier collectors are cancelled
+        // here, so only one pair of collectors is ever active
         loadJobs.forEach(Job::cancel)
         loadJobs = listOf(
             viewModelScope.launch {

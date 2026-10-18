@@ -66,7 +66,7 @@ class TimelineViewModel @Inject constructor(
         val today = LocalDate.now(clock)
         val yearStart = LocalDate.of(today.year, 1, 1)
         val skeleton = (0 until today.lengthOfYear()).map {
-            DayItem(date = yearStart.plusDays(it.toLong()), firstPhoto = null, totalCount = 0)
+            DayItem(date = yearStart.plusDays(it.toLong()), loadState = DayLoadState.NotLoaded)
         }
         loadedDates.clear()
         onEvent(TimelineEvent.DaysInitialized(skeleton))
@@ -87,7 +87,14 @@ class TimelineViewModel @Inject constructor(
             try {
                 val items = toLoad.map { date ->
                     val (firstPhoto, totalCount) = photoRepository.getDayInfo(date)
-                    DayItem(date = date, firstPhoto = firstPhoto, totalCount = totalCount)
+                    DayItem(
+                        date = date,
+                        loadState = if (firstPhoto == null) {
+                            DayLoadState.Empty
+                        } else {
+                            DayLoadState.Loaded(firstPhoto, totalCount)
+                        },
+                    )
                 }
                 onEvent(TimelineEvent.DaysLoaded(items))
             } catch (e: CancellationException) {

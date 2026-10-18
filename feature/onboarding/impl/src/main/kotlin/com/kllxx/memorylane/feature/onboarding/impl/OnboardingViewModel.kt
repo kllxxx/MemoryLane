@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingState())
@@ -27,11 +29,15 @@ class OnboardingViewModel @Inject constructor(
     private val _effects = Channel<OnboardingEffect>(Channel.BUFFERED)
     val effects: Flow<OnboardingEffect> = _effects.receiveAsFlow()
 
-    private var permissionDenials = 0
+    // Kept across process death, so the "second denial moves on" rule does not start over
+    private var permissionDenials: Int = savedStateHandle[PERMISSION_DENIALS_KEY] ?: 0
 
     fun onIntent(intent: OnboardingIntent) {
         val wasLastPage = _state.value.isLastPage
-        if (intent == OnboardingIntent.PermissionResult(granted = false)) permissionDenials++
+        if (intent == OnboardingIntent.PermissionResult(granted = false)) {
+            permissionDenials++
+            savedStateHandle[PERMISSION_DENIALS_KEY] = permissionDenials
+        }
 
         _state.update { OnboardingReducer.reduce(it, intent, permissionDenials) }
 
@@ -61,7 +67,8 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    private companion object {
+    internal companion object {
         const val TAG = "OnboardingViewModel"
+        const val PERMISSION_DENIALS_KEY = "permission_denials"
     }
 }

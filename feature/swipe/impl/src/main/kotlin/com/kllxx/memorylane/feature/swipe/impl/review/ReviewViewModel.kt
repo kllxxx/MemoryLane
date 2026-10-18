@@ -72,13 +72,21 @@ class ReviewViewModel @Inject constructor(
     private fun loadStats() {
         viewModelScope.launch(exceptionHandler) {
             try {
-                val ids = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
-                if (ids.isEmpty()) {
+                val markedIds = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
+                if (markedIds.isEmpty()) {
                     // Nothing to review, so the review screen is not shown at all
                     _effects.trySend(ReviewEffect.NavigateToTimeline)
                     return@launch
                 }
                 val photos = photoRepository.getPhotosForDate(date)
+                // A marked photo that is no longer in the library (deleted elsewhere) cannot be deleted again
+                val existing = photos.mapTo(mutableSetOf()) { it.id }
+                val (ids, staleIds) = markedIds.partition { it in existing }
+                staleIds.forEach(::removeStalePendingDelete)
+                if (ids.isEmpty()) {
+                    _effects.trySend(ReviewEffect.NavigateToTimeline)
+                    return@launch
+                }
                 val idSet = ids.toSet()
                 onEvent(
                     ReviewEvent.StatsLoaded(
@@ -94,6 +102,18 @@ class ReviewViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Could not load the review stats", e)
                 _effects.trySend(ReviewEffect.NavigateToTimeline)
+            }
+        }
+    }
+
+    private fun removeStalePendingDelete(photoId: Long) {
+        viewModelScope.launch(exceptionHandler) {
+            try {
+                swipeRepository.removePendingDelete(photoId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not remove the stale pending delete of photo $photoId", e)
             }
         }
     }
