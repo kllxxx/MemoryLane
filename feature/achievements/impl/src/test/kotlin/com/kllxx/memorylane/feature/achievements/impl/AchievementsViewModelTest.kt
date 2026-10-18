@@ -10,7 +10,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,8 @@ import org.robolectric.RobolectricTestRunner
 class AchievementsViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
-    private val today = LocalDate.now()
+    private val today = LocalDate.of(2026, 10, 15)
+    private val clock = Clock.fixed(today.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault())
     private lateinit var swipeRepository: SwipeRepository
     private lateinit var appSettingsRepository: AppSettingsRepository
     private lateinit var settings: MutableStateFlow<AppSettings>
@@ -59,7 +62,7 @@ class AchievementsViewModelTest {
 
     private fun viewModel(sessions: List<SwipeSession>): AchievementsViewModel {
         every { swipeRepository.getCompletedSessions() } returns flowOf(sessions)
-        return AchievementsViewModel(swipeRepository, appSettingsRepository)
+        return AchievementsViewModel(swipeRepository, appSettingsRepository, clock)
     }
 
     @Test

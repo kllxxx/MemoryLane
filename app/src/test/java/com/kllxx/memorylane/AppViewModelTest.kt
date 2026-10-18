@@ -80,6 +80,12 @@ class AppViewModelTest {
     }
 
     @Test
+    fun `today comes from the injected clock`() = runTest {
+        givenState(onboardingCompleted = true)
+        assertEquals(today, viewModel().today.value)
+    }
+
+    @Test
     fun `themeMode starts with the stored value and follows later changes`() = runTest {
         val settings = MutableStateFlow(AppSettings(themeMode = ThemeMode.Light))
         every { appSettingsRepository.getSettings() } returns settings

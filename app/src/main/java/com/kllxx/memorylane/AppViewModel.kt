@@ -35,6 +35,10 @@ class AppViewModel @Inject constructor(
     private val _startDestination = MutableStateFlow<StartDestination?>(null)
     val startDestination: StateFlow<StartDestination?> = _startDestination.asStateFlow()
 
+    // The one "today" of the navigation graph, taken from the injected clock when the start is resolved
+    private val _today = MutableStateFlow(LocalDate.now(clock))
+    val today: StateFlow<LocalDate> = _today.asStateFlow()
+
     // Read synchronously so the very first frame already uses the stored theme (no dark -> light flicker)
     private val initialThemeMode: ThemeMode = runBlocking {
         appSettingsRepository.getSettings().first().themeMode
@@ -47,6 +51,8 @@ class AppViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            val currentDay = LocalDate.now(clock)
+            _today.value = currentDay
             _startDestination.value = try {
                 val settings = appSettingsRepository.getSettings().first()
                 when {
@@ -55,7 +61,7 @@ class AppViewModel @Inject constructor(
                     !photoRepository.hasMediaPermission() -> StartDestination.Swipe
                     // Some day was already sorted today; otherwise (including an unfinished session,
                     // e.g. the app was killed on Review) it goes back to Swipe
-                    swipeRepository.getSessionByCompletedAt(LocalDate.now(clock)) != null -> StartDestination.Main
+                    swipeRepository.getSessionByCompletedAt(currentDay) != null -> StartDestination.Main
                     else -> StartDestination.Swipe
                 }
             } catch (e: CancellationException) {

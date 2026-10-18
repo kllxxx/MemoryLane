@@ -48,17 +48,20 @@ internal class LocationGeocoder internal constructor(
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private suspend fun fetchAsync(geocoder: Geocoder, latitude: Double, longitude: Double): Address? =
         suspendCancellableCoroutine { continuation ->
+            // The platform call has no cancel handle: on cancellation the late callback is just dropped
+            var cancelled = false
+            continuation.invokeOnCancellation { cancelled = true }
             geocoder.getFromLocation(
                 latitude,
                 longitude,
                 1,
                 object : Geocoder.GeocodeListener {
                     override fun onGeocode(addresses: MutableList<Address>) {
-                        continuation.resume(addresses.firstOrNull())
+                        if (!cancelled) continuation.resume(addresses.firstOrNull())
                     }
 
                     override fun onError(errorMessage: String?) {
-                        continuation.resume(null)
+                        if (!cancelled) continuation.resume(null)
                     }
                 },
             )

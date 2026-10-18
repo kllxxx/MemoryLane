@@ -86,11 +86,8 @@ class TimelineViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val items = toLoad.map { date ->
-                    DayItem(
-                        date = date,
-                        firstPhoto = photoRepository.getFirstPhotoForDate(date),
-                        totalCount = photoRepository.getPhotosForDate(date).size,
-                    )
+                    val (firstPhoto, totalCount) = photoRepository.getDayInfo(date)
+                    DayItem(date = date, firstPhoto = firstPhoto, totalCount = totalCount)
                 }
                 onEvent(TimelineEvent.DaysLoaded(items))
             } catch (e: CancellationException) {

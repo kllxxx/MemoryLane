@@ -62,6 +62,7 @@ private val bottomNavItems = listOf(
 @Composable
 fun AppNavHost(
     startDestination: StartDestination,
+    today: LocalDate,
     navController: NavHostController = rememberNavController(),
 ) {
     // ISO date of the day last opened in Swipe or Review, waiting to be reloaded on Timeline
@@ -102,13 +103,13 @@ fun AppNavHost(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = startDestination.toRoute(),
+            startDestination = startDestination.toRoute(today),
             modifier = Modifier.padding(innerPadding),
         ) {
             composable<OnboardingRoute> {
                 OnboardingScreen(
                     onFinished = {
-                        navController.navigate(SwipeRoute(LocalDate.now().toString())) {
+                        navController.navigate(SwipeRoute(today.toString())) {
                             popUpTo<OnboardingRoute> { inclusive = true }
                         }
                     },
@@ -176,8 +177,8 @@ private fun NavHostController.navigateToTimeline() {
     }
 }
 
-private fun StartDestination.toRoute(): Any = when (this) {
+private fun StartDestination.toRoute(today: LocalDate): Any = when (this) {
     StartDestination.Onboarding -> OnboardingRoute
-    StartDestination.Swipe -> SwipeRoute(LocalDate.now().toString())
+    StartDestination.Swipe -> SwipeRoute(today.toString())
     StartDestination.Main -> TimelineRoute
 }

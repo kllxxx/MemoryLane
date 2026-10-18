@@ -5,12 +5,14 @@ import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
+import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
@@ -18,7 +20,7 @@ import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -29,6 +31,7 @@ import javax.inject.Inject
 internal class PhotoRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geocoder: LocationGeocoder,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : PhotoRepository {
 
     private val resolver: ContentResolver get() = context.contentResolver
@@ -42,13 +45,25 @@ internal class PhotoRepositoryImpl @Inject constructor(
         return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    override suspend fun getPhotosForDate(date: LocalDate): List<Photo> =
-        withContext(Dispatchers.IO) { queryOnThisDay(date, limit = null) }
+    override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = withContext(ioDispatcher) {
+        val zone = ZoneId.systemDefault()
+        queryOnThisDay(date, zone)?.use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.toPhoto(zone))
+            }
+        }.orEmpty()
+    }
 
-    override suspend fun getFirstPhotoForDate(date: LocalDate): Photo? =
-        withContext(Dispatchers.IO) { queryOnThisDay(date, limit = 1).firstOrNull() }
+    override suspend fun getDayInfo(date: LocalDate): Pair<Photo?, Int> = withContext(ioDispatcher) {
+        val zone = ZoneId.systemDefault()
+        queryOnThisDay(date, zone)?.use { cursor ->
+            // Only the first row becomes a Photo; the rest are just counted
+            val first = if (cursor.moveToFirst()) cursor.toPhoto(zone) else null
+            first to cursor.count
+        } ?: (null to 0)
+    }
 
-    override suspend fun getPhotoLocation(photoId: Long): String? = withContext(Dispatchers.IO) {
+    override suspend fun getPhotoLocation(photoId: Long): String? = withContext(ioDispatcher) {
         try {
             val (latitude, longitude) = coordinatesOf(ContentUris.withAppendedId(COLLECTION_URI, photoId))
                 ?: return@withContext null
@@ -67,7 +82,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
      * the app does not own.
      */
     override suspend fun deletePhotos(photoIds: List<Long>): DeleteResult =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (photoIds.isEmpty()) return@withContext DeleteResult.Deleted
             val uris = photoIds.map { ContentUris.withAppendedId(COLLECTION_URI, it) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -110,10 +125,14 @@ internal class PhotoRepositoryImpl @Inject constructor(
         null
     }
 
-    private fun queryOnThisDay(date: LocalDate, limit: Int?): List<Photo> {
+    /**
+     * A cursor over the photos taken on the same month/day as [date] in earlier years, oldest first,
+     * or null when there is no such year. The time zone is read per query so a changed device zone is
+     * picked up; it only sets the day boundaries, the caller decides which date "today" is.
+     */
+    private fun queryOnThisDay(date: LocalDate, zone: ZoneId): Cursor? {
         // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
-        val zone = ZoneId.systemDefault()
         val monthDay = MonthDay.from(date)
         val ranges = (date.year - 1 downTo date.year - MAX_YEARS_BACK)
             .filter { monthDay.isValidYear(it) }
@@ -122,7 +141,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
                 day.atStartOfDay(zone).toInstant().toEpochMilli() to
                     day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             }
-        if (ranges.isEmpty()) return emptyList()
+        if (ranges.isEmpty()) return null
 
         val selection = ranges.joinToString(" OR ") {
             "(${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} < ?)"
@@ -130,39 +149,28 @@ internal class PhotoRepositoryImpl @Inject constructor(
         val args = ranges.flatMap { listOf(it.first.toString(), it.second.toString()) }.toTypedArray()
         val sort = "${MediaStore.Images.Media.DATE_TAKEN} ASC"
 
-        val cursor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val queryArgs = Bundle().apply {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
                 putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
                 putString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sort)
-                if (limit != null) putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
             }
             resolver.query(COLLECTION_URI, PROJECTION, queryArgs, null)
         } else {
-            val sortWithLimit = if (limit != null) "$sort LIMIT $limit" else sort
-            resolver.query(COLLECTION_URI, PROJECTION, selection, args, sortWithLimit)
+            resolver.query(COLLECTION_URI, PROJECTION, selection, args, sort)
         }
+    }
 
-        return cursor?.use {
-            val idCol = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val takenCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
-            val sizeCol = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
-            buildList {
-                while (it.moveToNext()) {
-                    val id = it.getLong(idCol)
-                    add(
-                        Photo(
-                            id = id,
-                            uri = ContentUris.withAppendedId(COLLECTION_URI, id),
-                            dateTaken = Instant.ofEpochMilli(it.getLong(takenCol))
-                                .atZone(zone)
-                                .toLocalDate(),
-                            sizeBytes = it.getLong(sizeCol),
-                        ),
-                    )
-                }
-            }
-        }.orEmpty()
+    private fun Cursor.toPhoto(zone: ZoneId): Photo {
+        val id = getLong(getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+        return Photo(
+            id = id,
+            uri = ContentUris.withAppendedId(COLLECTION_URI, id),
+            dateTaken = Instant.ofEpochMilli(getLong(getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)))
+                .atZone(zone)
+                .toLocalDate(),
+            sizeBytes = getLong(getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)),
+        )
     }
 
     private companion object {

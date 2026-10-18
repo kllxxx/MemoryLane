@@ -5,10 +5,13 @@ import android.location.Geocoder
 import io.mockk.every
 import io.mockk.mockk
 import java.io.IOException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -119,6 +122,23 @@ class LocationGeocoderTest {
             arg<Geocoder.GeocodeListener>(3).onError("boom")
         }
         assertNull(TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+    }
+
+    @Test
+    fun `async ignores a callback that arrives after cancellation`() = runTest {
+        var listener: Geocoder.GeocodeListener? = null
+        every { geocoder.getFromLocation(any(), any(), any(), any<Geocoder.GeocodeListener>()) } answers {
+            listener = arg(3)
+        }
+        val job = launch { TestScopeGeocoder(asyncSdk, this@runTest).getLocation(1.0, 2.0) }
+        runCurrent()
+
+        job.cancel()
+        runCurrent()
+        listener!!.onGeocode(mutableListOf(address("Paris", null)))
+        listener!!.onError("late")
+
+        assertTrue(job.isCancelled)
     }
 
     @Test

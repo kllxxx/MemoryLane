@@ -7,6 +7,7 @@ import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 class AchievementsViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val appSettingsRepository: AppSettingsRepository,
+    private val clock: Clock,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AchievementsState())
@@ -73,7 +75,7 @@ class AchievementsViewModel @Inject constructor(
                     val dates = completed.map { it.completedAt }.filter { it != LocalDate.EPOCH }
                     onEvent(
                         AchievementsEvent.StatsLoaded(
-                            currentStreak = StreakCalculator.currentStreak(dates, LocalDate.now()),
+                            currentStreak = StreakCalculator.currentStreak(dates, LocalDate.now(clock)),
                             bestStreak = StreakCalculator.bestStreak(dates),
                             totalFreedBytes = completed.sumOf { it.savedBytes },
                             totalSortedDays = completed.size,

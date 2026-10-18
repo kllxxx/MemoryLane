@@ -39,8 +39,7 @@ class TimelineViewModelTest {
         Dispatchers.setMain(dispatcher)
         repository = mockk()
         every { repository.hasMediaPermission() } returns false
-        coEvery { repository.getFirstPhotoForDate(any()) } returns null
-        coEvery { repository.getPhotosForDate(any()) } returns emptyList()
+        coEvery { repository.getDayInfo(any()) } returns (null to 0)
         viewModel = createViewModel()
     }
 
@@ -72,7 +71,7 @@ class TimelineViewModelTest {
     fun `LoadDays without permission does not touch the repository`() = runTest(dispatcher) {
         viewModel.onIntent(TimelineIntent.LoadDays)
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.getPhotosForDate(any()) }
+        coVerify(exactly = 0) { repository.getDayInfo(any()) }
         assertTrue(viewModel.state.value.days.isEmpty())
     }
 
@@ -87,9 +86,9 @@ class TimelineViewModelTest {
         assertEquals(365, state.days.size)
         assertEquals(LocalDate.of(2026, 1, 1), state.days.first().date)
         assertEquals(LocalDate.of(2026, 12, 31), state.days.last().date)
-        coVerify(exactly = 1) { repository.getPhotosForDate(LocalDate.of(2026, 10, 1)) }
-        coVerify(exactly = 0) { repository.getPhotosForDate(LocalDate.of(2026, 9, 30)) }
-        coVerify(exactly = 0) { repository.getPhotosForDate(LocalDate.of(2026, 11, 16)) }
+        coVerify(exactly = 1) { repository.getDayInfo(LocalDate.of(2026, 10, 1)) }
+        coVerify(exactly = 0) { repository.getDayInfo(LocalDate.of(2026, 9, 30)) }
+        coVerify(exactly = 0) { repository.getDayInfo(LocalDate.of(2026, 11, 16)) }
     }
 
     @Test
@@ -101,13 +100,13 @@ class TimelineViewModelTest {
         viewModel.onIntent(TimelineIntent.LoadRange(from, from.plusDays(40)))
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.getPhotosForDate(LocalDate.of(2026, 10, 20)) }
-        coVerify(exactly = 1) { repository.getPhotosForDate(LocalDate.of(2026, 11, 20)) }
+        coVerify(exactly = 1) { repository.getDayInfo(LocalDate.of(2026, 10, 20)) }
+        coVerify(exactly = 1) { repository.getDayInfo(LocalDate.of(2026, 11, 20)) }
     }
 
     @Test
     fun `repository failure surfaces as error`() = runTest(dispatcher) {
-        coEvery { repository.getPhotosForDate(any()) } throws IllegalStateException("boom")
+        coEvery { repository.getDayInfo(any()) } throws IllegalStateException("boom")
 
         viewModel.onIntent(TimelineIntent.PermissionResult(true))
         advanceUntilIdle()
@@ -134,7 +133,7 @@ class TimelineViewModelTest {
         assertTrue(state.hasPermission)
         assertFalse(state.isLoading)
         assertEquals(365, state.days.size)
-        coVerify(exactly = 1) { repository.getPhotosForDate(LocalDate.of(2026, 10, 1)) }
+        coVerify(exactly = 1) { repository.getDayInfo(LocalDate.of(2026, 10, 1)) }
     }
 
     @Test
@@ -142,7 +141,7 @@ class TimelineViewModelTest {
         advanceUntilIdle()
         assertFalse(viewModel.state.value.hasPermission)
         assertFalse(viewModel.state.value.isLoading)
-        coVerify(exactly = 0) { repository.getPhotosForDate(any()) }
+        coVerify(exactly = 0) { repository.getDayInfo(any()) }
     }
 
     @Test
@@ -171,8 +170,7 @@ class TimelineViewModelTest {
         advanceUntilIdle()
         val day = LocalDate.of(2026, 10, 5)
         val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2025, 10, 5), sizeBytes = 10)
-        coEvery { repository.getFirstPhotoForDate(day) } returns photo
-        coEvery { repository.getPhotosForDate(day) } returns listOf(photo)
+        coEvery { repository.getDayInfo(day) } returns (photo to 1)
 
         viewModel.onIntent(TimelineIntent.RefreshDay(day))
         advanceUntilIdle()
@@ -180,14 +178,14 @@ class TimelineViewModelTest {
         val item = viewModel.state.value.days.first { it.date == day }
         assertEquals(1, item.totalCount)
         assertEquals(photo, item.firstPhoto)
-        coVerify(exactly = 2) { repository.getPhotosForDate(day) }
-        coVerify(exactly = 1) { repository.getPhotosForDate(day.plusDays(1)) }
+        coVerify(exactly = 2) { repository.getDayInfo(day) }
+        coVerify(exactly = 1) { repository.getDayInfo(day.plusDays(1)) }
     }
 
     @Test
     fun `RefreshDay without permission does nothing`() = runTest(dispatcher) {
         viewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.of(2026, 10, 5)))
         advanceUntilIdle()
-        coVerify(exactly = 0) { repository.getPhotosForDate(any()) }
+        coVerify(exactly = 0) { repository.getDayInfo(any()) }
     }
 }

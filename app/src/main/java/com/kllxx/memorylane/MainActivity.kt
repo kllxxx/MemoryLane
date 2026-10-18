@@ -30,11 +30,13 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
 
+                    val today by viewModel.today.collectAsStateWithLifecycle()
+
                     when (val start = startDestination) {
                         null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
-                        else -> AppNavHost(startDestination = start)
+                        else -> AppNavHost(startDestination = start, today = today)
                     }
                 }
             }

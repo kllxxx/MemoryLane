@@ -17,8 +17,14 @@ interface PhotoRepository {
      */
     suspend fun getPhotosForDate(date: LocalDate): List<Photo>
 
-    /** The chronologically first photo from [getPhotosForDate], or null if there is none. */
-    suspend fun getFirstPhotoForDate(date: LocalDate): Photo?
+    /**
+     * The chronologically first photo from [getPhotosForDate] (null if there is none) and how many there are,
+     * from a single query. Cheaper than [getPhotosForDate] when only a summary of the day is needed.
+     *
+     * @throws com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+     * if the media permission is not granted.
+     */
+    suspend fun getDayInfo(date: LocalDate): Pair<Photo?, Int>
 
     /** "City, Street" (or just "City") for one photo, or null when it has no usable location. Never throws. */
     suspend fun getPhotoLocation(photoId: Long): String?
