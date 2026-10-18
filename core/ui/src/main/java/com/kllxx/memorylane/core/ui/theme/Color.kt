@@ -11,6 +11,7 @@ val Emerald = Color(0xFF5BBA6F)
 val Licorice = Color(0xFF230903)
 val BabyPowder = Color(0xFFFCFFFC)
 val RedCrayola = Color(0xFFEE204E)
+val EmptyTile = Color(0xFFEAEAEA)
 val LightGray = Color.LightGray.copy(red = 0.6f, blue = 0.6f, green = 0.6f)
 
 // M3 generated (seed #137547)

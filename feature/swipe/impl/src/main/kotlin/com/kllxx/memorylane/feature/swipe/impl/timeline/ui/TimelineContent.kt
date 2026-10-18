@@ -1,0 +1,247 @@
+package com.kllxx.memorylane.feature.swipe.impl.timeline.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kllxx.memorylane.core.ui.component.PrimaryButton
+import com.kllxx.memorylane.core.ui.theme.Spacing
+import com.kllxx.memorylane.feature.swipe.impl.R
+import com.kllxx.memorylane.feature.swipe.impl.timeline.DayItem
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineError
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineIntent
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineMonth
+import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineState
+import com.kllxx.memorylane.feature.swipe.impl.timeline.toVisibleMonths
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.TextStyle
+import java.util.Locale
+
+private const val DAYS_IN_WEEK = 7
+private const val WEEKDAY_HEADER_KEY = "weekdays"
+private const val MONTH_KEY_PREFIX = "month-"
+private const val ROW_KEY_PREFIX = "row-"
+
+internal const val WEEKDAY_HEADER_TAG = "timeline-weekdays"
+
+@Composable
+internal fun TimelineContent(
+    state: TimelineState,
+    onIntent: (TimelineIntent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+        TimelineHeader(currentStreak = state.currentStreak)
+        when {
+            !state.hasPermission -> PermissionPrompt(onRequest = { onIntent(TimelineIntent.RequestPermission) })
+            else -> {
+                if (state.error != null) {
+                    ErrorBanner(state.error, onRetry = { onIntent(TimelineIntent.LoadDays) })
+                }
+                MonthList(state = state, onIntent = onIntent)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthList(state: TimelineState, onIntent: (TimelineIntent) -> Unit) {
+    val months = remember(state.days) { state.days.toVisibleMonths() }
+    val listState = rememberLazyListState()
+    val locale = currentLocale()
+    val weekdays = remember(locale) {
+        DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, locale).uppercase(locale) }
+    }
+
+    ScrollToCurrentMonth(listState, months, YearMonth.from(state.today))
+    LoadVisibleDays(listState, onIntent)
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        stickyHeader(key = WEEKDAY_HEADER_KEY) { WeekdayHeader(weekdays) }
+        months.forEach { month ->
+            item(key = MONTH_KEY_PREFIX + month.yearMonth) { MonthSeparator(month.yearMonth, locale) }
+            items(items = month.rows, key = { row -> rowKey(row) }) { row ->
+                DayRow(row = row, state = state, onIntent = onIntent)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekdayHeader(weekdays: List<String>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = Spacing.TimelineHorizontal, vertical = 8.dp)
+            .testTag(WEEKDAY_HEADER_TAG),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.TimelineGap),
+    ) {
+        weekdays.forEach { name ->
+            Text(
+                text = name,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthSeparator(yearMonth: YearMonth, locale: Locale) {
+    val name = yearMonth.month.getDisplayName(TextStyle.FULL_STANDALONE, locale).uppercase(locale)
+    val line = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.TimelineHorizontal)
+            .padding(top = 20.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = line)
+        Text(
+            text = "$name ${yearMonth.year}",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.5.sp,
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = line)
+    }
+}
+
+@Composable
+private fun DayRow(row: List<DayItem?>, state: TimelineState, onIntent: (TimelineIntent) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.TimelineHorizontal)
+            .padding(bottom = Spacing.TimelineGap),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.TimelineGap),
+    ) {
+        row.forEach { item ->
+            if (item == null) {
+                Spacer(Modifier.weight(1f))
+            } else {
+                DayCell(
+                    item = item,
+                    isToday = item.date == state.today,
+                    isFuture = item.date.isAfter(state.today),
+                    isSorted = item.date in state.sortedDates,
+                    onClick = { onIntent(TimelineIntent.OpenDay(item.date)) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionPrompt(onRequest: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(Spacing.ScreenHorizontal),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.timeline_permission_text),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        PrimaryButton(text = stringResource(R.string.timeline_permission_button), onClick = onRequest)
+    }
+}
+
+@Composable
+private fun ErrorBanner(error: TimelineError, onRetry: () -> Unit) {
+    // LoadFailed is the only error for now
+    check(error == TimelineError.LoadFailed)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = stringResource(R.string.timeline_error_text),
+            color = MaterialTheme.colorScheme.error,
+            fontSize = 13.sp,
+        )
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.timeline_error_retry)) }
+    }
+}
+
+/** Opens the list on the current month once it has been laid out. */
+@Composable
+private fun ScrollToCurrentMonth(listState: LazyListState, months: List<TimelineMonth>, current: YearMonth) {
+    var scrolled by remember { mutableStateOf(false) }
+    LaunchedEffect(months.isNotEmpty(), current) {
+        if (scrolled || months.none { it.yearMonth == current }) return@LaunchedEffect
+        // The weekday header is item 0; each month is a separator followed by its rows
+        val index = 1 + months.takeWhile { it.yearMonth != current }.sumOf { 1 + it.rows.size }
+        listState.scrollToItem(index)
+        scrolled = true
+    }
+}
+
+/** Asks for the days around what is on screen; loaded days are cached by the ViewModel. */
+@Composable
+private fun LoadVisibleDays(listState: LazyListState, onIntent: (TimelineIntent) -> Unit) {
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.mapNotNull { rowDate(it.key) }
+        }.collect { dates ->
+            val from = dates.minOrNull() ?: return@collect
+            val to = dates.max()
+            onIntent(TimelineIntent.LoadRange(from, to.plusDays((DAYS_IN_WEEK - 1).toLong())))
+        }
+    }
+}
+
+private fun rowKey(row: List<DayItem?>): String = ROW_KEY_PREFIX + row.first { it != null }!!.date
+
+private fun rowDate(key: Any): LocalDate? =
+    (key as? String)?.takeIf { it.startsWith(ROW_KEY_PREFIX) }?.removePrefix(ROW_KEY_PREFIX)?.let(LocalDate::parse)
+
+@Composable
+private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]

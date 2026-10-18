@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.streak.StreakCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate

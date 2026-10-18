@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.timeline
 
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 
 object TimelineReducer {
 
@@ -23,6 +24,10 @@ object TimelineReducer {
                 isLoading = false,
             )
         }
+        is TimelineEvent.StatsLoaded -> state.copy(
+            sortedDates = event.sortedDates.toImmutableSet(),
+            currentStreak = event.currentStreak,
+        )
         is TimelineEvent.LoadFailed -> state.copy(error = TimelineError.LoadFailed, isLoading = false)
     }
 }

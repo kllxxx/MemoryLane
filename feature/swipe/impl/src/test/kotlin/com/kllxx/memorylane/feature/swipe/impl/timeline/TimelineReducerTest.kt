@@ -86,4 +86,11 @@ class TimelineReducerTest {
         assertEquals(TimelineError.LoadFailed, result.error)
         assertFalse(result.isLoading)
     }
+
+    @Test
+    fun `StatsLoaded sets sorted dates and streak`() {
+        val result = reduce(initial, TimelineEvent.StatsLoaded(setOf(d1, d2), currentStreak = 4))
+        assertEquals(setOf(d1, d2), result.sortedDates)
+        assertEquals(4, result.currentStreak)
+    }
 }

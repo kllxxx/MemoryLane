@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.achievements.impl
+package com.kllxx.memorylane.core.domain.streak
 
 import java.time.LocalDate
 import org.junit.Assert.assertEquals

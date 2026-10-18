@@ -1,8 +1,8 @@
-package com.kllxx.memorylane.feature.achievements.impl
+package com.kllxx.memorylane.core.domain.streak
 
 import java.time.LocalDate
 
-internal object StreakCalculator {
+object StreakCalculator {
 
     /** Consecutive days ending yesterday, plus 1 if [today] is also in [dates]. */
     fun currentStreak(dates: Collection<LocalDate>, today: LocalDate): Int {

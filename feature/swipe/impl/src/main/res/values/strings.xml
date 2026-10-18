@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="timeline_title">Таймлайн</string>
+    <plurals name="timeline_streak_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="timeline_streak_icon">Стрик</string>
+    <string name="timeline_empty_day">Нет фото</string>
+    <string name="timeline_photo_count">Фото: %d</string>
+    <string name="timeline_permission_text">Чтобы показать календарь, нужен доступ к галерее.</string>
+    <string name="timeline_permission_button">Разрешить доступ</string>
+    <string name="timeline_error_text">Не удалось загрузить фото</string>
+    <string name="timeline_error_retry">Повторить</string>
+</resources>
