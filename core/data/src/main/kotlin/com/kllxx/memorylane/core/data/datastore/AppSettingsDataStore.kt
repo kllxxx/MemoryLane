@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import java.time.LocalTime
 import javax.inject.Inject
 
 internal class AppSettingsDataStore @Inject constructor(
@@ -34,9 +36,13 @@ internal class AppSettingsDataStore @Inject constructor(
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: defaults.themeMode,
                 notificationsEnabled = prefs[NOTIFICATIONS_ENABLED] ?: defaults.notificationsEnabled,
-                streakGoal = prefs[STREAK_GOAL]
-                    ?.let { name -> StreakGoal.entries.firstOrNull { it.name == name } }
-                    ?: defaults.streakGoal,
+                streakGoal = prefs[STREAK_GOAL]?.let(::streakGoalOf) ?: defaults.streakGoal,
+                reminderTime = prefs[REMINDER_MINUTE_OF_DAY]
+                    ?.takeIf { it in 0 until MINUTES_PER_DAY }
+                    ?.let { LocalTime.of(it / MINUTES_PER_HOUR, it % MINUTES_PER_HOUR) }
+                    ?: defaults.reminderTime,
+                notificationPermissionRequested = prefs[NOTIFICATION_PERMISSION_REQUESTED]
+                    ?: defaults.notificationPermissionRequested,
             )
         }
 
@@ -56,11 +62,35 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[STREAK_GOAL] = goal.name }
     }
 
+    suspend fun setReminderTime(time: LocalTime) {
+        dataStore.edit { it[REMINDER_MINUTE_OF_DAY] = time.hour * MINUTES_PER_HOUR + time.minute }
+    }
+
+    suspend fun markNotificationPermissionRequested() {
+        dataStore.edit { it[NOTIFICATION_PERMISSION_REQUESTED] = true }
+    }
+
     private companion object {
         const val TAG = "AppSettingsDataStore"
+        const val MINUTES_PER_HOUR = 60
+        const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+
+        /** Goals stored before the enum was renamed; the dropped 180-day goal was replaced by the 100-day one. */
+        val LEGACY_STREAK_GOALS = mapOf(
+            "WEEK" to StreakGoal.D7,
+            "MONTH" to StreakGoal.D30,
+            "HALF_YEAR" to StreakGoal.D100,
+            "YEAR" to StreakGoal.D365,
+        )
+
+        fun streakGoalOf(name: String): StreakGoal? =
+            StreakGoal.entries.firstOrNull { it.name == name } ?: LEGACY_STREAK_GOALS[name]
+
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val STREAK_GOAL = stringPreferencesKey("streak_goal")
+        val REMINDER_MINUTE_OF_DAY = intPreferencesKey("reminder_minute_of_day")
+        val NOTIFICATION_PERMISSION_REQUESTED = booleanPreferencesKey("notification_permission_requested")
     }
 }

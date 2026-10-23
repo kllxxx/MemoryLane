@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import java.time.LocalTime
 import org.junit.Test
 import org.junit.Assert.assertEquals
 
@@ -36,15 +37,21 @@ class AppSettingsRepositoryImplTest {
         coEvery { dataStore.setThemeMode(any()) } returns Unit
         coEvery { dataStore.setNotificationsEnabled(any()) } returns Unit
         coEvery { dataStore.setStreakGoal(any()) } returns Unit
+        coEvery { dataStore.setReminderTime(any()) } returns Unit
+        coEvery { dataStore.markNotificationPermissionRequested() } returns Unit
 
         repository.setOnboardingCompleted(true)
         repository.setThemeMode(ThemeMode.System)
         repository.setNotificationsEnabled(false)
-        repository.setStreakGoal(StreakGoal.MONTH)
+        repository.setStreakGoal(StreakGoal.D30)
+        repository.setReminderTime(LocalTime.of(8, 30))
+        repository.markNotificationPermissionRequested()
 
         coVerify(exactly = 1) { dataStore.setOnboardingCompleted(true) }
         coVerify(exactly = 1) { dataStore.setThemeMode(ThemeMode.System) }
         coVerify(exactly = 1) { dataStore.setNotificationsEnabled(false) }
-        coVerify(exactly = 1) { dataStore.setStreakGoal(StreakGoal.MONTH) }
+        coVerify(exactly = 1) { dataStore.setStreakGoal(StreakGoal.D30) }
+        coVerify(exactly = 1) { dataStore.setReminderTime(LocalTime.of(8, 30)) }
+        coVerify(exactly = 1) { dataStore.markNotificationPermissionRequested() }
     }
 }

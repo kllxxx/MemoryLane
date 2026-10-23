@@ -82,7 +82,7 @@ class AchievementsViewModelTest {
         assertEquals(3, state.bestStreak)
         assertEquals(1_500L, state.totalFreedBytes)
         assertEquals(5, state.totalSortedDays)
-        assertEquals(2f / 7, state.streakGoalProgress, 0.0001f)
+        assertEquals(2f / 30, state.streakGoalProgress, 0.0001f)
         assertFalse(state.isLoading)
     }
 
@@ -98,13 +98,13 @@ class AchievementsViewModelTest {
 
     @Test
     fun `Load picks up the stored streak goal`() = runTest(dispatcher) {
-        settings.value = AppSettings(streakGoal = StreakGoal.MONTH)
+        settings.value = AppSettings(streakGoal = StreakGoal.D30)
         val vm = viewModel(listOf(session(today, true, 1)))
 
         vm.onIntent(AchievementsIntent.Load)
         advanceUntilIdle()
 
-        assertEquals(StreakGoal.MONTH, vm.state.value.streakGoal)
+        assertEquals(StreakGoal.D30, vm.state.value.streakGoal)
         assertEquals(1f / 30, vm.state.value.streakGoalProgress, 0.0001f)
     }
 
