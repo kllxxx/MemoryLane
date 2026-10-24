@@ -2,6 +2,7 @@ package com.kllxx.memorylane.core.data.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
@@ -17,6 +18,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.time.LocalTime
 import org.junit.Assert.assertEquals
 
 class AppSettingsDataStoreTest {
@@ -82,9 +84,9 @@ class AppSettingsDataStoreTest {
     @Test
     fun `setStreakGoal updates the flow`() = runTest {
         store.settings.test {
-            assertEquals(StreakGoal.WEEK, awaitItem().streakGoal)
-            store.setStreakGoal(StreakGoal.YEAR)
-            assertEquals(StreakGoal.YEAR, awaitItem().streakGoal)
+            assertEquals(StreakGoal.D30, awaitItem().streakGoal)
+            store.setStreakGoal(StreakGoal.D365)
+            assertEquals(StreakGoal.D365, awaitItem().streakGoal)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -103,6 +105,71 @@ class AppSettingsDataStoreTest {
         prefs.edit { it[stringPreferencesKey("theme_mode")] = "Sepia" }
         store.settings.test {
             assertEquals(AppSettings().themeMode, awaitItem().themeMode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `streak goals stored under the old names are migrated`() = runTest {
+        val expected = mapOf(
+            "WEEK" to StreakGoal.D7,
+            "MONTH" to StreakGoal.D30,
+            "HALF_YEAR" to StreakGoal.D100,
+            "YEAR" to StreakGoal.D365,
+        )
+        expected.forEach { (stored, goal) ->
+            prefs.edit { it[stringPreferencesKey("streak_goal")] = stored }
+            store.settings.test {
+                assertEquals(goal, awaitItem().streakGoal)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+    }
+
+    @Test
+    fun `an unknown streak goal name falls back to the default`() = runTest {
+        prefs.edit { it[stringPreferencesKey("streak_goal")] = "FORTNIGHT" }
+        store.settings.test {
+            assertEquals(AppSettings().streakGoal, awaitItem().streakGoal)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `reminder time defaults to 20 00`() = runTest {
+        store.settings.test {
+            assertEquals(LocalTime.of(20, 0), awaitItem().reminderTime)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `setReminderTime round-trips the time`() = runTest {
+        store.settings.test {
+            awaitItem()
+            listOf(LocalTime.of(0, 0), LocalTime.of(7, 5), LocalTime.of(23, 59)).forEach { time ->
+                store.setReminderTime(time)
+                assertEquals(time, awaitItem().reminderTime)
+            }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `out of range stored reminder time falls back to the default`() = runTest {
+        prefs.edit { it[intPreferencesKey("reminder_minute_of_day")] = 24 * 60 }
+        store.settings.test {
+            assertEquals(AppSettings().reminderTime, awaitItem().reminderTime)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `markNotificationPermissionRequested updates the flow`() = runTest {
+        store.settings.test {
+            assertEquals(false, awaitItem().notificationPermissionRequested)
+            store.markNotificationPermissionRequested()
+            assertEquals(true, awaitItem().notificationPermissionRequested)
             cancelAndIgnoreRemainingEvents()
         }
     }

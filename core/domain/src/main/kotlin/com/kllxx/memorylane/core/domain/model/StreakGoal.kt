@@ -1,8 +1,8 @@
 package com.kllxx.memorylane.core.domain.model
 
 enum class StreakGoal(val days: Int) {
-    WEEK(7),
-    MONTH(30),
-    HALF_YEAR(180),
-    YEAR(365),
+    D7(7),
+    D30(30),
+    D100(100),
+    D365(365),
 }

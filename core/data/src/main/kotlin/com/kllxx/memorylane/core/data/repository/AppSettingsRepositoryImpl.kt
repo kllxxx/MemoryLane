@@ -6,6 +6,7 @@ import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalTime
 import javax.inject.Inject
 
 internal class AppSettingsRepositoryImpl @Inject constructor(
@@ -23,4 +24,9 @@ internal class AppSettingsRepositoryImpl @Inject constructor(
         dataStore.setNotificationsEnabled(enabled)
 
     override suspend fun setStreakGoal(goal: StreakGoal) = dataStore.setStreakGoal(goal)
+
+    override suspend fun setReminderTime(time: LocalTime) = dataStore.setReminderTime(time)
+
+    override suspend fun markNotificationPermissionRequested() =
+        dataStore.markNotificationPermissionRequested()
 }

@@ -1,8 +1,14 @@
 package com.kllxx.memorylane.core.domain.model
 
+import java.time.LocalTime
+
 data class AppSettings(
     val onboardingCompleted: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.Dark,
+    /** App-level switch, independent of the system permission. */
     val notificationsEnabled: Boolean = true,
-    val streakGoal: StreakGoal = StreakGoal.WEEK,
+    val streakGoal: StreakGoal = StreakGoal.D30,
+    val reminderTime: LocalTime = LocalTime.of(20, 0),
+    /** Set after the first POST_NOTIFICATIONS request, to tell "not asked yet" from "permanently denied". */
+    val notificationPermissionRequested: Boolean = false,
 )

@@ -1,8 +1,7 @@
 package com.kllxx.memorylane.navigation
 
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Person
@@ -10,8 +9,6 @@ import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +23,6 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -76,54 +72,54 @@ fun AppNavHost(
         bottomNavItems.any { destination.hasRoute(it.routeClass) }
     } == true
 
-    val isOnboarding = currentDestination?.hasRoute<OnboardingRoute>() == true
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        // Onboarding paints the status bar itself and handles the navigation bar inset on its own
-        contentWindowInsets = if (isOnboarding) WindowInsets(0, 0, 0, 0) else ScaffoldDefaults.contentWindowInsets,
+    AppNavShell(
+        navController = navController,
+        startDestination = startDestination.toRoute(today),
+        showBottomBar = showBottomBar,
         bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { item ->
-                        NavigationBarItem(
-                            selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    // Anchored to Timeline, not the graph's start, which may be Swipe or Onboarding
-                                    popUpTo<TimelineRoute> {
-                                        inclusive = false
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+            NavigationBar {
+                bottomNavItems.forEach { item ->
+                    NavigationBarItem(
+                        selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true,
+                        onClick = {
+                            navController.navigate(item.route) {
+                                // Anchored to Timeline, not the graph's start, which may be Swipe or Onboarding
+                                popUpTo<TimelineRoute> {
+                                    inclusive = false
+                                    saveState = true
                                 }
-                            },
-                            icon = { Icon(item.icon, contentDescription = null) },
-                            label = { Text(stringResource(item.labelRes)) },
-                        )
-                    }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, contentDescription = null) },
+                        label = { Text(stringResource(item.labelRes)) },
+                    )
                 }
             }
         },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination.toRoute(today),
-            modifier = Modifier.padding(innerPadding),
-        ) {
-            composable<OnboardingRoute> {
-                OnboardingScreen(
-                    onFinished = {
+    ) {
+        // Each screen applies its own insets (see AppNavShell); Onboarding paints the status bar and
+        // handles the navigation bar inset on its own
+        composable<OnboardingRoute> { entry ->
+            val fromProfile = entry.toRoute<OnboardingRoute>().fromProfile
+            OnboardingScreen(
+                onFinished = {
+                    if (fromProfile) {
+                        // A replay: back to the Profile tab it was started from
+                        navController.popBackStack()
+                    } else {
                         navController.navigate(SwipeRoute(today.toString())) {
                             popUpTo<OnboardingRoute> { inclusive = true }
                         }
-                    },
-                )
-            }
-            composable<SwipeRoute> { entry ->
-                // Remembered so Timeline can reload this day once the user is back on it
-                LaunchedEffect(entry) { lastSortedDate = entry.toRoute<SwipeRoute>().date }
+                    }
+                },
+            )
+        }
+        composable<SwipeRoute> { entry ->
+            // Remembered so Timeline can reload this day once the user is back on it
+            LaunchedEffect(entry) { lastSortedDate = entry.toRoute<SwipeRoute>().date }
+            Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 SwipeScreen(
                     onNavigateToReview = { date, totalPhotosCount ->
                         navController.navigate(ReviewRoute(date.toString(), totalPhotosCount)) {
@@ -133,33 +129,33 @@ fun AppNavHost(
                     onNavigateToTimeline = { navController.navigateToTimeline() },
                 )
             }
-            composable<ReviewRoute> { entry ->
-                LaunchedEffect(entry) { lastSortedDate = entry.toRoute<ReviewRoute>().date }
-                ReviewScreen()
-            }
-            composable<TimelineRoute> {
-                val timelineViewModel: TimelineViewModel = hiltViewModel()
-                // Timeline caches each day, so the day that was just sorted has to be reloaded
-                LaunchedEffect(lastSortedDate) {
-                    lastSortedDate?.let { date ->
-                        timelineViewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.parse(date)))
-                        lastSortedDate = null
-                    }
+        }
+        composable<ReviewRoute> { entry ->
+            LaunchedEffect(entry) { lastSortedDate = entry.toRoute<ReviewRoute>().date }
+            Box(Modifier.fillMaxSize().fullScreenInsets()) { ReviewScreen() }
+        }
+        composable<TimelineRoute> {
+            val timelineViewModel: TimelineViewModel = hiltViewModel()
+            // Timeline caches each day, so the day that was just sorted has to be reloaded
+            LaunchedEffect(lastSortedDate) {
+                lastSortedDate?.let { date ->
+                    timelineViewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.parse(date)))
+                    lastSortedDate = null
                 }
+            }
+            Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 TimelineScreen(
                     onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
                     viewModel = timelineViewModel,
                 )
             }
-            composable<AchievementsRoute> { AchievementsScreen() }
-            composable<ProfileRoute> {
+        }
+        composable<AchievementsRoute> { Box(Modifier.fillMaxSize().tabScreenInsets()) { AchievementsScreen() } }
+        composable<ProfileRoute> {
+            Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 ProfileScreen(
-                    onNavigateToOnboarding = {
-                        // Full restart of the flow: nothing from the previous session stays on the back stack
-                        navController.navigate(OnboardingRoute) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                        }
-                    },
+                    // Stacked on top of Profile, so finishing or skipping returns to it
+                    onNavigateToOnboarding = { navController.navigate(OnboardingRoute(fromProfile = true)) },
                 )
             }
         }
@@ -184,7 +180,7 @@ private fun NavHostController.navigateToTimeline() {
 }
 
 private fun StartDestination.toRoute(today: LocalDate): Any = when (this) {
-    StartDestination.Onboarding -> OnboardingRoute
+    StartDestination.Onboarding -> OnboardingRoute()
     StartDestination.Swipe -> SwipeRoute(today.toString())
     StartDestination.Main -> TimelineRoute
 }

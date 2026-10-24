@@ -37,6 +37,11 @@ internal val LightColorScheme = lightColorScheme(
     onBackground = LightGray,
     surface = BabyPowder,
     onSurface = Licorice,
+    primaryContainer = Color(0xFFE8F5EC),
+    onPrimaryContainer = BritishRacingGreen,
+    surfaceVariant = Color(0xFFF2F7F3),
+    onSurfaceVariant = Color(0xFF5A7060),
+    outlineVariant = Color(0xFFD0E4D4),
 )
 
 internal val DarkColorScheme = darkColorScheme(
@@ -56,4 +61,5 @@ internal val DarkColorScheme = darkColorScheme(
     onSurface = Color(0xFFDFE4DD),
     surfaceVariant = Color(0xFF414942),
     onSurfaceVariant = Color(0xFFC0C9C0),
+    outlineVariant = Color(0xFF5A645B),
 )
