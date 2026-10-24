@@ -1,3 +1,5 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
-sealed interface AchievementsEffect
+sealed interface AchievementsEffect {
+    data object NavigateToTimeline : AchievementsEffect
+}

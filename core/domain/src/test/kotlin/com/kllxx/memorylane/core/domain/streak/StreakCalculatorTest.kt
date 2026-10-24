@@ -60,4 +60,34 @@ class StreakCalculatorTest {
         assertEquals(4, StreakCalculator.bestStreak(dates))
         assertEquals(1, StreakCalculator.currentStreak(dates, today))
     }
+
+    @Test
+    fun `best streak of nothing is zero`() {
+        assertEquals(0, StreakCalculator.bestStreak(emptyList()))
+    }
+
+    @Test
+    fun `best streak of a single day is one`() {
+        assertEquals(1, StreakCalculator.bestStreak(listOf(today)))
+    }
+
+    @Test
+    fun `best streak ignores gaps and duplicates`() {
+        val dates = listOf(today, today, today.minusDays(2), today.minusDays(4), today.minusDays(5))
+        assertEquals(2, StreakCalculator.bestStreak(dates))
+    }
+
+    @Test
+    fun `best streak is the current run when it is the longest`() {
+        val dates = (0L..4L).map { today.minusDays(it) } + listOf(today.minusDays(10), today.minusDays(11))
+        assertEquals(5, StreakCalculator.bestStreak(dates))
+        assertEquals(5, StreakCalculator.currentStreak(dates, today))
+    }
+
+    @Test
+    fun `best streak is an older run when the current one is shorter`() {
+        val dates = listOf(today) + (10L..15L).map { today.minusDays(it) }
+        assertEquals(6, StreakCalculator.bestStreak(dates))
+        assertEquals(1, StreakCalculator.currentStreak(dates, today))
+    }
 }

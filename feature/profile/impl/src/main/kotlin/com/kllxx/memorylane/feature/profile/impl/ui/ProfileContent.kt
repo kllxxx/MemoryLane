@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.core.ui.component.SectionHeader
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize

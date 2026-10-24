@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.profile.impl.ui
+package com.kllxx.memorylane.core.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,21 +21,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneShapes
 
 private val IconTileShape = RoundedCornerShape(10.dp)
+private val SettingsIconTileSize = 36.dp
 private const val DISABLED_ALPHA = 0.4f
 
 /** Start inset of the dividers between rows: 16dp padding + 36dp icon tile + 14dp gap. */
 private val DividerInset = 66.dp
 
 @Composable
-internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text.uppercase(),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -47,7 +51,7 @@ internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun ProfileCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun SectionCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -61,21 +65,53 @@ internal fun ProfileCard(modifier: Modifier = Modifier, content: @Composable () 
 
 /** A column of rows inside a card; put a [RowDivider] between them. */
 @Composable
-internal fun RowsCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    ProfileCard(modifier) { Column { content() } }
+fun RowsCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    SectionCard(modifier) { Column { content() } }
 }
 
 @Composable
-internal fun RowDivider(modifier: Modifier = Modifier) {
+fun RowDivider(modifier: Modifier = Modifier) {
     HorizontalDivider(
         modifier = modifier.padding(start = DividerInset),
         color = MaterialTheme.colorScheme.outlineVariant,
     )
 }
 
+/** A rounded tile with a [primary][MaterialTheme.colorScheme] icon on [primaryContainer][MaterialTheme.colorScheme]. */
 @Composable
-internal fun SettingsRow(
+fun IconTile(icon: Painter, size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(IconTileShape)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+fun SettingsRow(
     icon: ImageVector,
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable () -> Unit = {},
+) {
+    SettingsRow(rememberVectorPainter(icon), title, modifier, subtitle, enabled, onClick, trailing)
+}
+
+@Composable
+fun SettingsRow(
+    icon: Painter,
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
@@ -93,20 +129,7 @@ internal fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(IconTileShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+        IconTile(icon, SettingsIconTileSize)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -128,7 +151,7 @@ internal fun SettingsRow(
 
 /** Value text in the trailing slot of a row. */
 @Composable
-internal fun RowValue(text: String, modifier: Modifier = Modifier) {
+fun RowValue(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         color = MaterialTheme.colorScheme.primary,

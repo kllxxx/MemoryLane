@@ -1,55 +1,45 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
-import com.kllxx.memorylane.core.domain.model.StreakGoal
+import com.kllxx.memorylane.core.domain.model.AchievementStats
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AchievementsReducerTest {
 
+    private val stats = AchievementStats(2, 4, 10, 3, 1_000_000)
+
     @Test
-    fun `Load sets loading`() {
-        val result = AchievementsReducer.reduce(AchievementsState(), AchievementsIntent.Load)
-        assertEquals(AchievementsState(isLoading = true), result)
+    fun `loaded stats replace the loading state`() {
+        val state = AchievementsReducer.reduce(AchievementsState.Loading, AchievementsEvent.StatsLoaded(stats))
+
+        assertEquals(stats.toState(), state)
     }
 
     @Test
-    fun `GoalLoaded updates goal and recomputes progress`() {
-        val state = AchievementsState(currentStreak = 3, streakGoalProgress = 3f / 7)
-        val result = AchievementsReducer.reduce(state, AchievementsEvent.GoalLoaded(StreakGoal.D30))
-        assertEquals(StreakGoal.D30, result.streakGoal)
-        assertEquals(3f / 30, result.streakGoalProgress, 0.0001f)
-        assertEquals(3, result.currentStreak)
-    }
-
-    @Test
-    fun `progress is coerced to one`() {
-        val state = AchievementsState(currentStreak = 20)
-        val result = AchievementsReducer.reduce(state, AchievementsEvent.GoalLoaded(StreakGoal.D7))
-        assertEquals(1f, result.streakGoalProgress, 0f)
-    }
-
-    @Test
-    fun `StatsLoaded sets stats, progress and clears loading`() {
-        val state = AchievementsState(isLoading = true)
-        val result = AchievementsReducer.reduce(
-            state,
-            AchievementsEvent.StatsLoaded(currentStreak = 5, bestStreak = 9, totalFreedBytes = 1_000L, totalSortedDays = 12),
+    fun `loaded stats without viewed photos give the empty state`() {
+        val state = AchievementsReducer.reduce(
+            AchievementsState.Loading,
+            AchievementsEvent.StatsLoaded(stats.copy(viewedPhotos = 0)),
         )
-        assertEquals(5, result.currentStreak)
-        assertEquals(9, result.bestStreak)
-        assertEquals(1_000L, result.totalFreedBytes)
-        assertEquals(12, result.totalSortedDays)
-        assertEquals(5f / 7, result.streakGoalProgress, 0.0001f)
-        assertFalse(result.isLoading)
+
+        assertEquals(AchievementsState.Empty, state)
     }
 
     @Test
-    fun `GoalLoaded keeps stats and recomputes progress`() {
-        val state = AchievementsState(currentStreak = 7, bestStreak = 7)
-        val result = AchievementsReducer.reduce(state, AchievementsEvent.GoalLoaded(StreakGoal.D100))
-        assertEquals(StreakGoal.D100, result.streakGoal)
-        assertEquals(7f / 100, result.streakGoalProgress, 0.0001f)
-        assertEquals(7, result.bestStreak)
+    fun `new stats replace the empty state`() {
+        val state = AchievementsReducer.reduce(AchievementsState.Empty, AchievementsEvent.StatsLoaded(stats))
+
+        assertEquals(stats.toState(), state)
+    }
+
+    @Test
+    fun `the calendar click does not change the state`() {
+        val before = stats.toState()
+
+        assertEquals(before, AchievementsReducer.reduce(before, AchievementsIntent.GoToCalendarClicked))
+        assertEquals(
+            AchievementsState.Loading,
+            AchievementsReducer.reduce(AchievementsState.Loading, AchievementsIntent.GoToCalendarClicked),
+        )
     }
 }

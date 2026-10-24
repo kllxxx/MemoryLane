@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.core.ui.component.SectionCard
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +46,7 @@ internal fun StreakGoalCard(
     modifier: Modifier = Modifier,
 ) {
     val progress = state.streakProgress
-    ProfileCard(modifier) {
+    SectionCard(modifier) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),

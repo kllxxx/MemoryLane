@@ -18,4 +18,10 @@ interface SwipeSessionDao {
 
     @Query("SELECT * FROM swipe_sessions WHERE completed = 1 ORDER BY date DESC")
     fun observeCompleted(): Flow<List<SwipeSessionEntity>>
+
+    @Query("SELECT COALESCE(SUM(deleted_count), 0) FROM swipe_sessions")
+    fun observeDeletedCount(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(savedBytes), 0) FROM swipe_sessions")
+    fun observeFreedBytes(): Flow<Long>
 }

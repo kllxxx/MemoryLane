@@ -19,3 +19,14 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_deletes_sessionDate` ON `pending_deletes` (`sessionDate`)")
     }
 }
+
+/** Adds the unique reviewed photos and the number of photos each session deleted; past deletions were not counted, so they stay 0. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `reviewed_photos` (`mediaId` INTEGER NOT NULL, " +
+                "`firstReviewedAt` INTEGER NOT NULL, PRIMARY KEY(`mediaId`))",
+        )
+        db.execSQL("ALTER TABLE swipe_sessions ADD COLUMN deleted_count INTEGER NOT NULL DEFAULT 0")
+    }
+}

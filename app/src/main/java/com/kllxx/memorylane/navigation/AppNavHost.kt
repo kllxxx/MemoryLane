@@ -87,17 +87,7 @@ fun AppNavHost(
                         outlinedIcon = item.outlinedIcon,
                         filledIcon = item.filledIcon,
                         selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                // Anchored to Timeline, not the graph's start, which may be Swipe or Onboarding
-                                popUpTo<TimelineRoute> {
-                                    inclusive = false
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onClick = { navController.navigateToTab(item.route) },
                     )
                 },
             )
@@ -154,7 +144,11 @@ fun AppNavHost(
                 )
             }
         }
-        composable<AchievementsRoute> { Box(Modifier.fillMaxSize().tabScreenInsets()) { AchievementsScreen() } }
+        composable<AchievementsRoute> {
+            Box(Modifier.fillMaxSize().tabScreenInsets()) {
+                AchievementsScreen(onNavigateToTimeline = { navController.navigateToTab(TimelineRoute) })
+            }
+        }
         composable<ProfileRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 ProfileScreen(
@@ -187,4 +181,17 @@ private fun StartDestination.toRoute(today: LocalDate): Any = when (this) {
     StartDestination.Onboarding -> OnboardingRoute()
     StartDestination.Swipe -> SwipeRoute(today.toString())
     StartDestination.Main -> TimelineRoute
+}
+
+/** Switches to a bottom bar tab; shared by the bar and by screens that send the user to another tab. */
+internal fun NavHostController.navigateToTab(route: Any) {
+    navigate(route) {
+        // Anchored to Timeline, not the graph's start, which may be Swipe or Onboarding
+        popUpTo<TimelineRoute> {
+            inclusive = false
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
 }

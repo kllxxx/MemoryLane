@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
@@ -49,6 +50,7 @@ class SwipeViewModelTest {
     )
     private lateinit var photoRepository: PhotoRepository
     private lateinit var swipeRepository: SwipeRepository
+    private lateinit var statsRepository: StatsRepository
     private lateinit var viewModel: SwipeViewModel
     private lateinit var savedStateHandle: SavedStateHandle
 
@@ -57,6 +59,7 @@ class SwipeViewModelTest {
         Dispatchers.setMain(dispatcher)
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
+        statsRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
         coEvery { photoRepository.getPhotoLocation(any()) } returns null
         coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
@@ -71,7 +74,7 @@ class SwipeViewModelTest {
                 restoredIndex?.let { put(SwipeViewModel.CURRENT_INDEX_KEY, it) }
             },
         )
-        viewModel = SwipeViewModel(photoRepository, swipeRepository, clock, savedStateHandle)
+        viewModel = SwipeViewModel(photoRepository, swipeRepository, statsRepository, clock, savedStateHandle)
     }
 
     @After
@@ -92,6 +95,37 @@ class SwipeViewModelTest {
         assertEquals(photos, state.photos)
         assertEquals(false, state.isLoading)
         assertEquals(date, state.date)
+    }
+
+    @Test
+    fun `every swipe marks its photo as reviewed, in both directions`() = runTest(dispatcher) {
+        load()
+
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        viewModel.onIntent(SwipeIntent.SwipeRight)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { statsRepository.markReviewed(1L) }
+        coVerify(exactly = 1) { statsRepository.markReviewed(2L) }
+    }
+
+    @Test
+    fun `no photo is marked as reviewed before a swipe`() = runTest(dispatcher) {
+        load()
+
+        coVerify(exactly = 0) { statsRepository.markReviewed(any()) }
+    }
+
+    @Test
+    fun `a failing stats write does not stop the swipe`() = runTest(dispatcher) {
+        coEvery { statsRepository.markReviewed(any()) } throws IllegalStateException("disk full")
+        load()
+
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.state.value.currentIndex)
+        coVerify(exactly = 1) { swipeRepository.savePendingDelete(PendingDelete(1L, date)) }
     }
 
     @Test
@@ -161,6 +195,16 @@ class SwipeViewModelTest {
 
     @Test
     fun `finishing keeps the saved bytes of an already completed session`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, earlier, deletedCount = 4)))
+        load()
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        viewModel.onIntent(SwipeIntent.SwipeLeft)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, earlier, deletedCount = 4)) }
+    }
+
+    @Test
+    fun `finishing keeps the saved bytes of an already completed session without deletions`() = runTest(dispatcher) {
         every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, earlier)))
         load()
         viewModel.onIntent(SwipeIntent.SwipeLeft)

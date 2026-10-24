@@ -104,4 +104,31 @@ class SwipeSessionDaoTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `totals are zero without sessions`() = runTest {
+        assertEquals(0L, dao.observeFreedBytes().first())
+        assertEquals(0, dao.observeDeletedCount().first())
+    }
+
+    @Test
+    fun `totals add up the freed bytes and deleted photos of every session`() = runTest {
+        dao.insert(session(monday, completed = true, savedBytes = 100).copy(deletedCount = 2))
+        dao.insert(session(tuesday, completed = true, savedBytes = 50).copy(deletedCount = 1))
+
+        assertEquals(150L, dao.observeFreedBytes().first())
+        assertEquals(3, dao.observeDeletedCount().first())
+    }
+
+    @Test
+    fun `totals emit again when a session is replaced`() = runTest {
+        dao.insert(session(monday, completed = true, savedBytes = 100).copy(deletedCount = 2))
+
+        dao.observeDeletedCount().test {
+            assertEquals(2, awaitItem())
+            dao.insert(session(monday, completed = true, savedBytes = 160).copy(deletedCount = 5))
+            assertEquals(5, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

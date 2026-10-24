@@ -1,20 +1,14 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
 import app.cash.turbine.test
-import com.kllxx.memorylane.core.domain.model.AppSettings
-import com.kllxx.memorylane.core.domain.model.StreakGoal
-import com.kllxx.memorylane.core.domain.model.SwipeSession
-import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
-import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.model.AchievementStats
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import io.mockk.every
 import io.mockk.mockk
-import java.time.Clock
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -22,7 +16,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,19 +26,22 @@ import org.robolectric.RobolectricTestRunner
 class AchievementsViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
-    private val today = LocalDate.of(2026, 10, 15)
-    private val clock = Clock.fixed(today.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault())
-    private lateinit var swipeRepository: SwipeRepository
-    private lateinit var appSettingsRepository: AppSettingsRepository
-    private lateinit var settings: MutableStateFlow<AppSettings>
+    private val statsFlow = MutableSharedFlow<AchievementStats>(replay = 1)
+    private lateinit var statsRepository: StatsRepository
+
+    private fun stats(
+        viewed: Int = 5,
+        current: Int = 2,
+        best: Int = 4,
+        deleted: Int = 1,
+        freedBytes: Long = 640_000_000,
+    ) = AchievementStats(current, best, viewed, deleted, freedBytes)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        swipeRepository = mockk()
-        appSettingsRepository = mockk()
-        settings = MutableStateFlow(AppSettings())
-        every { appSettingsRepository.getSettings() } returns settings
+        statsRepository = mockk()
+        every { statsRepository.stats } returns statsFlow
     }
 
     @After
@@ -53,126 +49,89 @@ class AchievementsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    /** A session that was completed on [completedAt], about a different day: only completedAt matters for streaks. */
-    private fun session(completedAt: LocalDate, completed: Boolean, savedBytes: Long) =
-        SwipeSession(date = completedAt.minusYears(1), completed = completed, savedBytes = savedBytes, completedAt = completedAt)
+    private fun viewModel() = AchievementsViewModel(statsRepository)
 
-    private fun viewModel(sessions: List<SwipeSession>): AchievementsViewModel {
-        every { swipeRepository.getCompletedSessions() } returns flowOf(sessions)
-        return AchievementsViewModel(swipeRepository, appSettingsRepository, clock)
+    @Test
+    fun `the state is loading until the first stats arrive`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(AchievementsState.Loading, vm.state.value)
     }
 
     @Test
-    fun `Load computes streaks and totals from the sessions`() = runTest(dispatcher) {
-        val vm = viewModel(
-            listOf(
-                session(today, true, 100),
-                session(today.minusDays(1), true, 200),
-                session(today.minusDays(5), true, 300),
-                session(today.minusDays(6), true, 400),
-                session(today.minusDays(7), true, 500),
-            ),
+    fun `no viewed photo gives the empty state`() = runTest(dispatcher) {
+        statsFlow.tryEmit(stats(viewed = 0))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(AchievementsState.Empty, vm.state.value)
+    }
+
+    @Test
+    fun `a viewed photo gives the stats state`() = runTest(dispatcher) {
+        statsFlow.tryEmit(stats())
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            AchievementsState.Stats(2, 4, FormattedSize("640", SizeUnit.MB), "5", "1"),
+            vm.state.value,
         )
-
-        vm.onIntent(AchievementsIntent.Load)
-        advanceUntilIdle()
-
-        val state = vm.state.value
-        assertEquals(2, state.currentStreak)
-        assertEquals(3, state.bestStreak)
-        assertEquals(1_500L, state.totalFreedBytes)
-        assertEquals(5, state.totalSortedDays)
-        assertEquals(2f / 30, state.streakGoalProgress, 0.0001f)
-        assertFalse(state.isLoading)
     }
 
     @Test
-    fun `Load sets loading before data arrives`() = runTest(dispatcher) {
-        val vm = viewModel(emptyList())
-
-        vm.onIntent(AchievementsIntent.Load)
-        assertEquals(true, vm.state.value.isLoading)
+    fun `a viewed photo shows the stats state even with a zero streak`() = runTest(dispatcher) {
+        statsFlow.tryEmit(stats(viewed = 1, current = 0, best = 0, deleted = 0, freedBytes = 0))
+        val vm = viewModel()
         advanceUntilIdle()
-        assertFalse(vm.state.value.isLoading)
+
+        assertEquals(
+            AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.MB), "1", "0"),
+            vm.state.value,
+        )
     }
 
     @Test
-    fun `Load picks up the stored streak goal`() = runTest(dispatcher) {
-        settings.value = AppSettings(streakGoal = StreakGoal.D30)
-        val vm = viewModel(listOf(session(today, true, 1)))
+    fun `the state follows the stats when they change`() = runTest(dispatcher) {
+        val vm = viewModel()
+        vm.state.test {
+            assertEquals(AchievementsState.Loading, awaitItem())
 
-        vm.onIntent(AchievementsIntent.Load)
-        advanceUntilIdle()
+            statsFlow.emit(stats(viewed = 0))
+            assertEquals(AchievementsState.Empty, awaitItem())
 
-        assertEquals(StreakGoal.D30, vm.state.value.streakGoal)
-        assertEquals(1f / 30, vm.state.value.streakGoalProgress, 0.0001f)
-    }
+            statsFlow.emit(stats(viewed = 1, current = 1, best = 1, deleted = 0, freedBytes = 0))
+            assertEquals(AchievementsState.Stats(1, 1, FormattedSize("0", SizeUnit.MB), "1", "0"), awaitItem())
 
-
-    @Test
-    fun `emits no effects`() = runTest(dispatcher) {
-        val vm = viewModel(emptyList())
-        vm.effects.test {
-            vm.onIntent(AchievementsIntent.Load)
-            advanceUntilIdle()
-            expectNoEvents()
+            statsFlow.emit(stats(viewed = 1_248, current = 7, best = 21, deleted = 312, freedBytes = 2_440_000_000))
+            assertEquals(
+                AchievementsState.Stats(7, 21, FormattedSize("2,4", SizeUnit.GB), "1 248", "312"),
+                awaitItem(),
+            )
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `repeated Load intents leave a single active load`() = runTest(dispatcher) {
-        val sessions = MutableStateFlow(emptyList<SwipeSession>())
-        every { swipeRepository.getCompletedSessions() } returns sessions
-        val vm = AchievementsViewModel(swipeRepository, appSettingsRepository, clock)
-
-        vm.onIntent(AchievementsIntent.Load)
-        vm.onIntent(AchievementsIntent.Load)
-        vm.onIntent(AchievementsIntent.Load)
-        advanceUntilIdle()
-        assertFalse(vm.state.value.isLoading)
-
-        sessions.value = listOf(session(today, true, 300))
-        advanceUntilIdle()
-        assertEquals(300L, vm.state.value.totalFreedBytes)
-        assertEquals(1, vm.state.value.currentStreak)
-    }
-
-
-    @Test
-    fun `sorting several days in one sitting is a streak of one`() = runTest(dispatcher) {
-        // Three different days sorted today: the days they are about must not count
-        val vm = viewModel(
-            listOf(
-                SwipeSession(today.minusDays(3), true, 10, completedAt = today),
-                SwipeSession(today.minusDays(2), true, 10, completedAt = today),
-                SwipeSession(today.minusDays(1), true, 10, completedAt = today),
-            ),
-        )
-
-        vm.onIntent(AchievementsIntent.Load)
+    fun `a failing stats flow leaves the state as it was`() = runTest(dispatcher) {
+        every { statsRepository.stats } returns flow { throw IllegalStateException("db closed") }
+        val vm = viewModel()
         advanceUntilIdle()
 
-        assertEquals(1, vm.state.value.currentStreak)
-        assertEquals(1, vm.state.value.bestStreak)
-        assertEquals(3, vm.state.value.totalSortedDays)
+        assertEquals(AchievementsState.Loading, vm.state.value)
     }
 
     @Test
-    fun `sessions from before completion days were tracked do not count towards streaks`() = runTest(dispatcher) {
-        val vm = viewModel(
-            listOf(
-                SwipeSession(today.minusDays(9), true, 700, completedAt = LocalDate.EPOCH),
-                SwipeSession(today.minusDays(8), true, 300, completedAt = LocalDate.EPOCH),
-            ),
-        )
-
-        vm.onIntent(AchievementsIntent.Load)
+    fun `the calendar click navigates to the timeline`() = runTest(dispatcher) {
+        statsFlow.tryEmit(stats(viewed = 0))
+        val vm = viewModel()
         advanceUntilIdle()
 
-        assertEquals(0, vm.state.value.currentStreak)
-        assertEquals(0, vm.state.value.bestStreak)
-        // They still count as sorted days and freed space
-        assertEquals(2, vm.state.value.totalSortedDays)
-        assertEquals(1_000L, vm.state.value.totalFreedBytes)
+        vm.effects.test {
+            vm.onIntent(AchievementsIntent.GoToCalendarClicked)
+            assertEquals(AchievementsEffect.NavigateToTimeline, awaitItem())
+        }
+        assertEquals(AchievementsState.Empty, vm.state.value)
     }
 }

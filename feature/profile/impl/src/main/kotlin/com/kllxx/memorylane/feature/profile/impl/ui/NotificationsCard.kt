@@ -1,5 +1,9 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.core.ui.component.RowsCard
+import com.kllxx.memorylane.core.ui.component.RowDivider
+import com.kllxx.memorylane.core.ui.component.SettingsRow
+import com.kllxx.memorylane.core.ui.component.RowValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons

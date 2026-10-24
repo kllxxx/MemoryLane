@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.core.ui.component.RowsCard
+import com.kllxx.memorylane.core.ui.component.SettingsRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box

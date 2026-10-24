@@ -2,6 +2,7 @@ package com.kllxx.memorylane.core.data.db
 
 import android.content.Context
 import androidx.room.Room
+import com.kllxx.memorylane.core.data.db.entity.ReviewedPhotoEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -44,7 +45,7 @@ class MigrationTest {
         v1.close()
 
         database = Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .allowMainThreadQueries()
             .build()
     }
@@ -84,6 +85,29 @@ class MigrationTest {
             val names = generateSequence { if (it.moveToNext()) it.getString(0) else null }.toList()
             assertTrue(names.contains("index_pending_deletes_sessionDate"))
         }
+    }
+
+    @Test
+    fun `existing sessions get a zero deleted count`() {
+        database.openHelper.readableDatabase.query("SELECT deleted_count FROM swipe_sessions").use {
+            while (it.moveToNext()) assertEquals(0, it.getInt(0))
+            assertEquals(2, it.count)
+        }
+    }
+
+    @Test
+    fun `the reviewed photos table exists, is empty and accepts rows`() = runTest {
+        val dao = database.reviewedPhotoDao()
+        assertEquals(0, dao.observeCount().first())
+
+        dao.insert(ReviewedPhotoEntity(1L, LocalDate.of(2026, 10, 15)))
+
+        assertEquals(1, dao.observeCount().first())
+    }
+
+    @Test
+    fun `freed bytes of migrated sessions still count`() = runTest {
+        assertEquals(500L, database.swipeSessionDao().observeFreedBytes().first())
     }
 
     private companion object {

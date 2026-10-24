@@ -178,7 +178,7 @@ class ReviewViewModelTest {
             assertTrue(state.isFinished)
             assertFalse(state.isDeleting)
             assertEquals(1_500, state.totalFreedBytes)
-            coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
+            coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
             coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
         }
 
@@ -212,7 +212,7 @@ class ReviewViewModelTest {
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
             assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
     }
 
     @Test
@@ -223,7 +223,30 @@ class ReviewViewModelTest {
         viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 750, earlier)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 750, earlier, deletedCount = 2)) }
+    }
+
+    @Test
+    fun `a day sorted again adds to the photos it deleted before`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns
+            flowOf(listOf(SwipeSession(date, true, 250, earlier, deletedCount = 3)))
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 750, earlier, deletedCount = 5)) }
+    }
+
+    @Test
+    fun `a repeated confirmation saves the deletion only once`() = runTest(dispatcher) {
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(any()) }
     }
 
     @Test
@@ -234,7 +257,7 @@ class ReviewViewModelTest {
         viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, today)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, today, deletedCount = 2)) }
     }
 
     @Test
@@ -263,7 +286,7 @@ class ReviewViewModelTest {
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
             assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
         coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
     }
 
@@ -317,7 +340,7 @@ class ReviewViewModelTest {
         viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
         assertEquals(1_500, viewModel.state.value.totalFreedBytes)
     }
 

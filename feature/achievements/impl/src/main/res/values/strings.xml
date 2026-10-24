@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="achievements_title">Достижения</string>
+
+    <string name="achievements_section_streak">Стрик</string>
+    <string name="achievements_current">Текущий</string>
+    <string name="achievements_best">Лучший</string>
+    <plurals name="achievements_streak_unit">
+        <item quantity="one">день</item>
+        <item quantity="few">дня</item>
+        <item quantity="many">дней</item>
+        <item quantity="other">дня</item>
+    </plurals>
+
+    <string name="achievements_section_stats">Статистика</string>
+    <string name="achievements_freed_label">Освобождено места</string>
+    <string name="achievements_freed_caption">за всё время</string>
+    <string name="achievements_unit_mb">МБ</string>
+    <string name="achievements_unit_gb">ГБ</string>
+    <string name="achievements_viewed">Просмотрено фото</string>
+    <string name="achievements_deleted">Удалено фото</string>
+
+    <string name="achievements_empty_title">Здесь появится твоя статистика</string>
+    <string name="achievements_empty_body">Разбери первый день в календаре — и здесь появятся стрик, просмотренные фото и освобождённое место.</string>
+    <string name="achievements_empty_button">Перейти в календарь</string>
+</resources>

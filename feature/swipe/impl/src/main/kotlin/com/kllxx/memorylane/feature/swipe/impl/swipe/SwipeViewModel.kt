@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 class SwipeViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
+    private val statsRepository: StatsRepository,
     private val clock: Clock,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -64,6 +66,7 @@ class SwipeViewModel @Inject constructor(
             SwipeIntent.SwipeLeft, SwipeIntent.SwipeRight -> {
                 val photoId = before.photos.getOrNull(before.currentIndex)?.id
                 if (photoId != null) {
+                    markReviewed(photoId)
                     if (after.pendingDeletes.size > before.pendingDeletes.size) {
                         savePendingDelete(photoId, after)
                     } else if (after.pendingDeletes.size < before.pendingDeletes.size) {
@@ -131,6 +134,18 @@ class SwipeViewModel @Inject constructor(
         }
     }
 
+    private fun markReviewed(photoId: Long) {
+        viewModelScope.launch {
+            try {
+                statsRepository.markReviewed(photoId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not mark photo $photoId as reviewed", e)
+            }
+        }
+    }
+
     private fun savePendingDelete(photoId: Long, state: SwipeState) {
         viewModelScope.launch {
             try {
@@ -168,6 +183,7 @@ class SwipeViewModel @Inject constructor(
                         date = state.date,
                         completed = completed,
                         savedBytes = existing?.savedBytes ?: 0,
+                        deletedCount = existing?.deletedCount ?: 0,
                         // A day that was already completed keeps the day it was completed on
                         completedAt = existing?.completedAt ?: LocalDate.now(clock),
                     ),

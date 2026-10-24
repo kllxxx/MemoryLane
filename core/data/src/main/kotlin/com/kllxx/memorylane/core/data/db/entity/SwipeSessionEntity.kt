@@ -10,6 +10,7 @@ data class SwipeSessionEntity(
     @PrimaryKey val date: LocalDate,
     val completed: Boolean,
     val savedBytes: Long,
-    // The default must match MIGRATION_1_2 or Room rejects the migrated schema
+    // The defaults must match MIGRATION_1_2 and MIGRATION_3_4 or Room rejects the migrated schema
     @ColumnInfo(name = "completed_at", defaultValue = "0") val completedAt: LocalDate,
+    @ColumnInfo(name = "deleted_count", defaultValue = "0") val deletedCount: Int = 0,
 )

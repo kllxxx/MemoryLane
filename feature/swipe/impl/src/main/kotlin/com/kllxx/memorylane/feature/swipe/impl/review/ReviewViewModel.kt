@@ -61,7 +61,7 @@ class ReviewViewModel @Inject constructor(
                 if (!before.isDeleting && !before.isFinished && before.pendingDeleteIds.isNotEmpty()) {
                     deletePending(before.pendingDeleteIds)
                 }
-            ReviewIntent.SystemDeleteConfirmed -> if (!before.isFinished) onDeleted(before.sessionFreedBytes)
+            ReviewIntent.SystemDeleteConfirmed -> if (!before.isFinished) onDeleted(before.sessionFreedBytes, before.pendingDeleteIds.size)
             ReviewIntent.SystemDeleteCancelled -> Unit
         }
     }
@@ -139,7 +139,7 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
-    private fun onDeleted(freedBytes: Long) {
+    private fun onDeleted(freedBytes: Long, deletedCount: Int) {
         viewModelScope.launch(exceptionHandler) {
             // The photos are already gone, so a failed write must never keep the user on this screen.
             // The session only counts as completed once the photos are really gone. The two writes
@@ -152,6 +152,7 @@ class ReviewViewModel @Inject constructor(
                         date = date,
                         completed = true,
                         savedBytes = (existing?.savedBytes ?: 0) + freedBytes,
+                        deletedCount = (existing?.deletedCount ?: 0) + deletedCount,
                         completedAt = existing?.completedAt ?: LocalDate.now(clock),
                     ),
                 )
