@@ -41,7 +41,7 @@ internal fun goalChipTag(goal: StreakGoal) = "goal-chip-${goal.days}"
 
 @Composable
 internal fun StreakGoalCard(
-    state: ProfileState,
+    state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {

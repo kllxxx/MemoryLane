@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -33,7 +34,7 @@ class ProfileContentTest {
 
     private val intents = mutableListOf<ProfileIntent>()
 
-    private fun setContent(initial: ProfileState = ProfileState(), themeMode: ThemeMode = ThemeMode.Light) {
+    private fun setContent(initial: ProfileState.Content = ProfileState.Content(), themeMode: ThemeMode = ThemeMode.Light) {
         composeRule.setContent {
             var state by remember { mutableStateOf(initial) }
             MemoryLaneTheme(themeMode = themeMode) {
@@ -52,7 +53,7 @@ class ProfileContentTest {
 
     @Test
     fun `selecting a goal chip moves the selection`() {
-        setContent(ProfileState(goal = StreakGoal.D30))
+        setContent(ProfileState.Content(goal = StreakGoal.D30))
         composeRule.onNodeWithTag(goalChipTag(StreakGoal.D30)).assertIsSelected()
 
         composeRule.onNodeWithTag(goalChipTag(StreakGoal.D100)).performClick()
@@ -63,7 +64,7 @@ class ProfileContentTest {
 
     @Test
     fun `selecting a theme segment moves the selection`() {
-        setContent(ProfileState(themeMode = ThemeMode.Dark))
+        setContent(ProfileState.Content(themeMode = ThemeMode.Dark))
         composeRule.onNodeWithTag(themeSegmentTag(ThemeMode.Dark)).performScrollTo().assertIsSelected()
 
         composeRule.onNodeWithTag(themeSegmentTag(ThemeMode.Light)).performScrollTo().performClick()
@@ -74,7 +75,7 @@ class ProfileContentTest {
 
     @Test
     fun `time row opens the picker while notifications are on`() {
-        setContent(ProfileState(userNotificationsEnabled = true, systemNotificationsEnabled = true))
+        setContent(ProfileState.Content(userNotificationsEnabled = true, systemNotificationsEnabled = true))
 
         composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).performScrollTo().performClick()
 
@@ -83,7 +84,7 @@ class ProfileContentTest {
 
     @Test
     fun `time row is not clickable while notifications are off`() {
-        setContent(ProfileState(userNotificationsEnabled = false))
+        setContent(ProfileState.Content(userNotificationsEnabled = false))
 
         composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).performScrollTo().performClick()
 
@@ -92,7 +93,7 @@ class ProfileContentTest {
 
     @Test
     fun `time row is not clickable while the system blocks notifications`() {
-        setContent(ProfileState(userNotificationsEnabled = true, systemNotificationsEnabled = false))
+        setContent(ProfileState.Content(userNotificationsEnabled = true, systemNotificationsEnabled = false))
 
         composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).performScrollTo().performClick()
 
@@ -101,13 +102,13 @@ class ProfileContentTest {
 
     @Test
     fun `switch shows on only when the user and the system allow notifications`() {
-        setContent(ProfileState(userNotificationsEnabled = true, systemNotificationsEnabled = true))
+        setContent(ProfileState.Content(userNotificationsEnabled = true, systemNotificationsEnabled = true))
         composeRule.onNodeWithTag(NOTIFICATIONS_SWITCH_TAG).performScrollTo().assertIsOn()
     }
 
     @Test
     fun `switch click sends the toggle intent`() {
-        setContent(ProfileState(userNotificationsEnabled = true, systemNotificationsEnabled = true))
+        setContent(ProfileState.Content(userNotificationsEnabled = true, systemNotificationsEnabled = true))
 
         composeRule.onNodeWithTag(NOTIFICATIONS_SWITCH_TAG).performScrollTo().performClick()
 
@@ -129,8 +130,27 @@ class ProfileContentTest {
 
     @Test
     fun `dark theme renders the whole screen`() {
-        setContent(ProfileState(currentStreak = 7), themeMode = ThemeMode.Dark)
+        setContent(ProfileState.Content(currentStreak = 7), themeMode = ThemeMode.Dark)
 
         composeRule.onNodeWithTag(goalChipTag(StreakGoal.D30)).assertIsSelected()
+    }
+
+    @Test
+    fun `while loading only the title is shown, not the default settings`() {
+        composeRule.setContent {
+            MemoryLaneTheme(themeMode = ThemeMode.Light) {
+                ProfileContent(
+                    state = ProfileState.Loading,
+                    onIntent = { intents += it },
+                    snackbarHostState = SnackbarHostState(),
+                    is24Hour = true,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Профиль").assertExists()
+        composeRule.onNodeWithTag(goalChipTag(StreakGoal.D30)).assertDoesNotExist()
+        composeRule.onNodeWithTag(REPLAY_ONBOARDING_ROW_TAG).assertDoesNotExist()
+        assertTrue(intents.isEmpty())
     }
 }

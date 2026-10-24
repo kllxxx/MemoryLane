@@ -11,7 +11,7 @@ import org.junit.Test
 
 class ProfileReducerTest {
 
-    private val initial = ProfileState()
+    private val initial = ProfileState.Content()
 
     @Test
     fun `defaults match the spec`() {
@@ -162,6 +162,52 @@ class ProfileReducerTest {
         assertEquals(
             initial.copy(pendingEnable = true),
             ProfileReducer.reduce(initial, ProfileEvent.AwaitingSystemSettings),
+        )
+    }
+
+    @Test
+    fun `Loaded turns loading into content built from the real values`() {
+        val result = ProfileReducer.reduce(
+            ProfileState.Loading,
+            ProfileEvent.Loaded(
+                settings = AppSettings(
+                    themeMode = ThemeMode.Light,
+                    notificationsEnabled = false,
+                    streakGoal = StreakGoal.D7,
+                    reminderTime = LocalTime.of(7, 45),
+                    notificationPermissionRequested = true,
+                ),
+                currentStreak = 3,
+                systemNotificationsEnabled = false,
+                versionName = "1.2.3",
+            ),
+        )
+
+        assertEquals(
+            ProfileState.Content(
+                currentStreak = 3,
+                goal = StreakGoal.D7,
+                userNotificationsEnabled = false,
+                systemNotificationsEnabled = false,
+                permissionRequested = true,
+                reminderTime = LocalTime.of(7, 45),
+                themeMode = ThemeMode.Light,
+                versionName = "1.2.3",
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `updates that arrive while loading are dropped`() {
+        assertEquals(ProfileState.Loading, ProfileReducer.reduce(ProfileState.Loading, ProfileEvent.StreakLoaded(5)))
+        assertEquals(
+            ProfileState.Loading,
+            ProfileReducer.reduce(ProfileState.Loading, ProfileEvent.SettingsLoaded(AppSettings())),
+        )
+        assertEquals(
+            ProfileState.Loading,
+            ProfileReducer.reduce(ProfileState.Loading, ProfileEvent.AwaitingSystemSettings),
         )
     }
 }

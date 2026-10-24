@@ -39,7 +39,7 @@ internal fun themeSegmentTag(mode: ThemeMode) = "theme-segment-${mode.name}"
 
 @Composable
 internal fun ThemeCard(
-    state: ProfileState,
+    state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {

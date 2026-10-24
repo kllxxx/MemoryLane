@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
 import com.kllxx.memorylane.core.ui.component.SectionHeader
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,26 +53,30 @@ internal fun ProfileContent(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            ) {
-                SectionHeader(stringResource(R.string.profile_section_streak))
-                StreakGoalCard(state, onIntent)
-                SectionHeader(stringResource(R.string.profile_section_notifications))
-                NotificationsCard(state, onIntent)
-                SectionHeader(stringResource(R.string.profile_section_appearance))
-                ThemeCard(state, onIntent)
-                SectionHeader(stringResource(R.string.profile_section_about))
-                AboutCard(state, onIntent)
+            when (state) {
+                // Nothing but the title until the real values are there, so no defaults flash by
+                ProfileState.Loading -> Box(Modifier.weight(1f))
+                is ProfileState.Content -> Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                ) {
+                    SectionHeader(stringResource(R.string.profile_section_streak))
+                    StreakGoalCard(state, onIntent)
+                    SectionHeader(stringResource(R.string.profile_section_notifications))
+                    NotificationsCard(state, onIntent)
+                    SectionHeader(stringResource(R.string.profile_section_appearance))
+                    ThemeCard(state, onIntent)
+                    SectionHeader(stringResource(R.string.profile_section_about))
+                    AboutCard(state, onIntent)
+                }
             }
         }
     }
     }
 
-    if (state.isTimePickerVisible) {
+    if (state is ProfileState.Content && state.isTimePickerVisible) {
         ReminderTimeDialog(
             initial = state.reminderTime,
             is24Hour = is24Hour,

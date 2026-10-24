@@ -6,6 +6,7 @@ import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import io.mockk.coEvery
@@ -43,9 +44,12 @@ class ProfileViewModelTest {
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private lateinit var repository: AppSettingsRepository
     private lateinit var swipeRepository: SwipeRepository
+    private lateinit var notificationStatus: NotificationStatusProvider
     private lateinit var settings: MutableStateFlow<AppSettings>
     private lateinit var sessions: MutableStateFlow<List<SwipeSession>>
     private lateinit var viewModel: ProfileViewModel
+
+    private val content: ProfileState.Content get() = viewModel.state.value as ProfileState.Content
 
     @Before
     fun setUp() {
@@ -54,9 +58,11 @@ class ProfileViewModelTest {
         sessions = MutableStateFlow(emptyList())
         repository = mockk(relaxUnitFun = true)
         swipeRepository = mockk()
+        notificationStatus = mockk()
+        every { notificationStatus.areNotificationsEnabled() } returns true
         every { repository.getSettings() } returns settings
         every { swipeRepository.getCompletedSessions() } returns sessions
-        viewModel = ProfileViewModel(repository, swipeRepository, AppInfo(VERSION), clock)
+        viewModel = ProfileViewModel(repository, swipeRepository, notificationStatus, AppInfo(VERSION), clock)
         dispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -90,7 +96,7 @@ class ProfileViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            ProfileState(
+            ProfileState.Content(
                 currentStreak = 3,
                 goal = StreakGoal.D100,
                 userNotificationsEnabled = false,
@@ -108,7 +114,7 @@ class ProfileViewModelTest {
         sessions.value = listOf(session(today), session(LocalDate.EPOCH))
         advanceUntilIdle()
 
-        assertEquals(1, viewModel.state.value.currentStreak)
+        assertEquals(1, content.currentStreak)
     }
 
     @Test
@@ -116,7 +122,7 @@ class ProfileViewModelTest {
         settings.value = AppSettings(themeMode = ThemeMode.System)
         advanceUntilIdle()
 
-        assertEquals(ThemeMode.System, viewModel.state.value.themeMode)
+        assertEquals(ThemeMode.System, content.themeMode)
     }
 
     @Test
@@ -124,13 +130,13 @@ class ProfileViewModelTest {
         sessions.value = (0L until 5).map { session(today.minusDays(it)) }
         settings.value = AppSettings(streakGoal = StreakGoal.D7)
         advanceUntilIdle()
-        assertFalse(viewModel.state.value.streakProgress.goalReached)
-        assertEquals(2, viewModel.state.value.streakProgress.daysLeft)
+        assertFalse(content.streakProgress.goalReached)
+        assertEquals(2, content.streakProgress.daysLeft)
 
         sessions.value = (0L until 8).map { session(today.minusDays(it)) }
         advanceUntilIdle()
-        assertTrue(viewModel.state.value.streakProgress.goalReached)
-        assertEquals(1f, viewModel.state.value.streakProgress.progress, 0f)
+        assertTrue(content.streakProgress.goalReached)
+        assertEquals(1f, content.streakProgress.progress, 0f)
     }
 
     // --- Goal, theme, time -------------------------------------------------------------------
@@ -138,7 +144,7 @@ class ProfileViewModelTest {
     @Test
     fun `SelectGoal updates the state and stores the goal`() = runTest(dispatcher) {
         viewModel.onIntent(ProfileIntent.SelectGoal(StreakGoal.D365))
-        assertEquals(StreakGoal.D365, viewModel.state.value.goal)
+        assertEquals(StreakGoal.D365, content.goal)
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.setStreakGoal(StreakGoal.D365) }
@@ -147,7 +153,7 @@ class ProfileViewModelTest {
     @Test
     fun `SelectTheme updates the state and stores the theme`() = runTest(dispatcher) {
         viewModel.onIntent(ProfileIntent.SelectTheme(ThemeMode.Light))
-        assertEquals(ThemeMode.Light, viewModel.state.value.themeMode)
+        assertEquals(ThemeMode.Light, content.themeMode)
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.setThemeMode(ThemeMode.Light) }
@@ -156,38 +162,38 @@ class ProfileViewModelTest {
     @Test
     fun `time picker opens, dismisses and confirms with a stored time`() = runTest(dispatcher) {
         viewModel.onIntent(ProfileIntent.OpenTimePicker)
-        assertTrue(viewModel.state.value.isTimePickerVisible)
+        assertTrue(content.isTimePickerVisible)
 
         viewModel.onIntent(ProfileIntent.DismissTimePicker)
-        assertFalse(viewModel.state.value.isTimePickerVisible)
+        assertFalse(content.isTimePickerVisible)
         coVerify(exactly = 0) { repository.setReminderTime(any()) }
 
         viewModel.onIntent(ProfileIntent.OpenTimePicker)
         viewModel.onIntent(ProfileIntent.ConfirmTime(LocalTime.of(9, 30)))
         advanceUntilIdle()
 
-        assertFalse(viewModel.state.value.isTimePickerVisible)
-        assertEquals(LocalTime.of(9, 30), viewModel.state.value.reminderTime)
+        assertFalse(content.isTimePickerVisible)
+        assertEquals(LocalTime.of(9, 30), content.reminderTime)
         coVerify(exactly = 1) { repository.setReminderTime(LocalTime.of(9, 30)) }
     }
 
     @Test
     fun `time row is disabled while notifications are off`() = runTest(dispatcher) {
         givenUserOff(systemEnabled = true, canRequest = false)
-        assertFalse(viewModel.state.value.notificationsOn)
+        assertFalse(content.notificationsOn)
 
         viewModel.onIntent(ProfileIntent.OpenTimePicker)
 
-        assertFalse(viewModel.state.value.isTimePickerVisible)
+        assertFalse(content.isTimePickerVisible)
     }
 
     @Test
     fun `time row is disabled while the system blocks notifications`() = runTest(dispatcher) {
         viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = false))
 
-        assertFalse(viewModel.state.value.notificationsOn)
+        assertFalse(content.notificationsOn)
         viewModel.onIntent(ProfileIntent.OpenTimePicker)
-        assertFalse(viewModel.state.value.isTimePickerVisible)
+        assertFalse(content.isTimePickerVisible)
     }
 
     // --- Turning notifications ON --------------------------------------------------------------
@@ -200,7 +206,7 @@ class ProfileViewModelTest {
             viewModel.onIntent(ProfileIntent.NotificationsToggled(on = true))
             advanceUntilIdle()
 
-            assertTrue(viewModel.state.value.notificationsOn)
+            assertTrue(content.notificationsOn)
             coVerify(exactly = 1) { repository.setNotificationsEnabled(true) }
             expectNoEvents()
         }
@@ -215,8 +221,8 @@ class ProfileViewModelTest {
             advanceUntilIdle()
 
             assertEquals(ProfileEffect.RequestNotificationPermission, awaitItem())
-            assertFalse(viewModel.state.value.notificationsOn)
-            assertFalse(viewModel.state.value.pendingEnable)
+            assertFalse(content.notificationsOn)
+            assertFalse(content.pendingEnable)
             coVerify(exactly = 1) { repository.markNotificationPermissionRequested() }
             coVerify(exactly = 0) { repository.setNotificationsEnabled(any()) }
         }
@@ -230,7 +236,7 @@ class ProfileViewModelTest {
         viewModel.onIntent(ProfileIntent.PermissionResult(granted = true))
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.notificationsOn)
+        assertTrue(content.notificationsOn)
         coVerify(exactly = 1) { repository.setNotificationsEnabled(true) }
     }
 
@@ -244,7 +250,7 @@ class ProfileViewModelTest {
             viewModel.onIntent(ProfileIntent.PermissionResult(granted = false))
             advanceUntilIdle()
 
-            assertFalse(viewModel.state.value.notificationsOn)
+            assertFalse(content.notificationsOn)
             coVerify(exactly = 0) { repository.setNotificationsEnabled(any()) }
             expectNoEvents()
         }
@@ -259,8 +265,8 @@ class ProfileViewModelTest {
             advanceUntilIdle()
 
             assertEquals(ProfileEffect.OpenNotificationSettings, awaitItem())
-            assertTrue(viewModel.state.value.pendingEnable)
-            assertFalse(viewModel.state.value.notificationsOn)
+            assertTrue(content.pendingEnable)
+            assertFalse(content.notificationsOn)
             coVerify(exactly = 0) { repository.markNotificationPermissionRequested() }
             coVerify(exactly = 0) { repository.setNotificationsEnabled(any()) }
         }
@@ -274,8 +280,8 @@ class ProfileViewModelTest {
         viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = true, canRequestPermission = false))
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.notificationsOn)
-        assertFalse(viewModel.state.value.pendingEnable)
+        assertTrue(content.notificationsOn)
+        assertFalse(content.pendingEnable)
         coVerify(exactly = 1) { repository.setNotificationsEnabled(true) }
     }
 
@@ -287,8 +293,8 @@ class ProfileViewModelTest {
         viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = false))
         advanceUntilIdle()
 
-        assertFalse(viewModel.state.value.pendingEnable)
-        assertFalse(viewModel.state.value.notificationsOn)
+        assertFalse(content.pendingEnable)
+        assertFalse(content.notificationsOn)
         coVerify(exactly = 0) { repository.setNotificationsEnabled(any()) }
     }
 
@@ -299,7 +305,7 @@ class ProfileViewModelTest {
         viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = true, canRequestPermission = false))
         advanceUntilIdle()
 
-        assertFalse(viewModel.state.value.notificationsOn)
+        assertFalse(content.notificationsOn)
         coVerify(exactly = 0) { repository.setNotificationsEnabled(any()) }
     }
 
@@ -313,9 +319,9 @@ class ProfileViewModelTest {
             viewModel.onIntent(ProfileIntent.NotificationsToggled(on = false))
             advanceUntilIdle()
 
-            assertFalse(viewModel.state.value.userNotificationsEnabled)
-            assertTrue(viewModel.state.value.systemNotificationsEnabled)
-            assertFalse(viewModel.state.value.notificationsOn)
+            assertFalse(content.userNotificationsEnabled)
+            assertTrue(content.systemNotificationsEnabled)
+            assertFalse(content.notificationsOn)
             coVerify(exactly = 1) { repository.setNotificationsEnabled(false) }
             coVerify(exactly = 0) { repository.markNotificationPermissionRequested() }
             expectNoEvents()
@@ -355,12 +361,127 @@ class ProfileViewModelTest {
 
         viewModel.effects.test {
             viewModel.onIntent(ProfileIntent.SelectTheme(ThemeMode.Light))
-            assertEquals(ThemeMode.Light, viewModel.state.value.themeMode)
+            assertEquals(ThemeMode.Light, content.themeMode)
             advanceUntilIdle()
 
             assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
-            assertEquals(ThemeMode.Dark, viewModel.state.value.themeMode)
+            assertEquals(ThemeMode.Dark, content.themeMode)
         }
+    }
+
+    // --- Loading -------------------------------------------------------------------------------
+
+    private fun newViewModel(sessionFlow: kotlinx.coroutines.flow.Flow<List<SwipeSession>> = sessions): ProfileViewModel {
+        every { swipeRepository.getCompletedSessions() } returns sessionFlow
+        return ProfileViewModel(repository, swipeRepository, notificationStatus, AppInfo(VERSION), clock)
+    }
+
+    @Test
+    fun `the state is loading until both the settings and the streak have arrived`() = runTest(dispatcher) {
+        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<List<SwipeSession>>()
+        val vm = newViewModel(pendingSessions)
+        advanceUntilIdle()
+
+        // Settings are there, the streak is not
+        assertEquals(ProfileState.Loading, vm.state.value)
+
+        pendingSessions.emit(listOf(session(today)))
+        advanceUntilIdle()
+
+        assertEquals(1, (vm.state.value as ProfileState.Content).currentStreak)
+    }
+
+    @Test
+    fun `the state is loading until the settings have arrived`() = runTest(dispatcher) {
+        val pendingSettings = kotlinx.coroutines.flow.MutableSharedFlow<AppSettings>()
+        every { repository.getSettings() } returns pendingSettings
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals(ProfileState.Loading, vm.state.value)
+
+        pendingSettings.emit(AppSettings(themeMode = ThemeMode.Light))
+        advanceUntilIdle()
+
+        assertEquals(ThemeMode.Light, (vm.state.value as ProfileState.Content).themeMode)
+    }
+
+    @Test
+    fun `the first content already has the real system notification state`() = runTest(dispatcher) {
+        every { notificationStatus.areNotificationsEnabled() } returns false
+
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        val first = vm.state.value as ProfileState.Content
+        assertFalse(first.systemNotificationsEnabled)
+        assertFalse(first.notificationsOn)
+    }
+
+    @Test
+    fun `a resume check still updates the system notification state afterwards`() = runTest(dispatcher) {
+        every { notificationStatus.areNotificationsEnabled() } returns false
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        vm.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = true, canRequestPermission = false))
+
+        assertTrue((vm.state.value as ProfileState.Content).systemNotificationsEnabled)
+    }
+
+    @Test
+    fun `the system notification state is read once, not on every settings change`() = runTest(dispatcher) {
+        val vm = newViewModel()
+        advanceUntilIdle()
+        every { notificationStatus.areNotificationsEnabled() } returns false
+
+        settings.value = AppSettings(themeMode = ThemeMode.System)
+        advanceUntilIdle()
+
+        assertTrue((vm.state.value as ProfileState.Content).systemNotificationsEnabled)
+    }
+
+    @Test
+    fun `intents while loading change and store nothing`() = runTest(dispatcher) {
+        val vm = newViewModel(kotlinx.coroutines.flow.MutableSharedFlow())
+        advanceUntilIdle()
+
+        vm.effects.test {
+            vm.onIntent(ProfileIntent.SelectTheme(ThemeMode.Light))
+            vm.onIntent(ProfileIntent.ReplayOnboardingClicked)
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+        assertEquals(ProfileState.Loading, vm.state.value)
+        coVerify(exactly = 0) { repository.setThemeMode(any()) }
+    }
+
+    @Test
+    fun `a resume check while loading is remembered for the first content`() = runTest(dispatcher) {
+        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<List<SwipeSession>>()
+        every { notificationStatus.areNotificationsEnabled() } returns false
+        settings.value = AppSettings(notificationsEnabled = false)
+        val vm = newViewModel(pendingSessions)
+        advanceUntilIdle()
+        vm.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = true))
+        pendingSessions.emit(emptyList())
+        advanceUntilIdle()
+
+        vm.effects.test {
+            vm.onIntent(ProfileIntent.NotificationsToggled(on = true))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.RequestNotificationPermission, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a failing streak does not keep the screen loading`() = runTest(dispatcher) {
+        val vm = newViewModel(kotlinx.coroutines.flow.flow { throw IllegalStateException("db closed") })
+        advanceUntilIdle()
+
+        assertEquals(0, (vm.state.value as ProfileState.Content).currentStreak)
     }
 
     private companion object {

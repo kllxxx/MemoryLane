@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import com.kllxx.memorylane.core.domain.model.AppSettings
+
 object ProfileReducer {
 
     /**
@@ -7,7 +9,7 @@ object ProfileReducer {
      * ViewModel; turning ON while the system blocks notifications needs a dialog or the system
      * settings, so it leaves the state alone here.
      */
-    fun reduce(state: ProfileState, intent: ProfileIntent): ProfileState = when (intent) {
+    fun reduce(state: ProfileState.Content, intent: ProfileIntent): ProfileState.Content = when (intent) {
         is ProfileIntent.SystemNotificationsChecked -> state.copy(
             systemNotificationsEnabled = intent.enabled,
             // Coming back from the system settings with notifications allowed finishes the pending enable
@@ -33,16 +35,27 @@ object ProfileReducer {
         ProfileIntent.ContactSupportClicked -> state
     }
 
+    /** Updates of a screen that is still loading are dropped: [ProfileEvent.Loaded] reads everything fresh. */
     internal fun reduce(state: ProfileState, event: ProfileEvent): ProfileState = when (event) {
-        is ProfileEvent.SettingsLoaded -> state.copy(
-            themeMode = event.settings.themeMode,
-            userNotificationsEnabled = event.settings.notificationsEnabled,
-            goal = event.settings.streakGoal,
-            reminderTime = event.settings.reminderTime,
-            permissionRequested = event.settings.notificationPermissionRequested,
-        )
-        is ProfileEvent.StreakLoaded -> state.copy(currentStreak = event.currentStreak)
+        is ProfileEvent.Loaded -> ProfileState.Content(
+            currentStreak = event.currentStreak,
+            systemNotificationsEnabled = event.systemNotificationsEnabled,
+            versionName = event.versionName,
+        ).withSettings(event.settings)
+        is ProfileEvent.SettingsLoaded -> state.ifContent { it.withSettings(event.settings) }
+        is ProfileEvent.StreakLoaded -> state.ifContent { it.copy(currentStreak = event.currentStreak) }
         // Waiting for the user to come back from the system settings
-        ProfileEvent.AwaitingSystemSettings -> state.copy(pendingEnable = true)
+        ProfileEvent.AwaitingSystemSettings -> state.ifContent { it.copy(pendingEnable = true) }
     }
+
+    private fun ProfileState.Content.withSettings(settings: AppSettings) = copy(
+        themeMode = settings.themeMode,
+        userNotificationsEnabled = settings.notificationsEnabled,
+        goal = settings.streakGoal,
+        reminderTime = settings.reminderTime,
+        permissionRequested = settings.notificationPermissionRequested,
+    )
+
+    private inline fun ProfileState.ifContent(block: (ProfileState.Content) -> ProfileState): ProfileState =
+        if (this is ProfileState.Content) block(this) else this
 }

@@ -32,7 +32,7 @@ private val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
 internal fun NotificationsCard(
-    state: ProfileState,
+    state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {

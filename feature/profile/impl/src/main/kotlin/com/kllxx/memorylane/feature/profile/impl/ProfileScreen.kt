@@ -33,7 +33,7 @@ fun ProfileScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val permissionRequested by rememberUpdatedState(state.permissionRequested)
+    val permissionRequested by rememberUpdatedState((state as? ProfileState.Content)?.permissionRequested ?: false)
 
     fun checkSystemNotifications() {
         viewModel.onIntent(

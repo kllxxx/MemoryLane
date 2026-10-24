@@ -24,7 +24,7 @@ internal const val CONTACT_SUPPORT_ROW_TAG = "contact-support-row"
 
 @Composable
 internal fun AboutCard(
-    state: ProfileState,
+    state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
