@@ -119,13 +119,10 @@ docs: update CLAUDE.md with new module
 3. The human reviews all commits manually before any push
 4. Claude Code has no permission to push — suggest commit message only
 
-Main branch: `master`. PRs from feature branches into `master`.
-
-During initial project setup and chore commits, commit directly to master branch.
-Branch out only when working on specific features or fixes (look at branch naming).
+Commit directly to master branch. 
 Do not create new branches for each commit.
 Do not add Co-Authored-By or any other trailer lines to commit messages.
-Do not add any "build successful" or similiar lines to commit messages.
+Do not add any "build successful" or similar lines to commit messages.
 
 ## Design System
 
