@@ -1,0 +1,5 @@
+<resources>
+    <string name="nav_timeline">Календарь</string>
+    <string name="nav_achievements">Достижения</string>
+    <string name="nav_profile">Профиль</string>
+</resources>

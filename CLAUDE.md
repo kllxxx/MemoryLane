@@ -93,7 +93,7 @@ Each prefix has its own independent counter:
 - chore, test, docs — no ticket number
 
 Current counters (update as you go):
-- feat: last used MMLN-19
+- feat: last used MMLN-20
 - fix: last used MMLN-04
 - refactor: last used MMLN-05
 
@@ -140,6 +140,7 @@ Minimalist green-themed UI. All design tokens live in `:core:ui`:
 
 Swipe overlays: left → `RedCrayola` (error), right → `Emerald` (secondary).
 Font license: `core/ui/OFL-Nunito.txt`
+Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.txt`
 
 ## Claude Code Instructions
 

@@ -24,6 +24,7 @@ val NunitoFontFamily = FontFamily(
     nunito(FontWeight.Medium),
     nunito(FontWeight.SemiBold),
     nunito(FontWeight.Bold),
+    nunito(FontWeight.ExtraBold),
 )
 
 private val Defaults = Typography()
