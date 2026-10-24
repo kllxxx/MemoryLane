@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">MemoryLane</string>
-    <string name="nav_timeline">Timeline</string>
+    <string name="nav_timeline">Calendar</string>
     <string name="nav_achievements">Achievements</string>
     <string name="nav_profile">Profile</string>
 </resources>

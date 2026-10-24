@@ -23,8 +23,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 
-/** Height of the Material3 navigation bar without the system navigation bar inset below it. */
-private val NavigationBarContainerHeight = 80.dp
+/** Height of the bottom navigation bar without the system navigation bar inset below it. */
+private val NavigationBarContainerHeight = 64.dp
 
 /**
  * The NavHost with the bottom bar laid over it. The NavHost always fills the whole screen and no

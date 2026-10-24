@@ -1,15 +1,8 @@
 package com.kllxx.memorylane.navigation
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,7 +10,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -28,6 +20,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.kllxx.memorylane.R
+import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsScreen
 import com.kllxx.memorylane.feature.onboarding.api.OnboardingRoute
@@ -48,13 +41,23 @@ private data class BottomNavItem(
     val route: Any,
     val routeClass: KClass<*>,
     val labelRes: Int,
-    val icon: ImageVector,
+    @DrawableRes val outlinedIcon: Int,
+    @DrawableRes val filledIcon: Int,
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem(TimelineRoute, TimelineRoute::class, R.string.nav_timeline, Icons.Filled.Timeline),
-    BottomNavItem(AchievementsRoute, AchievementsRoute::class, R.string.nav_achievements, Icons.Filled.EmojiEvents),
-    BottomNavItem(ProfileRoute, ProfileRoute::class, R.string.nav_profile, Icons.Filled.Person),
+    BottomNavItem(
+        TimelineRoute, TimelineRoute::class, R.string.nav_timeline,
+        UiR.drawable.ic_nav_calendar_outlined, UiR.drawable.ic_nav_calendar_filled,
+    ),
+    BottomNavItem(
+        AchievementsRoute, AchievementsRoute::class, R.string.nav_achievements,
+        UiR.drawable.ic_nav_trophy_outlined, UiR.drawable.ic_nav_trophy_filled,
+    ),
+    BottomNavItem(
+        ProfileRoute, ProfileRoute::class, R.string.nav_profile,
+        UiR.drawable.ic_nav_person_outlined, UiR.drawable.ic_nav_person_filled,
+    ),
 )
 
 @Composable
@@ -77,9 +80,12 @@ fun AppNavHost(
         startDestination = startDestination.toRoute(today),
         showBottomBar = showBottomBar,
         bottomBar = {
-            NavigationBar {
-                bottomNavItems.forEach { item ->
-                    NavigationBarItem(
+            BottomNavBar(
+                tabs = bottomNavItems.map { item ->
+                    BottomBarTab(
+                        label = stringResource(item.labelRes),
+                        outlinedIcon = item.outlinedIcon,
+                        filledIcon = item.filledIcon,
                         selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true,
                         onClick = {
                             navController.navigate(item.route) {
@@ -92,11 +98,9 @@ fun AppNavHost(
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(item.icon, contentDescription = null) },
-                        label = { Text(stringResource(item.labelRes)) },
                     )
-                }
-            }
+                },
+            )
         },
     ) {
         // Each screen applies its own insets (see AppNavShell); Onboarding paints the status bar and
