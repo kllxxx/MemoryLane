@@ -4,14 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.navigation.AppNavHost
@@ -19,24 +17,21 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val viewModel: AppViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        // The first frame is drawn only with the stored theme and start destination, never a default
+        splashScreen.setKeepOnScreenCondition { viewModel.uiState.value is AppUiState.Loading }
         enableEdgeToEdge()
         setContent {
-            val viewModel: AppViewModel = hiltViewModel()
-            val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-            MemoryLaneTheme(themeMode = themeMode) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
-
-                    val today by viewModel.today.collectAsStateWithLifecycle()
-
-                    when (val start = startDestination) {
-                        null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                        else -> AppNavHost(startDestination = start, today = today)
+            (uiState as? AppUiState.Ready)?.let { ready ->
+                MemoryLaneTheme(themeMode = ready.themeMode) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        AppNavHost(startDestination = ready.startDestination, today = ready.today)
                     }
                 }
             }

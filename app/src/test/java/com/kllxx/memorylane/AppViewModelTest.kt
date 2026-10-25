@@ -15,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -23,7 +24,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,9 +72,9 @@ class AppViewModelTest {
     private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, photoRepository, clock)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
-        viewModel().startDestination.test {
-            assertNull(awaitItem())
-            assertEquals(expected, awaitItem())
+        viewModel().uiState.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            assertEquals(expected, (awaitItem() as AppUiState.Ready).startDestination)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -82,30 +82,64 @@ class AppViewModelTest {
     @Test
     fun `today comes from the injected clock`() = runTest {
         givenState(onboardingCompleted = true)
-        assertEquals(today, viewModel().today.value)
-    }
-
-    @Test
-    fun `themeMode starts with the stored value and follows later changes`() = runTest {
-        val settings = MutableStateFlow(AppSettings(themeMode = ThemeMode.Light))
-        every { appSettingsRepository.getSettings() } returns settings
-        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
-
-        val viewModel = viewModel()
-        // Available immediately, before any coroutine has been dispatched
-        assertEquals(ThemeMode.Light, viewModel.themeMode.value)
-
-        viewModel.themeMode.test {
-            assertEquals(ThemeMode.Light, awaitItem())
-            settings.value = AppSettings(themeMode = ThemeMode.System)
-            assertEquals(ThemeMode.System, awaitItem())
+        viewModel().uiState.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            assertEquals(today, (awaitItem() as AppUiState.Ready).today)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `onboarding not completed starts at onboarding`() = runTest {
+    fun `not ready until the settings have been emitted`() = runTest {
+        val settings = MutableSharedFlow<AppSettings>(replay = 1)
+        every { appSettingsRepository.getSettings() } returns settings
+        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
+
+        val viewModel = viewModel()
+        viewModel.uiState.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            expectNoEvents()
+            settings.emit(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
+            assertEquals(ThemeMode.Light, (awaitItem() as AppUiState.Ready).themeMode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `ready with the stored theme and never a default one first`() = runTest {
+        // Dark is the AppSettings default: it must not show up for a user who stored Light
+        every { appSettingsRepository.getSettings() } returns
+            flowOf(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
+        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
+
+        viewModel().uiState.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            assertEquals(ThemeMode.Light, (awaitItem() as AppUiState.Ready).themeMode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a theme change after startup is applied to the ready state`() = runTest {
+        val settings = MutableStateFlow(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
+        every { appSettingsRepository.getSettings() } returns settings
+        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
+        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
+
+        viewModel().uiState.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            assertEquals(ThemeMode.Light, (awaitItem() as AppUiState.Ready).themeMode)
+            settings.value = settings.value.copy(themeMode = ThemeMode.System)
+            assertEquals(ThemeMode.System, (awaitItem() as AppUiState.Ready).themeMode)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `onboarding not completed starts at onboarding`
+() = runTest {
         givenState(onboardingCompleted = false, sortedToday = true)
         assertResolvesTo(StartDestination.Onboarding)
     }

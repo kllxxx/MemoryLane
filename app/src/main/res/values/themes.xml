@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.MemoryLane" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- System splash shown until AppViewModel has loaded the stored theme and start destination -->
+    <style name="Theme.MemoryLane.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.MemoryLane</item>
+    </style>
 </resources>
