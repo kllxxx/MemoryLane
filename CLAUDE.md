@@ -94,7 +94,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-21
-- fix: last used MMLN-05
+- fix: last used MMLN-06
 - refactor: last used MMLN-05
 
 **Commit format (Conventional Commits):**
@@ -154,6 +154,7 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 - State is a single immutable data class; never mutate it directly
 - All side effects (navigation, system dialogs, toasts) go through the `Effect` Channel (`receiveAsFlow()`)
 - No business logic in Composables — only UI
+- No runBlocking in production code — tests only.
 - Repository interfaces live in `:core:domain`, implementations in `:core:data`
 - `:core:photos:data` is the only module allowed to touch MediaStore
 
