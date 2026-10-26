@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Light navigation bar icons would be unreadable on the green splash background -->
+    <style name="Theme.MemoryLane.Starting" parent="Base.Theme.MemoryLane.Starting">
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
