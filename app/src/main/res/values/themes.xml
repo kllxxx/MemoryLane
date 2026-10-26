@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MemoryLane" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Base.Theme.MemoryLane" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.MemoryLane" parent="Base.Theme.MemoryLane" />
 
     <!-- System splash shown until AppViewModel has loaded the stored theme and start destination -->
     <style name="Base.Theme.MemoryLane.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="postSplashScreenTheme">@style/Theme.MemoryLane</item>
+        <!-- Some vendor skins (MIUI) build the starting window from windowBackground, not the splash attributes -->
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
         <!-- Light status bar icons on the green splash background, in light and dark theme -->
         <item name="android:windowLightStatusBar">false</item>
     </style>
