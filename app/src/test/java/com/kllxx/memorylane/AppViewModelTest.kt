@@ -15,6 +15,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -172,6 +173,20 @@ class AppViewModelTest {
     fun `photos today and no completed session starts at swipe`() = runTest {
         givenState(onboardingCompleted = true, sortedToday = false)
         assertResolvesTo(StartDestination.Swipe)
+        coVerify(exactly = 1) { photoRepository.getPhotosForDate(today) }
+    }
+
+    @Test
+    fun `the start is decided from the day lookup alone, it does not ask for the photo index or a refresh`() = runTest {
+        // The mock is strict: reading the index or refreshing it, which is what waiting for the EXIF pass would
+        // take, fails the lookup and would send the app to Swipe
+        coEvery { photoRepository.getPhotosForDate(today) } returns emptyList()
+        givenState(onboardingCompleted = true, sortedToday = false)
+
+        assertResolvesTo(StartDestination.Main)
+
+        coVerify(exactly = 0) { photoRepository.refreshOnThisDayIndex() }
+        verify(exactly = 0) { photoRepository.onThisDayIndex }
         coVerify(exactly = 1) { photoRepository.getPhotosForDate(today) }
     }
 

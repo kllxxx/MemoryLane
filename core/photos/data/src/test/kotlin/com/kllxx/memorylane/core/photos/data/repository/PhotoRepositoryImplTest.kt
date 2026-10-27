@@ -173,6 +173,8 @@ class PhotoRepositoryImplTest {
     @Test
     fun `the query asks for this day in earlier years only`() = runTest {
         grantMedia()
+        // With the index loaded, the only query left is the one of the day
+        repository.refreshOnThisDayIndex()
         repository.getPhotosForDate(date)
 
         val args = FakeMediaProvider.lastSelectionArgs.orEmpty().map { it.toLong() }

@@ -11,6 +11,9 @@ interface PhotoDateCacheDao {
     @Query("SELECT * FROM photo_date_cache WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<PhotoDateCacheEntity>
 
+    @Query("SELECT * FROM photo_date_cache WHERE taken_local_epoch_second IS NOT NULL")
+    suspend fun getAllDated(): List<PhotoDateCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<PhotoDateCacheEntity>)
 

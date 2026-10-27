@@ -7,6 +7,9 @@ interface PhotoDateCache {
     /** The cached entries among [ids]; ids that were never cached are missing from the result. */
     suspend fun get(ids: Collection<Long>): Map<Long, CachedPhotoDate>
 
+    /** Every entry that holds a date, i.e. all but the photos known to have none. */
+    suspend fun getAllDated(): List<CachedPhotoDate>
+
     /** Adds the entries, replacing those with the same id. */
     suspend fun putAll(entries: Collection<CachedPhotoDate>)
 

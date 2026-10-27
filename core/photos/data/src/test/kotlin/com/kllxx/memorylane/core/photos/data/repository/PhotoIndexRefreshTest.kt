@@ -407,9 +407,9 @@ class PhotoIndexRefreshTest {
         )
         reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
 
-        val photos = repository.getPhotosForDate(today)
         repository.refreshOnThisDayIndex()
         advanceUntilIdle()
+        val photos = repository.getPhotosForDate(today)
 
         assertEquals(listOf(2L, 1L), photos.map { it.id })
         assertEquals(LocalDate.of(2016, 10, 15), photos.first().dateTaken)
@@ -419,16 +419,65 @@ class PhotoIndexRefreshTest {
         assertEquals(2L, day.cover.id)
     }
 
+    // --- getPhotosForDate never waits for the files ---
+
     @Test
-    fun `getPhotosForDate waits for the undated photos the first time and reads no file the second time`() = runTest {
+    fun `getPhotosForDate answers at once and does not wait for the files to be read`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(
+            row(1, millis(LocalDate.of(2024, 10, 15))),
+            row(2, null, name = "photo.jpg"),
+        )
+        reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
+
+        val photos = repository.getPhotosForDate(today)
+
+        // The dated photo is there, the undated one is not cached yet and no file was opened for this answer
+        assertEquals(listOf(1L), photos.map { it.id })
+        assertTrue(reader.reads.isEmpty())
+    }
+
+    @Test
+    fun `the photos read in the background show up the next time`() = runTest {
         val repository = repository(StandardTestDispatcher(testScheduler))
         FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"))
         reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
 
-        assertEquals(listOf(2L), repository.getPhotosForDate(today).map { it.id })
-        assertEquals(listOf(2L), repository.getPhotosForDate(today).map { it.id })
-
+        assertTrue(repository.getPhotosForDate(today).isEmpty())
+        // The first call started the scan in the background
+        advanceUntilIdle()
         assertEquals(listOf(2L), reader.reads)
+
+        assertEquals(listOf(2L), repository.getPhotosForDate(today).map { it.id })
+        assertEquals(listOf(2L), reader.reads)
+    }
+
+    @Test
+    fun `the background scan is started once, not by every call`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"))
+
+        repository.getPhotosForDate(today)
+        repository.getPhotosForDate(today)
+        repository.getPhotosForDate(today.minusDays(1))
+        advanceUntilIdle()
+
+        // 3 calls ask MediaStore for their own day, one more query is the scan
+        assertEquals(4, FakeMediaProvider.queries)
+    }
+
+    @Test
+    fun `no scan is started when the index is already loaded`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(1, millis(LocalDate.of(2024, 10, 15))))
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        val queries = FakeMediaProvider.queries
+
+        repository.getPhotosForDate(today)
+        advanceUntilIdle()
+
+        assertEquals(queries + 1, FakeMediaProvider.queries)
     }
 
     @Test
@@ -436,8 +485,67 @@ class PhotoIndexRefreshTest {
         val repository = repository(StandardTestDispatcher(testScheduler))
         FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"))
         reader.tags[2] = exifOriginal("2016:10:16 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
 
         assertTrue(repository.getPhotosForDate(today).isEmpty())
+    }
+
+    @Test
+    fun `a cached date is not used once the file changed`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 200, name = "photo.jpg"))
+
+        assertTrue(repository.getPhotosForDate(today).isEmpty())
+    }
+
+    @Test
+    fun `a cached date is not used once MediaStore has a date for the photo`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+
+        // MediaStore scanned the file since and dated it another day
+        FakeMediaProvider.rows = listOf(row(2, millis(LocalDate.of(2020, 6, 1)), modified = 100, name = "photo.jpg"))
+
+        // The fake answers every date query with its dated rows, so the photo is listed by its MediaStore date only:
+        // never a second time, and never on the cached day
+        val photos = repository.getPhotosForDate(today)
+        assertEquals(listOf(LocalDate.of(2020, 6, 1)), photos.map { it.dateTaken })
+    }
+
+    @Test
+    fun `a cached photo that was deleted is not listed`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+
+        FakeMediaProvider.rows = emptyList()
+
+        assertTrue(repository.getPhotosForDate(today).isEmpty())
+    }
+
+    @Test
+    fun `getPhotosForDate without permission throws and starts no scan`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        shadowOf(application).denyPermissions(Manifest.permission.READ_MEDIA_IMAGES)
+
+        try {
+            repository.getPhotosForDate(today)
+            fail("expected PermissionDeniedException")
+        } catch (e: PermissionDeniedException) {
+            advanceUntilIdle()
+            assertEquals(0, FakeMediaProvider.queries)
+        }
     }
 
     // --- diagnostics ---

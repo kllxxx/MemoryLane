@@ -16,6 +16,8 @@ class PhotoDateCacheImpl @Inject constructor(
             .flatMap { dao.getByIds(it) }
             .associate { it.id to it.toDomain() }
 
+    override suspend fun getAllDated(): List<CachedPhotoDate> = dao.getAllDated().map { it.toDomain() }
+
     override suspend fun putAll(entries: Collection<CachedPhotoDate>) {
         entries.chunked(WRITE_CHUNK).forEach { chunk -> dao.upsertAll(chunk.map { it.toEntity() }) }
     }

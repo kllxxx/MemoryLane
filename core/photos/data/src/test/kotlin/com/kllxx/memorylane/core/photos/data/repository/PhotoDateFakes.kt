@@ -29,6 +29,8 @@ internal class FakePhotoDateCache : PhotoDateCache {
     override suspend fun get(ids: Collection<Long>): Map<Long, CachedPhotoDate> =
         ids.mapNotNull { entries[it] }.associateBy { it.id }
 
+    override suspend fun getAllDated(): List<CachedPhotoDate> = entries.values.filter { it.takenLocalEpochSecond != null }
+
     override suspend fun putAll(entries: Collection<CachedPhotoDate>) {
         writes += entries.size
         entries.forEach { this.entries[it.id] = it }

@@ -69,6 +69,19 @@ class PhotoDateCacheDaoTest {
     }
 
     @Test
+    fun `getAllDated returns the rows with a date and leaves out the undated ones`() = runTest {
+        dao.upsertAll(
+            listOf(
+                entity(1),
+                entity(2, seconds = null, offset = null, source = "UNDATED"),
+                entity(3, offset = null, source = "FILENAME"),
+            ),
+        )
+
+        assertEquals(listOf(1L, 3L), dao.getAllDated().map { it.id }.sorted())
+    }
+
+    @Test
     fun `rows are deleted by id`() = runTest {
         dao.upsertAll(listOf(entity(1), entity(2), entity(3)))
 

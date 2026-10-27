@@ -54,6 +54,16 @@ class PhotoDateCacheImplTest {
     }
 
     @Test
+    fun `getAllDated returns every entry that has a date, as domain entries`() = runTest {
+        cache.putAll(listOf(entry(1, DateSource.EXIF), entry(2, DateSource.UNDATED), entry(3, DateSource.FILENAME)))
+
+        assertEquals(
+            listOf(entry(1, DateSource.EXIF), entry(3, DateSource.FILENAME)),
+            cache.getAllDated().sortedBy { it.id },
+        )
+    }
+
+    @Test
     fun `only the asked ids are returned`() = runTest {
         cache.putAll(listOf(entry(1), entry(2)))
 
