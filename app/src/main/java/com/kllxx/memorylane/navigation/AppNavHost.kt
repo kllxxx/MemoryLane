@@ -31,9 +31,9 @@ import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineIntent
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineScreen
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineViewModel
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarIntent
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarViewModel
 import java.time.LocalDate
 import kotlin.reflect.KClass
 
@@ -47,7 +47,7 @@ private data class BottomNavItem(
 
 private val bottomNavItems = listOf(
     BottomNavItem(
-        TimelineRoute, TimelineRoute::class, R.string.nav_timeline,
+        CalendarRoute, CalendarRoute::class, R.string.nav_calendar,
         UiR.drawable.ic_nav_calendar_outlined, UiR.drawable.ic_nav_calendar_filled,
     ),
     BottomNavItem(
@@ -66,7 +66,7 @@ fun AppNavHost(
     today: LocalDate,
     navController: NavHostController = rememberNavController(),
 ) {
-    // ISO date of the day last opened in Swipe or Review, waiting to be reloaded on Timeline
+    // ISO date of the day last opened in Swipe or Review, waiting to be reloaded on Calendar
     var lastSortedDate by rememberSaveable { mutableStateOf<String?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -111,7 +111,7 @@ fun AppNavHost(
             )
         }
         composable<SwipeRoute> { entry ->
-            // Remembered so Timeline can reload this day once the user is back on it
+            // Remembered so Calendar can reload this day once the user is back on it
             LaunchedEffect(entry) { lastSortedDate = entry.toRoute<SwipeRoute>().date }
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 SwipeScreen(
@@ -120,7 +120,7 @@ fun AppNavHost(
                             popUpTo<SwipeRoute> { inclusive = true }
                         }
                     },
-                    onNavigateToTimeline = { navController.navigateToTimeline() },
+                    onNavigateToCalendar = { navController.navigateToCalendar() },
                 )
             }
         }
@@ -128,25 +128,25 @@ fun AppNavHost(
             LaunchedEffect(entry) { lastSortedDate = entry.toRoute<ReviewRoute>().date }
             Box(Modifier.fillMaxSize().fullScreenInsets()) { ReviewScreen() }
         }
-        composable<TimelineRoute> {
-            val timelineViewModel: TimelineViewModel = hiltViewModel()
-            // Timeline caches each day, so the day that was just sorted has to be reloaded
+        composable<CalendarRoute> {
+            val calendarViewModel: CalendarViewModel = hiltViewModel()
+            // Calendar caches each day, so the day that was just sorted has to be reloaded
             LaunchedEffect(lastSortedDate) {
                 lastSortedDate?.let { date ->
-                    timelineViewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.parse(date)))
+                    calendarViewModel.onIntent(CalendarIntent.RefreshDay(LocalDate.parse(date)))
                     lastSortedDate = null
                 }
             }
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
-                TimelineScreen(
+                CalendarScreen(
                     onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
-                    viewModel = timelineViewModel,
+                    viewModel = calendarViewModel,
                 )
             }
         }
         composable<AchievementsRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
-                AchievementsScreen(onNavigateToTimeline = { navController.navigateToTab(TimelineRoute) })
+                AchievementsScreen(onNavigateToCalendar = { navController.navigateToTab(CalendarRoute) })
             }
         }
         composable<ProfileRoute> {
@@ -161,15 +161,15 @@ fun AppNavHost(
 }
 
 /**
- * Leaves Swipe/Review for Timeline without ever stacking a second Timeline. When Timeline is already
+ * Leaves Swipe/Review for Calendar without ever stacking a second Calendar. When Calendar is already
  * on the back stack everything above it is popped; when it is not (Swipe was the start destination)
  * Swipe is replaced instead.
  */
-private fun NavHostController.navigateToTimeline() {
-    val timelineOnBackStack = runCatching { getBackStackEntry<TimelineRoute>() }.isSuccess
-    navigate(TimelineRoute) {
-        if (timelineOnBackStack) {
-            popUpTo<TimelineRoute> { inclusive = false }
+private fun NavHostController.navigateToCalendar() {
+    val calendarOnBackStack = runCatching { getBackStackEntry<CalendarRoute>() }.isSuccess
+    navigate(CalendarRoute) {
+        if (calendarOnBackStack) {
+            popUpTo<CalendarRoute> { inclusive = false }
         } else {
             popUpTo<SwipeRoute> { inclusive = true }
         }
@@ -180,14 +180,14 @@ private fun NavHostController.navigateToTimeline() {
 private fun StartDestination.toRoute(today: LocalDate): Any = when (this) {
     StartDestination.Onboarding -> OnboardingRoute()
     StartDestination.Swipe -> SwipeRoute(today.toString())
-    StartDestination.Main -> TimelineRoute
+    StartDestination.Main -> CalendarRoute
 }
 
 /** Switches to a bottom bar tab; shared by the bar and by screens that send the user to another tab. */
 internal fun NavHostController.navigateToTab(route: Any) {
     navigate(route) {
-        // Anchored to Timeline, not the graph's start, which may be Swipe or Onboarding
-        popUpTo<TimelineRoute> {
+        // Anchored to Calendar, not the graph's start, which may be Swipe or Onboarding
+        popUpTo<CalendarRoute> {
             inclusive = false
             saveState = true
         }

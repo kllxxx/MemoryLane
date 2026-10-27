@@ -35,7 +35,7 @@ class AchievementsViewModel @Inject constructor(
         _state.update { AchievementsReducer.reduce(it, intent) }
 
         when (intent) {
-            AchievementsIntent.GoToCalendarClicked -> _effects.trySend(AchievementsEffect.NavigateToTimeline)
+            AchievementsIntent.GoToCalendarClicked -> _effects.trySend(AchievementsEffect.NavigateToCalendar)
         }
     }
 

@@ -1,11 +1,11 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import java.time.YearMonth
 
 private const val DAYS_IN_WEEK = 7
 
 /** [rows] are Mon-Sun weeks; null marks the empty cells before day 1 and after the last day. */
-data class TimelineMonth(
+data class CalendarMonth(
     val yearMonth: YearMonth,
     val rows: List<List<DayItem?>>,
 ) {
@@ -15,7 +15,7 @@ data class TimelineMonth(
 }
 
 /** Groups days by month, oldest first, padded so that every row has seven cells starting on Monday. */
-fun List<DayItem>.toMonths(): List<TimelineMonth> = groupBy { YearMonth.from(it.date) }
+fun List<DayItem>.toMonths(): List<CalendarMonth> = groupBy { YearMonth.from(it.date) }
     .toSortedMap()
     .map { (yearMonth, days) ->
         val sorted = days.sortedBy { it.date }
@@ -23,8 +23,8 @@ fun List<DayItem>.toMonths(): List<TimelineMonth> = groupBy { YearMonth.from(it.
         val leading = yearMonth.atDay(1).dayOfWeek.value - 1
         val cells = List<DayItem?>(leading) { null } + sorted
         val trailing = (DAYS_IN_WEEK - cells.size % DAYS_IN_WEEK) % DAYS_IN_WEEK
-        TimelineMonth(yearMonth, (cells + List<DayItem?>(trailing) { null }).chunked(DAYS_IN_WEEK))
+        CalendarMonth(yearMonth, (cells + List<DayItem?>(trailing) { null }).chunked(DAYS_IN_WEEK))
     }
 
 /** Only the months that have photos. */
-fun List<DayItem>.toVisibleMonths(): List<TimelineMonth> = toMonths().filter { it.hasPhotos }
+fun List<DayItem>.toVisibleMonths(): List<CalendarMonth> = toMonths().filter { it.hasPhotos }

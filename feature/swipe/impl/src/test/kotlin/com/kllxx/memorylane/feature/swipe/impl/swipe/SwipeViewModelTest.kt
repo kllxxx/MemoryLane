@@ -168,13 +168,13 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `finishing with nothing pending saves session and navigates to timeline`() = runTest(dispatcher) {
+    fun `finishing with nothing pending saves session and navigates to calendar`() = runTest(dispatcher) {
         load()
         viewModel.effects.test {
             viewModel.onIntent(SwipeIntent.SwipeRight)
             viewModel.onIntent(SwipeIntent.SwipeRight)
             advanceUntilIdle()
-            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
@@ -214,24 +214,24 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `an empty day records no session and goes to timeline, never to review`() = runTest(dispatcher) {
+    fun `an empty day records no session and goes to calendar, never to review`() = runTest(dispatcher) {
         coEvery { photoRepository.getPhotosForDate(date) } returns emptyList()
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
-            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
             expectNoEvents()
         }
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 
     @Test
-    fun `a failed photo load goes to timeline without recording a session`() = runTest(dispatcher) {
+    fun `a failed photo load goes to calendar without recording a session`() = runTest(dispatcher) {
         coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
-            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
@@ -364,11 +364,11 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `Close navigates to timeline`() = runTest(dispatcher) {
+    fun `Close navigates to calendar`() = runTest(dispatcher) {
         createViewModel()
         viewModel.effects.test {
             viewModel.onIntent(SwipeIntent.Close)
-            assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
         }
     }
 }

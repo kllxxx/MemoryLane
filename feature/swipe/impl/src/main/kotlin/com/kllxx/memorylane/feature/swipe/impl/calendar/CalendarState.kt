@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import java.time.LocalDate
 import kotlinx.collections.immutable.ImmutableList
@@ -6,7 +6,7 @@ import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
-data class TimelineState(
+data class CalendarState(
     val days: ImmutableList<DayItem> = persistentListOf(),
     val today: LocalDate = LocalDate.EPOCH,
     /** On This Day dates the user has finished sorting. */
@@ -14,5 +14,5 @@ data class TimelineState(
     val currentStreak: Int = 0,
     val isLoading: Boolean = false,
     val hasPermission: Boolean = false,
-    val error: TimelineError? = null,
+    val error: CalendarError? = null,
 )

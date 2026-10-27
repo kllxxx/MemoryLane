@@ -76,7 +76,7 @@ class ReviewViewModel @Inject constructor(
                 val markedIds = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
                 if (markedIds.isEmpty()) {
                     // Nothing to review, so the review screen is not shown at all
-                    _effects.trySend(ReviewEffect.NavigateToTimeline)
+                    _effects.trySend(ReviewEffect.NavigateToCalendar)
                     return@launch
                 }
                 val photos = photoRepository.getPhotosForDate(date)
@@ -85,7 +85,7 @@ class ReviewViewModel @Inject constructor(
                 val (ids, staleIds) = markedIds.partition { it in existing }
                 staleIds.forEach(::removeStalePendingDelete)
                 if (ids.isEmpty()) {
-                    _effects.trySend(ReviewEffect.NavigateToTimeline)
+                    _effects.trySend(ReviewEffect.NavigateToCalendar)
                     return@launch
                 }
                 val idSet = ids.toSet()
@@ -102,7 +102,7 @@ class ReviewViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Could not load the review stats", e)
-                _effects.trySend(ReviewEffect.NavigateToTimeline)
+                _effects.trySend(ReviewEffect.NavigateToCalendar)
             }
         }
     }
@@ -170,7 +170,7 @@ class ReviewViewModel @Inject constructor(
             }
             _effects.trySend(ReviewEffect.ShowFreedSpaceAnimation)
             delay(ReviewConstants.FREED_SPACE_ANIMATION_DELAY_MS)
-            _effects.trySend(ReviewEffect.NavigateToTimeline)
+            _effects.trySend(ReviewEffect.NavigateToCalendar)
         }
     }
 

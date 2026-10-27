@@ -76,7 +76,7 @@ class SwipeViewModel @Inject constructor(
                 if (after.isFinished && !before.isFinished) onAllSwiped(after)
                 if (after.currentIndex != before.currentIndex) loadLocationOfCurrentCard()
             }
-            SwipeIntent.Close -> _effects.trySend(SwipeEffect.NavigateToTimeline)
+            SwipeIntent.Close -> _effects.trySend(SwipeEffect.NavigateToCalendar)
         }
     }
 
@@ -108,7 +108,7 @@ class SwipeViewModel @Inject constructor(
             } catch (e: Exception) {
                 // A failed load is not an empty day, so no session is recorded for it
                 Log.e(TAG, "Could not load the photos for $date", e)
-                _effects.trySend(SwipeEffect.NavigateToTimeline)
+                _effects.trySend(SwipeEffect.NavigateToCalendar)
                 return@launch
             }
             onEvent(event)
@@ -198,7 +198,7 @@ class SwipeViewModel @Inject constructor(
             }
             _effects.trySend(
                 if (state.pendingDeletes.isEmpty()) {
-                    SwipeEffect.NavigateToTimeline
+                    SwipeEffect.NavigateToCalendar
                 } else {
                     SwipeEffect.NavigateToReview(state.date, totalPhotosCount = state.photos.size)
                 },

@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
 import androidx.compose.ui.test.assertCountEquals
@@ -12,10 +12,10 @@ import androidx.compose.ui.test.performClick
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.feature.swipe.impl.R
-import com.kllxx.memorylane.feature.swipe.impl.timeline.ui.TimelineContent
-import com.kllxx.memorylane.feature.swipe.impl.timeline.ui.WEEKDAY_HEADER_TAG
-import com.kllxx.memorylane.feature.swipe.impl.timeline.ui.dayTestTag
-import com.kllxx.memorylane.feature.swipe.impl.timeline.ui.sortedTestTag
+import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.CalendarContent
+import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.WEEKDAY_HEADER_TAG
+import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.dayTestTag
+import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.sortedTestTag
 import java.time.LocalDate
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
@@ -28,15 +28,15 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
-class TimelineContentTest {
+class CalendarContentTest {
 
     @get:Rule
     val composeRule = createComposeRule()
 
-    private val sent = mutableListOf<TimelineIntent>()
+    private val sent = mutableListOf<CalendarIntent>()
 
     // Scrolling data requests are sent on display; the tests care about user actions
-    private val intents get() = sent.filterNot { it is TimelineIntent.LoadRange }
+    private val intents get() = sent.filterNot { it is CalendarIntent.LoadRange }
 
     // February 2027 starts on a Monday and has four full weeks
     private val today = LocalDate.of(2027, 2, 10)
@@ -58,15 +58,15 @@ class TimelineContentTest {
         }
     }
 
-    private fun show(state: TimelineState = baseState()) {
+    private fun show(state: CalendarState = baseState()) {
         composeRule.setContent {
             MemoryLaneTheme {
-                TimelineContent(state = state, onIntent = { sent += it })
+                CalendarContent(state = state, onIntent = { sent += it })
             }
         }
     }
 
-    private fun baseState() = TimelineState(
+    private fun baseState() = CalendarState(
         days = items.toImmutableList(),
         today = today,
         sortedDates = persistentSetOf(day(3)),
@@ -79,22 +79,22 @@ class TimelineContentTest {
         show()
         composeRule.onNodeWithText("FEBRUARY 2027").assertIsDisplayed()
         composeRule.onNodeWithTag(WEEKDAY_HEADER_TAG).onChildren().assertCountEquals(7)
-        composeRule.onNodeWithContentDescription(RuntimeEnvironment.getApplication().getString(R.string.timeline_streak_icon)).assertExists()
+        composeRule.onNodeWithContentDescription(RuntimeEnvironment.getApplication().getString(R.string.calendar_streak_icon)).assertExists()
     }
 
     @Test
     fun `a day with photos shows its count and opens the day on tap`() {
         show()
-        composeRule.onNodeWithContentDescription(RuntimeEnvironment.getApplication().getString(R.string.timeline_photo_count, 5)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(RuntimeEnvironment.getApplication().getString(R.string.calendar_photo_count, 5)).assertIsDisplayed()
         composeRule.onNodeWithTag(dayTestTag(items[2])).performClick()
-        assertEquals(listOf<TimelineIntent>(TimelineIntent.OpenDay(day(3))), intents)
+        assertEquals(listOf<CalendarIntent>(CalendarIntent.OpenDay(day(3))), intents)
     }
 
     @Test
     fun `empty, not loaded and future days do not react to taps`() {
         show()
         listOf(4, 5, 20).forEach { composeRule.onNodeWithTag(dayTestTag(items[it - 1])).performClick() }
-        assertTrue(intents.none { it is TimelineIntent.OpenDay })
+        assertTrue(intents.none { it is CalendarIntent.OpenDay })
     }
 
     @Test
@@ -108,21 +108,21 @@ class TimelineContentTest {
     fun `without permission a prompt replaces the grid`() {
         show(baseState().copy(hasPermission = false))
         composeRule.onNodeWithTag(WEEKDAY_HEADER_TAG).assertDoesNotExist()
-        composeRule.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.timeline_permission_button)).performClick()
-        assertEquals(listOf<TimelineIntent>(TimelineIntent.RequestPermission), intents)
+        composeRule.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.calendar_permission_button)).performClick()
+        assertEquals(listOf<CalendarIntent>(CalendarIntent.RequestPermission), intents)
     }
 
     @Test
     fun `a load error offers a retry`() {
-        show(baseState().copy(error = TimelineError.LoadFailed))
-        composeRule.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.timeline_error_retry)).performClick()
-        assertEquals(listOf<TimelineIntent>(TimelineIntent.LoadDays), intents)
+        show(baseState().copy(error = CalendarError.LoadFailed))
+        composeRule.onNodeWithText(RuntimeEnvironment.getApplication().getString(R.string.calendar_error_retry)).performClick()
+        assertEquals(listOf<CalendarIntent>(CalendarIntent.LoadDays), intents)
     }
 
     @Test
     fun `the visible days are requested`() {
         show()
         composeRule.waitForIdle()
-        assertTrue(sent.any { it is TimelineIntent.LoadRange })
+        assertTrue(sent.any { it is CalendarIntent.LoadRange })
     }
 }

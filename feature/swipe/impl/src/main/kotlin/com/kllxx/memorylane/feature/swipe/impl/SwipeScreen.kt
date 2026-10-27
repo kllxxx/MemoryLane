@@ -11,14 +11,14 @@ import java.time.LocalDate
 @Composable
 fun SwipeScreen(
     onNavigateToReview: (date: LocalDate, totalPhotosCount: Int) -> Unit,
-    onNavigateToTimeline: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
     viewModel: SwipeViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is SwipeEffect.NavigateToReview -> onNavigateToReview(effect.date, effect.totalPhotosCount)
-                SwipeEffect.NavigateToTimeline -> onNavigateToTimeline()
+                SwipeEffect.NavigateToCalendar -> onNavigateToCalendar()
                 SwipeEffect.PermissionRequired -> Unit
             }
         }

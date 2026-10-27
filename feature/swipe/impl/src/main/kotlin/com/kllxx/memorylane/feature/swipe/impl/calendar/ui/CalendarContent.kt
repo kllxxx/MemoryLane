@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline.ui
+package com.kllxx.memorylane.feature.swipe.impl.calendar.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,12 +38,12 @@ import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.component.PrimaryButton
 import com.kllxx.memorylane.core.ui.theme.Spacing
 import com.kllxx.memorylane.feature.swipe.impl.R
-import com.kllxx.memorylane.feature.swipe.impl.timeline.DayItem
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineError
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineIntent
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineMonth
-import com.kllxx.memorylane.feature.swipe.impl.timeline.TimelineState
-import com.kllxx.memorylane.feature.swipe.impl.timeline.toVisibleMonths
+import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarError
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarIntent
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarMonth
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarState
+import com.kllxx.memorylane.feature.swipe.impl.calendar.toVisibleMonths
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -55,21 +55,21 @@ private const val WEEKDAY_HEADER_KEY = "weekdays"
 private const val MONTH_KEY_PREFIX = "month-"
 private const val ROW_KEY_PREFIX = "row-"
 
-internal const val WEEKDAY_HEADER_TAG = "timeline-weekdays"
+internal const val WEEKDAY_HEADER_TAG = "calendar-weekdays"
 
 @Composable
-internal fun TimelineContent(
-    state: TimelineState,
-    onIntent: (TimelineIntent) -> Unit,
+internal fun CalendarContent(
+    state: CalendarState,
+    onIntent: (CalendarIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        TimelineHeader(currentStreak = state.currentStreak)
+        CalendarHeader(currentStreak = state.currentStreak)
         when {
-            !state.hasPermission -> PermissionPrompt(onRequest = { onIntent(TimelineIntent.RequestPermission) })
+            !state.hasPermission -> PermissionPrompt(onRequest = { onIntent(CalendarIntent.RequestPermission) })
             else -> {
                 if (state.error != null) {
-                    ErrorBanner(state.error, onRetry = { onIntent(TimelineIntent.LoadDays) })
+                    ErrorBanner(state.error, onRetry = { onIntent(CalendarIntent.LoadDays) })
                 }
                 MonthList(state = state, onIntent = onIntent)
             }
@@ -78,7 +78,7 @@ internal fun TimelineContent(
 }
 
 @Composable
-private fun MonthList(state: TimelineState, onIntent: (TimelineIntent) -> Unit) {
+private fun MonthList(state: CalendarState, onIntent: (CalendarIntent) -> Unit) {
     val months = remember(state.days) { state.days.toVisibleMonths() }
     val listState = rememberLazyListState()
     val locale = currentLocale()
@@ -110,9 +110,9 @@ private fun WeekdayHeader(weekdays: List<String>) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = Spacing.TimelineHorizontal, vertical = 8.dp)
+            .padding(horizontal = Spacing.CalendarHorizontal, vertical = 8.dp)
             .testTag(WEEKDAY_HEADER_TAG),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.TimelineGap),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.CalendarGap),
     ) {
         weekdays.forEach { name ->
             Text(
@@ -134,7 +134,7 @@ private fun MonthSeparator(yearMonth: YearMonth, locale: Locale) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.TimelineHorizontal)
+            .padding(horizontal = Spacing.CalendarHorizontal)
             .padding(top = 20.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -152,13 +152,13 @@ private fun MonthSeparator(yearMonth: YearMonth, locale: Locale) {
 }
 
 @Composable
-private fun DayRow(row: List<DayItem?>, state: TimelineState, onIntent: (TimelineIntent) -> Unit) {
+private fun DayRow(row: List<DayItem?>, state: CalendarState, onIntent: (CalendarIntent) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.TimelineHorizontal)
-            .padding(bottom = Spacing.TimelineGap),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.TimelineGap),
+            .padding(horizontal = Spacing.CalendarHorizontal)
+            .padding(bottom = Spacing.CalendarGap),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.CalendarGap),
     ) {
         row.forEach { item ->
             if (item == null) {
@@ -169,7 +169,7 @@ private fun DayRow(row: List<DayItem?>, state: TimelineState, onIntent: (Timelin
                     isToday = item.date == state.today,
                     isFuture = item.date.isAfter(state.today),
                     isSorted = item.date in state.sortedDates,
-                    onClick = { onIntent(TimelineIntent.OpenDay(item.date)) },
+                    onClick = { onIntent(CalendarIntent.OpenDay(item.date)) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -185,35 +185,35 @@ private fun PermissionPrompt(onRequest: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(R.string.timeline_permission_text),
+            text = stringResource(R.string.calendar_permission_text),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
-        PrimaryButton(text = stringResource(R.string.timeline_permission_button), onClick = onRequest)
+        PrimaryButton(text = stringResource(R.string.calendar_permission_button), onClick = onRequest)
     }
 }
 
 @Composable
-private fun ErrorBanner(error: TimelineError, onRetry: () -> Unit) {
+private fun ErrorBanner(error: CalendarError, onRetry: () -> Unit) {
     // LoadFailed is the only error for now
-    check(error == TimelineError.LoadFailed)
+    check(error == CalendarError.LoadFailed)
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.ScreenHorizontal),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            text = stringResource(R.string.timeline_error_text),
+            text = stringResource(R.string.calendar_error_text),
             color = MaterialTheme.colorScheme.error,
             fontSize = 13.sp,
         )
-        TextButton(onClick = onRetry) { Text(stringResource(R.string.timeline_error_retry)) }
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.calendar_error_retry)) }
     }
 }
 
 /** Opens the list on the current month once it has been laid out. */
 @Composable
-private fun ScrollToCurrentMonth(listState: LazyListState, months: List<TimelineMonth>, current: YearMonth) {
+private fun ScrollToCurrentMonth(listState: LazyListState, months: List<CalendarMonth>, current: YearMonth) {
     var scrolled by remember { mutableStateOf(false) }
     LaunchedEffect(months.isNotEmpty(), current) {
         if (scrolled || months.none { it.yearMonth == current }) return@LaunchedEffect
@@ -226,14 +226,14 @@ private fun ScrollToCurrentMonth(listState: LazyListState, months: List<Timeline
 
 /** Asks for the days around what is on screen; loaded days are cached by the ViewModel. */
 @Composable
-private fun LoadVisibleDays(listState: LazyListState, onIntent: (TimelineIntent) -> Unit) {
+private fun LoadVisibleDays(listState: LazyListState, onIntent: (CalendarIntent) -> Unit) {
     LaunchedEffect(listState) {
         snapshotFlow {
             listState.layoutInfo.visibleItemsInfo.mapNotNull { rowDate(it.key) }
         }.collect { dates ->
             val from = dates.minOrNull() ?: return@collect
             val to = dates.max()
-            onIntent(TimelineIntent.LoadRange(from, to.plusDays((DAYS_IN_WEEK - 1).toLong())))
+            onIntent(CalendarIntent.LoadRange(from, to.plusDays((DAYS_IN_WEEK - 1).toLong())))
         }
     }
 }

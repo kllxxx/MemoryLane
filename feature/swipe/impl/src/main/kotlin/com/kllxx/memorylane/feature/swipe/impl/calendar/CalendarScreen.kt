@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.Manifest
 import android.os.Build
@@ -9,30 +9,30 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.kllxx.memorylane.feature.swipe.impl.timeline.ui.TimelineContent
+import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.CalendarContent
 import java.time.LocalDate
 
 @Composable
-fun TimelineScreen(
+fun CalendarScreen(
     onNavigateToSwipe: (LocalDate) -> Unit,
-    viewModel: TimelineViewModel = hiltViewModel(),
+    viewModel: CalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> viewModel.onIntent(TimelineIntent.PermissionResult(granted)) }
+    ) { granted -> viewModel.onIntent(CalendarIntent.PermissionResult(granted)) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is TimelineEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
-                TimelineEffect.RequestPermissionLauncher -> permissionLauncher.launch(mediaReadPermission())
+                is CalendarEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
+                CalendarEffect.RequestPermissionLauncher -> permissionLauncher.launch(mediaReadPermission())
             }
         }
     }
 
-    TimelineContent(state = state, onIntent = viewModel::onIntent)
+    CalendarContent(state = state, onIntent = viewModel::onIntent)
 }
 
 private fun mediaReadPermission(): String =

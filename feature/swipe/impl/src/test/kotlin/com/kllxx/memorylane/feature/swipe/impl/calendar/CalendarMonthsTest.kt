@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
 import com.kllxx.memorylane.core.photos.domain.model.Photo
@@ -10,7 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class TimelineMonthsTest {
+class CalendarMonthsTest {
 
     private fun days(year: Int, month: Int, state: DayLoadState = DayLoadState.NotLoaded): List<DayItem> {
         val first = LocalDate.of(year, month, 1)

@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import com.kllxx.memorylane.feature.swipe.impl.R
 import org.junit.Assert.assertEquals
@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 class StreakPluralsTest {
 
     private fun days(count: Int) = RuntimeEnvironment.getApplication().resources
-        .getQuantityString(R.plurals.timeline_streak_days, count, count)
+        .getQuantityString(R.plurals.calendar_streak_days, count, count)
 
     @Test
     @Config(qualifiers = "ru")

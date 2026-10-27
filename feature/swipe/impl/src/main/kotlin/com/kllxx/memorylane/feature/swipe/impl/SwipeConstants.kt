@@ -1,7 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl
 
 internal object SwipeConstants {
-    /** Days of the current month loaded when Timeline opens. */
+    /** Days of the current month loaded when Calendar opens. */
     const val INITIAL_WINDOW_DAYS = 45L
 
     /** Extra days loaded ahead of the range the list asks for. */

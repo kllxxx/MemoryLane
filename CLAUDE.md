@@ -30,7 +30,7 @@ All processing is local — no network, no cloud, no uploads.
 :app                        — entry point, DI setup, bottom navigation
 :feature:onboarding:api       — onboarding route
 :feature:onboarding:impl      — onboarding screens
-:feature:swipe:api          — swipe/timeline/review routes and contracts
+:feature:swipe:api          — swipe/calendar/review routes and contracts
 :feature:swipe:impl         — ViewModel, Composables, MVI implementation
 :feature:achievements:api  — achievements route
 :feature:achievements:impl — streak, freed space stats, MVI
@@ -66,10 +66,10 @@ Intent → ViewModel → State → UI
 
 1. Swipe left → photo ID written to Room as PendingDelete
 2. Swipe right → photo kept, PendingDelete removed if existed
-3. All photos swiped → navigate to Review screen (if nothing pending → navigate to Timeline)
+3. All photos swiped → navigate to Review screen (if nothing pending → navigate to Calendar)
 4. Review screen shows: kept count, marked for deletion count
 5. User taps "Delete X photos" → single MediaStore.createDeleteRequest() system dialog
-6. On confirmation → animate freed space counter → navigate to Timeline
+6. On confirmation → animate freed space counter → navigate to Calendar
 
 **Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:core:ui`.
 
@@ -95,7 +95,7 @@ Each prefix has its own independent counter:
 Current counters (update as you go):
 - feat: last used MMLN-22
 - fix: last used MMLN-08
-- refactor: last used MMLN-05
+- refactor: last used MMLN-06
 
 **Commit format (Conventional Commits):**
 

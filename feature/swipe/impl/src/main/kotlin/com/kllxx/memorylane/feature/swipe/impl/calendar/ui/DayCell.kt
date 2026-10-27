@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline.ui
+package com.kllxx.memorylane.feature.swipe.impl.calendar.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,8 +39,8 @@ import com.kllxx.memorylane.core.ui.component.PhotoThumbnail
 import com.kllxx.memorylane.core.ui.theme.EmptyTile
 import com.kllxx.memorylane.core.ui.theme.Emerald
 import com.kllxx.memorylane.feature.swipe.impl.R
-import com.kllxx.memorylane.feature.swipe.impl.timeline.DayItem
-import com.kllxx.memorylane.feature.swipe.impl.timeline.DayLoadState
+import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
+import com.kllxx.memorylane.feature.swipe.impl.calendar.DayLoadState
 
 private val TileShape = RoundedCornerShape(10.dp)
 private const val TILE_ASPECT = 1f / 1.1f
@@ -107,7 +107,7 @@ internal fun DayCell(
 
 @Composable
 private fun PhotoTile(loaded: DayLoadState.Loaded) {
-    val description = stringResource(R.string.timeline_photo_count, loaded.totalCount)
+    val description = stringResource(R.string.calendar_photo_count, loaded.totalCount)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -140,7 +140,7 @@ private fun EmptyTileContent() {
     ) {
         Icon(
             imageVector = Icons.Filled.Lock,
-            contentDescription = stringResource(R.string.timeline_empty_day),
+            contentDescription = stringResource(R.string.calendar_empty_day),
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
             modifier = Modifier.size(14.dp),
         )

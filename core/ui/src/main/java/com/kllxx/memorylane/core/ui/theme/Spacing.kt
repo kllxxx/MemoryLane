@@ -7,6 +7,6 @@ object Spacing {
     val ToolbarHorizontal = 24.dp
     val Between = 16.dp
     val PrimaryButtonHeight = 56.dp
-    val TimelineHorizontal = 12.dp
-    val TimelineGap = 5.dp
+    val CalendarHorizontal = 12.dp
+    val CalendarGap = 5.dp
 }

@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
 import com.kllxx.memorylane.core.photos.domain.model.Photo
@@ -11,53 +11,53 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class TimelineReducerTest {
+class CalendarReducerTest {
 
-    private val initial = TimelineState()
+    private val initial = CalendarState()
     private val d1 = LocalDate.of(2026, 1, 1)
     private val d2 = LocalDate.of(2026, 1, 2)
 
     private fun skeleton() = listOf(DayItem(d1, DayLoadState.NotLoaded), DayItem(d2, DayLoadState.NotLoaded))
 
-    private fun reduce(state: TimelineState, event: TimelineEvent) =
-        TimelineReducer.reduce(state, event)
+    private fun reduce(state: CalendarState, event: CalendarEvent) =
+        CalendarReducer.reduce(state, event)
 
-    private fun reduce(state: TimelineState, intent: TimelineIntent) =
-        TimelineReducer.reduce(state, intent)
+    private fun reduce(state: CalendarState, intent: CalendarIntent) =
+        CalendarReducer.reduce(state, intent)
 
     @Test
     fun `LoadDays with permission starts loading and clears error`() {
-        val result = reduce(initial.copy(hasPermission = true, error = TimelineError.LoadFailed), TimelineIntent.LoadDays)
+        val result = reduce(initial.copy(hasPermission = true, error = CalendarError.LoadFailed), CalendarIntent.LoadDays)
         assertTrue(result.isLoading)
         assertNull(result.error)
     }
 
     @Test
     fun `LoadDays without permission does not start loading but clears error`() {
-        val result = reduce(initial.copy(hasPermission = false, error = TimelineError.LoadFailed), TimelineIntent.LoadDays)
+        val result = reduce(initial.copy(hasPermission = false, error = CalendarError.LoadFailed), CalendarIntent.LoadDays)
         assertFalse(result.isLoading)
         assertNull(result.error)
     }
 
     @Test
     fun `PermissionResult updates hasPermission`() {
-        assertTrue(reduce(initial, TimelineIntent.PermissionResult(true)).hasPermission)
+        assertTrue(reduce(initial, CalendarIntent.PermissionResult(true)).hasPermission)
         assertFalse(
-            reduce(initial.copy(hasPermission = true), TimelineIntent.PermissionResult(false)).hasPermission,
+            reduce(initial.copy(hasPermission = true), CalendarIntent.PermissionResult(false)).hasPermission,
         )
     }
 
     @Test
     fun `RequestPermission OpenDay and LoadRange leave state unchanged`() {
-        assertEquals(initial, reduce(initial, TimelineIntent.RequestPermission))
-        assertEquals(initial, reduce(initial, TimelineIntent.OpenDay(d1)))
-        assertEquals(initial, reduce(initial, TimelineIntent.RefreshDay(d1)))
-        assertEquals(initial, reduce(initial, TimelineIntent.LoadRange(d1, d2)))
+        assertEquals(initial, reduce(initial, CalendarIntent.RequestPermission))
+        assertEquals(initial, reduce(initial, CalendarIntent.OpenDay(d1)))
+        assertEquals(initial, reduce(initial, CalendarIntent.RefreshDay(d1)))
+        assertEquals(initial, reduce(initial, CalendarIntent.LoadRange(d1, d2)))
     }
 
     @Test
     fun `DaysInitialized sets the skeleton`() {
-        val result = reduce(initial, TimelineEvent.DaysInitialized(skeleton()))
+        val result = reduce(initial, CalendarEvent.DaysInitialized(skeleton()))
         assertEquals(skeleton(), result.days)
     }
 
@@ -67,7 +67,7 @@ class TimelineReducerTest {
         val state = initial.copy(days = skeleton().toImmutableList(), isLoading = true)
         val loaded = DayItem(d2, DayLoadState.Loaded(photo, 3))
 
-        val result = reduce(state, TimelineEvent.DaysLoaded(listOf(loaded)))
+        val result = reduce(state, CalendarEvent.DaysLoaded(listOf(loaded)))
 
         assertEquals(listOf(DayItem(d1, DayLoadState.NotLoaded), loaded), result.days)
         assertFalse(result.isLoading)
@@ -77,19 +77,19 @@ class TimelineReducerTest {
     fun `DaysLoaded ignores dates not in the list`() {
         val state = initial.copy(days = skeleton().toImmutableList())
         val stray = DayItem(LocalDate.of(2027, 5, 5), DayLoadState.Empty)
-        assertEquals(skeleton(), reduce(state, TimelineEvent.DaysLoaded(listOf(stray))).days)
+        assertEquals(skeleton(), reduce(state, CalendarEvent.DaysLoaded(listOf(stray))).days)
     }
 
     @Test
     fun `LoadFailed sets error and stops loading`() {
-        val result = reduce(initial.copy(isLoading = true), TimelineEvent.LoadFailed)
-        assertEquals(TimelineError.LoadFailed, result.error)
+        val result = reduce(initial.copy(isLoading = true), CalendarEvent.LoadFailed)
+        assertEquals(CalendarError.LoadFailed, result.error)
         assertFalse(result.isLoading)
     }
 
     @Test
     fun `StatsLoaded sets sorted dates and streak`() {
-        val result = reduce(initial, TimelineEvent.StatsLoaded(setOf(d1, d2), currentStreak = 4))
+        val result = reduce(initial, CalendarEvent.StatsLoaded(setOf(d1, d2), currentStreak = 4))
         assertEquals(setOf(d1, d2), result.sortedDates)
         assertEquals(4, result.currentStreak)
     }

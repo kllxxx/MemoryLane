@@ -39,13 +39,13 @@ class BottomNavBarTest {
         val navController = rememberNavController()
         val destination = navController.currentBackStackEntryAsState().value?.destination
         val tabs = listOf(
-            Triple(TimelineRoute, TimelineRoute::class, R.string.nav_timeline),
+            Triple(CalendarRoute, CalendarRoute::class, R.string.nav_calendar),
             Triple(AchievementsRoute, AchievementsRoute::class, R.string.nav_achievements),
             Triple(ProfileRoute, ProfileRoute::class, R.string.nav_profile),
         )
         Column(Modifier.fillMaxSize()) {
-            NavHost(navController, startDestination = TimelineRoute, modifier = Modifier.weight(1f)) {
-                composable<TimelineRoute> { Box(Modifier.testTag(TIMELINE)) }
+            NavHost(navController, startDestination = CalendarRoute, modifier = Modifier.weight(1f)) {
+                composable<CalendarRoute> { Box(Modifier.testTag(CALENDAR)) }
                 composable<AchievementsRoute> { Box(Modifier.testTag(ACHIEVEMENTS)) }
                 composable<ProfileRoute> { Box(Modifier.testTag(PROFILE)) }
             }
@@ -66,9 +66,9 @@ class BottomNavBarTest {
     @Test
     fun `clicking each tab opens its screen and marks only that tab selected`() {
         rule.setContent { Bar() }
-        val labels = listOf(R.string.nav_timeline, R.string.nav_achievements, R.string.nav_profile)
+        val labels = listOf(R.string.nav_calendar, R.string.nav_achievements, R.string.nav_profile)
             .map { androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>().getString(it) }
-        val screens = listOf(TIMELINE, ACHIEVEMENTS, PROFILE)
+        val screens = listOf(CALENDAR, ACHIEVEMENTS, PROFILE)
 
         labels.forEachIndexed { index, label ->
             rule.onNodeWithContentDescription(label).performClick()
@@ -81,7 +81,7 @@ class BottomNavBarTest {
     }
 
     private companion object {
-        const val TIMELINE = "timeline"
+        const val CALENDAR = "calendar"
         const val ACHIEVEMENTS = "achievements"
         const val PROFILE = "profile"
     }

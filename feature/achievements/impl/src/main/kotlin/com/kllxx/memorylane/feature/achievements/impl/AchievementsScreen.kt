@@ -10,16 +10,16 @@ import com.kllxx.memorylane.feature.achievements.impl.ui.AchievementsContent
 
 @Composable
 fun AchievementsScreen(
-    onNavigateToTimeline: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
     viewModel: AchievementsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val currentOnNavigateToTimeline by rememberUpdatedState(onNavigateToTimeline)
+    val currentOnNavigateToCalendar by rememberUpdatedState(onNavigateToCalendar)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                AchievementsEffect.NavigateToTimeline -> currentOnNavigateToTimeline()
+                AchievementsEffect.NavigateToCalendar -> currentOnNavigateToCalendar()
             }
         }
     }

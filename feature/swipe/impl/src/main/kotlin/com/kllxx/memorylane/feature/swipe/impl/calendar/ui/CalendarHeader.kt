@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline.ui
+package com.kllxx.memorylane.feature.swipe.impl.calendar.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -27,7 +27,7 @@ import com.kllxx.memorylane.core.ui.theme.Spacing
 import com.kllxx.memorylane.feature.swipe.impl.R
 
 @Composable
-internal fun TimelineHeader(currentStreak: Int, modifier: Modifier = Modifier) {
+internal fun CalendarHeader(currentStreak: Int, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -36,7 +36,7 @@ internal fun TimelineHeader(currentStreak: Int, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            text = stringResource(R.string.timeline_title),
+            text = stringResource(R.string.calendar_title),
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 24.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -60,12 +60,12 @@ internal fun StreakChip(days: Int, modifier: Modifier = Modifier) {
     ) {
         Icon(
             imageVector = Icons.Filled.LocalFireDepartment,
-            contentDescription = stringResource(R.string.timeline_streak_icon),
+            contentDescription = stringResource(R.string.calendar_streak_icon),
             tint = primary,
             modifier = Modifier.size(18.dp),
         )
         Text(
-            text = pluralStringResource(R.plurals.timeline_streak_days, days, days),
+            text = pluralStringResource(R.plurals.calendar_streak_days, days, days),
             color = primary,
             fontSize = 13.sp,
             fontWeight = FontWeight.ExtraBold,

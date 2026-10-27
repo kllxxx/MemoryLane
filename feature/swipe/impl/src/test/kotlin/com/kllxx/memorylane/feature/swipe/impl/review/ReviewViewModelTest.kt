@@ -124,38 +124,38 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `when every pending delete is stale review navigates to timeline`() = runTest(dispatcher) {
+    fun `when every pending delete is stale review navigates to calendar`() = runTest(dispatcher) {
         coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(PendingDelete(77, date))
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)
             advanceUntilIdle()
-            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.removePendingDelete(77) }
         assertEquals(ReviewState(), viewModel.state.value)
     }
 
     @Test
-    fun `LoadStats with nothing pending for the date navigates to timeline`() = runTest(dispatcher) {
+    fun `LoadStats with nothing pending for the date navigates to calendar`() = runTest(dispatcher) {
         coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)
             advanceUntilIdle()
-            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
         assertEquals(ReviewState(), viewModel.state.value)
     }
 
     @Test
-    fun `LoadStats failure navigates to timeline`() = runTest(dispatcher) {
+    fun `LoadStats failure navigates to calendar`() = runTest(dispatcher) {
         coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("permission revoked")
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)
             advanceUntilIdle()
-            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
     }
 
@@ -171,7 +171,7 @@ class ReviewViewModelTest {
                 assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
                 expectNoEvents()
                 advanceTimeBy(ReviewConstants.FREED_SPACE_ANIMATION_DELAY_MS)
-                assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+                assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
             }
 
             val state = viewModel.state.value
@@ -193,7 +193,7 @@ class ReviewViewModelTest {
                 viewModel.onIntent(ReviewIntent.ConfirmDelete)
                 advanceUntilIdle()
                 assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
-                assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+                assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
             }
             assertTrue(viewModel.state.value.isFinished)
             // The two writes are independent, so the second still runs
@@ -210,7 +210,7 @@ class ReviewViewModelTest {
             viewModel.onIntent(ReviewIntent.ConfirmDelete)
             advanceUntilIdle()
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
-            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
     }
@@ -284,7 +284,7 @@ class ReviewViewModelTest {
             viewModel.onIntent(ReviewIntent.SystemDeleteConfirmed)
             advanceUntilIdle()
             assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
-            assertEquals(ReviewEffect.NavigateToTimeline, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
         coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }

@@ -30,11 +30,11 @@ class NavigateToTabTest {
             navController = rememberNavController()
             AppNavShell(
                 navController = navController,
-                startDestination = TimelineRoute,
+                startDestination = CalendarRoute,
                 showBottomBar = false,
                 bottomBar = {},
             ) {
-                composable<TimelineRoute> { Box(androidx.compose.ui.Modifier.testTag("timeline")) }
+                composable<CalendarRoute> { Box(androidx.compose.ui.Modifier.testTag("calendar")) }
                 composable<AchievementsRoute> { Box(androidx.compose.ui.Modifier.testTag("achievements")) }
                 composable<ProfileRoute> { Box(androidx.compose.ui.Modifier.testTag("profile")) }
             }
@@ -48,28 +48,28 @@ class NavigateToTabTest {
     }
 
     @Test
-    fun `going to the timeline from achievements shows the timeline tab`() {
+    fun `going to the calendar from achievements shows the calendar tab`() {
         setContent()
         navigateToTab(AchievementsRoute)
         rule.onNodeWithTag("achievements").assertExists()
 
-        navigateToTab(TimelineRoute)
+        navigateToTab(CalendarRoute)
 
-        rule.onNodeWithTag("timeline").assertExists()
-        assertTrue(navController.currentDestination?.hasRoute<TimelineRoute>() == true)
+        rule.onNodeWithTag("calendar").assertExists()
+        assertTrue(navController.currentDestination?.hasRoute<CalendarRoute>() == true)
     }
 
     @Test
-    fun `switching tabs never stacks a second timeline`() {
+    fun `switching tabs never stacks a second calendar`() {
         setContent()
 
         navigateToTab(AchievementsRoute)
-        navigateToTab(TimelineRoute)
+        navigateToTab(CalendarRoute)
         navigateToTab(AchievementsRoute)
-        navigateToTab(TimelineRoute)
+        navigateToTab(CalendarRoute)
 
-        val timelines = navController.currentBackStack.value.count { it.destination.hasRoute<TimelineRoute>() }
-        assertEquals(1, timelines)
+        val calendars = navController.currentBackStack.value.count { it.destination.hasRoute<CalendarRoute>() }
+        assertEquals(1, calendars)
     }
 
     @Test

@@ -3,7 +3,7 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe
 import java.time.LocalDate
 
 sealed interface SwipeEffect {
-    data object NavigateToTimeline : SwipeEffect
+    data object NavigateToCalendar : SwipeEffect
 
     /** The photo library cannot be read. No session is recorded and the screen stays put. */
     data object PermissionRequired : SwipeEffect

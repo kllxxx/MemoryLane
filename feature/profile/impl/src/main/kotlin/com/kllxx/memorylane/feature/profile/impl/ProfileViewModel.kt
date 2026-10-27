@@ -152,7 +152,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /** Same source as the Timeline chip; sessions saved before the day was tracked carry the epoch marker. */
+    /** Same source as the Calendar chip; sessions saved before the day was tracked carry the epoch marker. */
     private fun currentStreak(): Flow<Int> = swipeRepository.getCompletedSessions()
         .map { sessions ->
             val doneOn = sessions.map { it.completedAt }.filter { it != LocalDate.EPOCH }

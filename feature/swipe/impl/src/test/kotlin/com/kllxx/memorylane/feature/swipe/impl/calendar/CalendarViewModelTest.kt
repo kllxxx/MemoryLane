@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
 import app.cash.turbine.test
@@ -32,14 +32,14 @@ import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-class TimelineViewModelTest {
+class CalendarViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val today = LocalDate.of(2026, 10, 15)
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private lateinit var repository: PhotoRepository
     private lateinit var swipeRepository: SwipeRepository
-    private lateinit var viewModel: TimelineViewModel
+    private lateinit var viewModel: CalendarViewModel
 
     @Before
     fun setUp() {
@@ -52,7 +52,7 @@ class TimelineViewModelTest {
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = TimelineViewModel(repository, swipeRepository, clock)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, clock)
 
     @After
     fun tearDown() {
@@ -62,8 +62,8 @@ class TimelineViewModelTest {
     @Test
     fun `RequestPermission emits launcher effect`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(TimelineIntent.RequestPermission)
-            assertEquals(TimelineEffect.RequestPermissionLauncher, awaitItem())
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
         }
     }
 
@@ -71,14 +71,14 @@ class TimelineViewModelTest {
     fun `OpenDay emits NavigateToSwipe`() = runTest(dispatcher) {
         val date = LocalDate.of(2026, 3, 3)
         viewModel.effects.test {
-            viewModel.onIntent(TimelineIntent.OpenDay(date))
-            assertEquals(TimelineEffect.NavigateToSwipe(date), awaitItem())
+            viewModel.onIntent(CalendarIntent.OpenDay(date))
+            assertEquals(CalendarEffect.NavigateToSwipe(date), awaitItem())
         }
     }
 
     @Test
     fun `LoadDays without permission does not touch the repository`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.LoadDays)
+        viewModel.onIntent(CalendarIntent.LoadDays)
         advanceUntilIdle()
         coVerify(exactly = 0) { repository.getDayInfo(any()) }
         assertTrue(viewModel.state.value.days.isEmpty())
@@ -86,7 +86,7 @@ class TimelineViewModelTest {
 
     @Test
     fun `granting permission builds the year and looks up every day of it once`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
         val state = viewModel.state.value
@@ -107,7 +107,7 @@ class TimelineViewModelTest {
             null to 0
         }
 
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
         assertEquals(LocalDate.of(2026, 10, 1), order.first())
@@ -118,7 +118,7 @@ class TimelineViewModelTest {
         val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 3, 9), 10)
         coEvery { repository.getDayInfo(LocalDate.of(2026, 3, 9)) } returns (photo to 4)
 
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
         val days = viewModel.state.value.days.associateBy { it.date }
@@ -130,10 +130,10 @@ class TimelineViewModelTest {
     fun `a failing month stops the rest of the year from loading`() = runTest(dispatcher) {
         coEvery { repository.getDayInfo(LocalDate.of(2026, 2, 1)) } throws IllegalStateException("boom")
 
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
-        assertEquals(TimelineError.LoadFailed, viewModel.state.value.error)
+        assertEquals(CalendarError.LoadFailed, viewModel.state.value.error)
         coVerify(exactly = 0) { repository.getDayInfo(LocalDate.of(2026, 3, 1)) }
     }
 
@@ -141,7 +141,7 @@ class TimelineViewModelTest {
     fun `a failed load leaves the days NotLoaded`() = runTest(dispatcher) {
         coEvery { repository.getDayInfo(any()) } throws IllegalStateException("boom")
 
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.days.all { it.loadState == DayLoadState.NotLoaded })
@@ -149,11 +149,11 @@ class TimelineViewModelTest {
 
     @Test
     fun `LoadRange loads only dates that are not loaded yet`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
         val from = LocalDate.of(2026, 10, 20)
-        viewModel.onIntent(TimelineIntent.LoadRange(from, from.plusDays(40)))
+        viewModel.onIntent(CalendarIntent.LoadRange(from, from.plusDays(40)))
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.getDayInfo(LocalDate.of(2026, 10, 20)) }
@@ -164,16 +164,16 @@ class TimelineViewModelTest {
     fun `repository failure surfaces as error`() = runTest(dispatcher) {
         coEvery { repository.getDayInfo(any()) } throws IllegalStateException("boom")
 
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
 
-        assertEquals(TimelineError.LoadFailed, viewModel.state.value.error)
+        assertEquals(CalendarError.LoadFailed, viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
     }
 
     @Test
     fun `LoadDays without permission does not start loading`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.LoadDays)
+        viewModel.onIntent(CalendarIntent.LoadDays)
         advanceUntilIdle()
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.hasPermission)
@@ -202,33 +202,33 @@ class TimelineViewModelTest {
 
     @Test
     fun `an effect sent before anyone collects is not lost`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.RequestPermission)
+        viewModel.onIntent(CalendarIntent.RequestPermission)
         viewModel.effects.test {
-            assertEquals(TimelineEffect.RequestPermissionLauncher, awaitItem())
+            assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
         }
     }
 
     @Test
     fun `OpenDay ignores a day in the future and opens today`() = runTest(dispatcher) {
         viewModel.effects.test {
-            viewModel.onIntent(TimelineIntent.OpenDay(today.plusDays(1)))
+            viewModel.onIntent(CalendarIntent.OpenDay(today.plusDays(1)))
             expectNoEvents()
-            viewModel.onIntent(TimelineIntent.OpenDay(today))
-            assertEquals(TimelineEffect.NavigateToSwipe(today), awaitItem())
-            viewModel.onIntent(TimelineIntent.OpenDay(today.minusDays(30)))
-            assertEquals(TimelineEffect.NavigateToSwipe(today.minusDays(30)), awaitItem())
+            viewModel.onIntent(CalendarIntent.OpenDay(today))
+            assertEquals(CalendarEffect.NavigateToSwipe(today), awaitItem())
+            viewModel.onIntent(CalendarIntent.OpenDay(today.minusDays(30)))
+            assertEquals(CalendarEffect.NavigateToSwipe(today.minusDays(30)), awaitItem())
         }
     }
 
     @Test
     fun `RefreshDay reloads only that day`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.PermissionResult(true))
+        viewModel.onIntent(CalendarIntent.PermissionResult(true))
         advanceUntilIdle()
         val day = LocalDate.of(2026, 10, 5)
         val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2025, 10, 5), sizeBytes = 10)
         coEvery { repository.getDayInfo(day) } returns (photo to 1)
 
-        viewModel.onIntent(TimelineIntent.RefreshDay(day))
+        viewModel.onIntent(CalendarIntent.RefreshDay(day))
         advanceUntilIdle()
 
         val item = viewModel.state.value.days.first { it.date == day }
@@ -239,7 +239,7 @@ class TimelineViewModelTest {
 
     @Test
     fun `RefreshDay without permission does nothing`() = runTest(dispatcher) {
-        viewModel.onIntent(TimelineIntent.RefreshDay(LocalDate.of(2026, 10, 5)))
+        viewModel.onIntent(CalendarIntent.RefreshDay(LocalDate.of(2026, 10, 5)))
         advanceUntilIdle()
         coVerify(exactly = 0) { repository.getDayInfo(any()) }
     }

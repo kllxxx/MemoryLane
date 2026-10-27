@@ -1,4 +1,4 @@
-package com.kllxx.memorylane.feature.swipe.impl.timeline
+package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -22,50 +22,50 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class TimelineViewModel @Inject constructor(
+class CalendarViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(TimelineState(today = LocalDate.now(clock)))
-    val state: StateFlow<TimelineState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(CalendarState(today = LocalDate.now(clock)))
+    val state: StateFlow<CalendarState> = _state.asStateFlow()
 
-    private val _effects = Channel<TimelineEffect>(Channel.BUFFERED)
-    val effects: Flow<TimelineEffect> = _effects.receiveAsFlow()
+    private val _effects = Channel<CalendarEffect>(Channel.BUFFERED)
+    val effects: Flow<CalendarEffect> = _effects.receiveAsFlow()
 
     private val loadedDates = mutableSetOf<LocalDate>()
 
     init {
         // The real permission state decides whether to load, so a revoked permission never leaves a spinner
-        onIntent(TimelineIntent.PermissionResult(photoRepository.hasMediaPermission()))
+        onIntent(CalendarIntent.PermissionResult(photoRepository.hasMediaPermission()))
         observeSortedDays()
     }
 
-    fun onIntent(intent: TimelineIntent) {
-        _state.update { TimelineReducer.reduce(it, intent) }
+    fun onIntent(intent: CalendarIntent) {
+        _state.update { CalendarReducer.reduce(it, intent) }
 
         when (intent) {
-            TimelineIntent.LoadDays -> if (_state.value.hasPermission) loadInitial()
-            is TimelineIntent.LoadRange ->
+            CalendarIntent.LoadDays -> if (_state.value.hasPermission) loadInitial()
+            is CalendarIntent.LoadRange ->
                 if (_state.value.hasPermission) loadRange(intent.from, intent.to.plusDays(SwipeConstants.BUFFER_DAYS))
-            TimelineIntent.RequestPermission ->
-                _effects.trySend(TimelineEffect.RequestPermissionLauncher)
-            is TimelineIntent.PermissionResult -> if (intent.granted) onIntent(TimelineIntent.LoadDays)
-            is TimelineIntent.OpenDay ->
+            CalendarIntent.RequestPermission ->
+                _effects.trySend(CalendarEffect.RequestPermissionLauncher)
+            is CalendarIntent.PermissionResult -> if (intent.granted) onIntent(CalendarIntent.LoadDays)
+            is CalendarIntent.OpenDay ->
                 // A day that has not happened yet has no photos to sort
                 if (!intent.date.isAfter(LocalDate.now(clock))) {
-                    _effects.trySend(TimelineEffect.NavigateToSwipe(intent.date))
+                    _effects.trySend(CalendarEffect.NavigateToSwipe(intent.date))
                 }
-            is TimelineIntent.RefreshDay -> if (_state.value.hasPermission) {
+            is CalendarIntent.RefreshDay -> if (_state.value.hasPermission) {
                 loadedDates.remove(intent.date)
                 loadRange(intent.date, intent.date)
             }
         }
     }
 
-    private fun onEvent(event: TimelineEvent) {
-        _state.update { TimelineReducer.reduce(it, event) }
+    private fun onEvent(event: CalendarEvent) {
+        _state.update { CalendarReducer.reduce(it, event) }
     }
 
     private fun observeSortedDays() {
@@ -75,7 +75,7 @@ class TimelineViewModel @Inject constructor(
                     // Streaks follow the day the work was done; sessions saved before that was tracked carry the epoch marker
                     val doneOn = sessions.map { it.completedAt }.filter { it != LocalDate.EPOCH }
                     onEvent(
-                        TimelineEvent.StatsLoaded(
+                        CalendarEvent.StatsLoaded(
                             sortedDates = sessions.map { it.date }.toSet(),
                             currentStreak = StreakCalculator.currentStreak(doneOn, LocalDate.now(clock)),
                         ),
@@ -96,7 +96,7 @@ class TimelineViewModel @Inject constructor(
             DayItem(date = yearStart.plusDays(it.toLong()), loadState = DayLoadState.NotLoaded)
         }
         loadedDates.clear()
-        onEvent(TimelineEvent.DaysInitialized(skeleton))
+        onEvent(CalendarEvent.DaysInitialized(skeleton))
 
         val from = today.withDayOfMonth(1)
         loadRange(from, from.plusDays(SwipeConstants.INITIAL_WINDOW_DAYS - 1))
@@ -145,19 +145,19 @@ class TimelineViewModel @Inject constructor(
                 },
             )
         }
-        onEvent(TimelineEvent.DaysLoaded(items))
+        onEvent(CalendarEvent.DaysLoaded(items))
         true
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         loadedDates.removeAll(toLoad.toSet())
-        Log.e(TAG, "Could not load ${toLoad.size} timeline days", e)
-        onEvent(TimelineEvent.LoadFailed)
+        Log.e(TAG, "Could not load ${toLoad.size} calendar days", e)
+        onEvent(CalendarEvent.LoadFailed)
         false
     }
 
     private companion object {
-        const val TAG = "TimelineViewModel"
+        const val TAG = "CalendarViewModel"
         const val MONTHS_IN_YEAR = 12
     }
 }

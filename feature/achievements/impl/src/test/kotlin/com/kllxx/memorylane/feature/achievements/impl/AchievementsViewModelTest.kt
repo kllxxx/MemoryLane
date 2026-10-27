@@ -123,14 +123,14 @@ class AchievementsViewModelTest {
     }
 
     @Test
-    fun `the calendar click navigates to the timeline`() = runTest(dispatcher) {
+    fun `the calendar click navigates to the calendar`() = runTest(dispatcher) {
         statsFlow.tryEmit(stats(viewed = 0))
         val vm = viewModel()
         advanceUntilIdle()
 
         vm.effects.test {
             vm.onIntent(AchievementsIntent.GoToCalendarClicked)
-            assertEquals(AchievementsEffect.NavigateToTimeline, awaitItem())
+            assertEquals(AchievementsEffect.NavigateToCalendar, awaitItem())
         }
         assertEquals(AchievementsState.Empty, vm.state.value)
     }
