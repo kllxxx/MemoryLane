@@ -5,10 +5,10 @@ plugins {
 
 dependencies {
     implementation(project(":core:photos:domain"))
+    implementation(project(":core:common"))
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.exifinterface)
-    implementation(libs.timber)
 
     testImplementation(libs.robolectric)
 }

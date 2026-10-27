@@ -13,28 +13,39 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.DayCover
+import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import timber.log.Timber
 import java.time.Instant
 import java.time.LocalDate
 import java.time.MonthDay
 import java.time.ZoneId
+import java.time.Clock
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 internal class PhotoRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geocoder: LocationGeocoder,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val clock: Clock,
 ) : PhotoRepository {
 
     private val resolver: ContentResolver get() = context.contentResolver
@@ -48,32 +59,149 @@ internal class PhotoRepositoryImpl @Inject constructor(
         return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     }
 
+    private val refreshLock = Any()
+    private val _onThisDayIndex = MutableStateFlow<OnThisDayIndex?>(null)
+    override val onThisDayIndex: StateFlow<OnThisDayIndex?> = _onThisDayIndex.asStateFlow()
+
+    // A refresh that starts while another one runs waits for it instead of querying again
+    private var refreshInFlight: CompletableDeferred<Unit>? = null
+
+    override suspend fun refreshOnThisDayIndex() {
+        // Without the permission MediaStore returns an empty cursor, which must not look like an empty gallery
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        var owner = false
+        val run = synchronized(refreshLock) {
+            refreshInFlight ?: CompletableDeferred<Unit>().also {
+                refreshInFlight = it
+                owner = true
+            }
+        }
+        if (!owner) {
+            run.await()
+            return
+        }
+        try {
+            _onThisDayIndex.value = withContext(ioDispatcher) { readOnThisDayIndex() }
+            run.complete(Unit)
+        } catch (e: Throwable) {
+            run.completeExceptionally(e)
+            throw e
+        } finally {
+            synchronized(refreshLock) { refreshInFlight = null }
+        }
+    }
+
+    /** One query over every image of the gallery: no filter on type, folder or date. */
+    private fun readOnThisDayIndex(): OnThisDayIndex {
+        val diagnostics = PerfLog.isEnabled()
+        val startedAt = PerfLog.nanoTime()
+        val zone = ZoneId.systemDefault()
+        val currentYear = LocalDate.now(clock).year
+        val builder = OnThisDayIndexBuilder(currentYear, PhotosConstants.MAX_YEARS_BACK, zone)
+        val stats = IndexLoadStats()
+
+        val projection = buildList {
+            addAll(INDEX_PROJECTION)
+            if (diagnostics) {
+                add(MediaStore.Images.Media.MIME_TYPE)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(MediaStore.Images.Media.RELATIVE_PATH)
+            }
+        }.toTypedArray()
+        val cursor = resolver.query(COLLECTION_URI, projection, null, null, null)
+        val queryMs = PerfLog.sinceMs(startedAt)
+        cursor?.use {
+            val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val takenColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+            val addedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+            val mimeColumn = it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE)
+            val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                it.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
+            } else {
+                -1
+            }
+            while (it.moveToNext()) {
+                stats.rows++
+                val taken = if (it.isNull(takenColumn)) null else it.getLong(takenColumn)
+                val added = if (it.isNull(addedColumn)) null else it.getLong(addedColumn)
+                val takenMissing = taken == null || taken <= 0
+                if (takenMissing) stats.dateTakenMissing++
+                val millis = effectiveTakenAtMillis(taken, added)
+                if (millis == null) {
+                    stats.unusable++
+                } else {
+                    if (takenMissing) stats.usedDateAdded++
+                    builder.add(IndexedImage(it.getLong(idColumn), millis))
+                }
+                if (diagnostics) {
+                    if (mimeColumn >= 0) stats.byMime.merge(it.getString(mimeColumn) ?: "null", 1, Int::plus)
+                    if (pathColumn >= 0) stats.byPath.merge(it.getString(pathColumn) ?: "null", 1, Int::plus)
+                }
+            }
+        }
+
+        val index = OnThisDayIndex(
+            currentYear = currentYear,
+            entries = builder.entries().mapValues { (_, value) ->
+                val (count, cover) = value
+                DayMemories(
+                    count = count,
+                    cover = DayCover(cover.id, ContentUris.withAppendedId(COLLECTION_URI, cover.id), cover.takenOn),
+                )
+            },
+        )
+        PerfLog.d {
+            "index: query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms rows=${stats.rows} " +
+                "dateTakenNullOrZero=${stats.dateTakenMissing} usedDateAdded=${stats.usedDateAdded} " +
+                "unusable=${stats.unusable} inWindow=${builder.counted} entries=${index.entries.size} " +
+                "years=${currentYear - PhotosConstants.MAX_YEARS_BACK}..${currentYear - 1}"
+        }
+        PerfLog.d { "index: by mime type ${stats.byMime.toSortedMap()}" }
+        PerfLog.d { "index: by relative path ${stats.byPath.toSortedMap()}" }
+        PerfLog.d { "index: permissions ${permissionStates()}" }
+        return index
+    }
+
+    /** The raw state of every photo permission that applies to this Android version, to tell full from partial access. */
+    private fun permissionStates(): String {
+        fun state(permission: String) =
+            if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) "granted" else "denied"
+        return buildString {
+            append("sdk=${Build.VERSION.SDK_INT}")
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                    append(" READ_MEDIA_IMAGES=${state(Manifest.permission.READ_MEDIA_IMAGES)}")
+                    append(" READ_MEDIA_VISUAL_USER_SELECTED=${state(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)}")
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                    append(" READ_MEDIA_IMAGES=${state(Manifest.permission.READ_MEDIA_IMAGES)}")
+                else -> append(" READ_EXTERNAL_STORAGE=${state(Manifest.permission.READ_EXTERNAL_STORAGE)}")
+            }
+        }
+    }
+
+    private class IndexLoadStats {
+        var rows = 0
+        var dateTakenMissing = 0
+        var usedDateAdded = 0
+        var unusable = 0
+        val byMime = HashMap<String, Int>()
+        val byPath = HashMap<String, Int>()
+    }
+
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = withContext(ioDispatcher) {
         val zone = ZoneId.systemDefault()
-        val startedAt = System.nanoTime()
+        val startedAt = PerfLog.nanoTime()
         val cursor = queryOnThisDay(date, zone)
-        val queryMs = elapsedMs(startedAt)
+        val queryMs = PerfLog.sinceMs(startedAt)
         val photos = cursor?.use {
             buildList {
                 while (it.moveToNext()) add(it.toPhoto(zone))
             }
         }.orEmpty()
-        logQuery("getPhotosForDate", date, queryMs, startedAt, photos.size)
+        PerfLog.d {
+            "mediastore getPhotosForDate date=$date query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms rows=${photos.size}"
+        }
         photos
-    }
-
-    override suspend fun getDayInfo(date: LocalDate): Pair<Photo?, Int> = withContext(ioDispatcher) {
-        val zone = ZoneId.systemDefault()
-        val startedAt = System.nanoTime()
-        val cursor = queryOnThisDay(date, zone)
-        val queryMs = elapsedMs(startedAt)
-        val info = cursor?.use {
-            // Only the first row becomes a Photo; the rest are just counted
-            val first = if (it.moveToFirst()) it.toPhoto(zone) else null
-            first to it.count
-        } ?: (null to 0)
-        logQuery("getDayInfo", date, queryMs, startedAt, info.second)
-        info
     }
 
     override suspend fun getPhotoLocation(photoId: Long): String? = withContext(ioDispatcher) {
@@ -192,21 +320,15 @@ internal class PhotoRepositoryImpl @Inject constructor(
         )
     }
 
-    private fun elapsedMs(startedAt: Long): Long = (System.nanoTime() - startedAt) / NANOS_PER_MILLI
-
-    /** One line per MediaStore query: what was asked, how long the query and the whole call took, and the rows found. */
-    private fun logQuery(what: String, date: LocalDate, queryMs: Long, startedAt: Long, rows: Int) {
-        Timber.tag(PERF_TAG).d(
-            "[${Thread.currentThread().name}] mediastore $what date=$date " +
-                "(on this day, up to ${PhotosConstants.MAX_YEARS_BACK} years back) " +
-                "query=${queryMs}ms total=${elapsedMs(startedAt)}ms rows=$rows",
-        )
-    }
 
     private companion object {
         const val TAG = "PhotoRepositoryImpl"
-        const val PERF_TAG = "CalendarPerf"
-        const val NANOS_PER_MILLI = 1_000_000L
+
+        val INDEX_PROJECTION = listOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.DATE_ADDED,
+        )
         val COLLECTION_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         // The LATITUDE/LONGITUDE columns are deprecated and empty since API 29, so they are

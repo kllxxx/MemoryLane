@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":feature:swipe:api"))
     implementation(project(":core:ui"))
     implementation(project(":core:photos:domain"))
+    implementation(project(":core:common"))
     implementation(project(":core:domain"))
     implementation(project(":lib:lazycardstack"))
 
@@ -16,7 +17,6 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
-    implementation(libs.timber)
     implementation(libs.androidx.compose.material.icons.extended)
 
     testImplementation(libs.robolectric)

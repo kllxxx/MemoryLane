@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.ui.component.ThumbnailLoad
 import com.kllxx.memorylane.core.ui.component.ThumbnailPhase
 import java.time.LocalDate
@@ -9,33 +10,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
-import timber.log.Timber
 
 /**
- * Measurements of how long the Calendar takes to load. Logging only: nothing here changes what the screen does.
- * Every line has the tag "CalendarPerf", the thread name and the time since t0, the moment the route was entered.
+ * Measurements of how long the Calendar takes to load, on top of [PerfLog]. Every line has the thread name and the
+ * time since t0, the moment the route was entered (or the ViewModel created on a cold open).
+ * Nothing runs when [PerfLog] is off, which is always the case in release.
  */
 internal object CalendarPerf {
-    private const val TAG = "CalendarPerf"
     private const val NANOS_PER_MILLI = 1_000_000L
     private const val SETTLE_MS = 150L
 
-    // Replaceable so that the tests can read the lines and control the time
-    internal var sink: (String) -> Unit = { Timber.tag(TAG).d(it) }
-    internal var nanoTime: () -> Long = System::nanoTime
-    internal var threadName: () -> String = { Thread.currentThread().name }
+    // Replaceable so that the tests can control the time
+    internal var nanoTime: () -> Long = PerfLog::nanoTime
 
     @Volatile private var t0 = 0L
     @Volatile private var viewModelIsFresh = false
-    @Volatile private var firstDataLogged = false
-    private val firstFrameLogged = MutableStateFlow(false)
+    @Volatile private var indexShownLogged = false
     @Volatile private var summaryLogged = false
-    private val queries = AtomicInteger()
+    private val firstFrameLogged = MutableStateFlow(false)
     private val images = AtomicInteger()
     private val pendingImages = MutableStateFlow(0)
 
     /** A new ViewModel means a cold open: t0 is its creation. */
     fun onViewModelCreated() {
+        if (!PerfLog.isEnabled()) return
         reset()
         viewModelIsFresh = true
         log("t0: CalendarViewModel created")
@@ -43,6 +41,7 @@ internal object CalendarPerf {
 
     /** The Calendar route was composed. With a ViewModel that is being reused this is a warm open and the new t0. */
     fun onRouteEntered() {
+        if (!PerfLog.isEnabled()) return
         if (viewModelIsFresh) {
             viewModelIsFresh = false
             log("route entered (cold)")
@@ -52,32 +51,31 @@ internal object CalendarPerf {
         }
     }
 
-    /** Called right before every MediaStore query made for the screen. */
-    fun onQuery() {
-        queries.incrementAndGet()
+    fun onRefreshStarted() {
+        if (!PerfLog.isEnabled()) return
+        log("photo index refresh started")
     }
 
-    /** A batch of days finished loading: [anyPhotos] tells if the state now holds calendar data. */
-    fun onDaysLoaded(days: Int, batchMs: Long, anyPhotos: Boolean) {
-        log("loadDays: $days days in ${batchMs}ms, queries so far=${queries.get()}")
-        if (anyPhotos && !firstDataLogged) {
-            firstDataLogged = true
-            log("first state with calendar data emitted")
+    /** The index reached the state: the screen goes from Loading to Empty or Content. */
+    fun onIndexShown(isEmpty: Boolean, photos: Int, days: Int) {
+        if (!PerfLog.isEnabled()) return
+        if (indexShownLogged) {
+            log("index replaced: photos=$photos days=$days")
+            return
         }
-    }
-
-    fun onYearLoaded() {
-        log("rest of the year loaded, queries=${queries.get()}")
+        indexShownLogged = true
+        log("Loading -> ${if (isEmpty) "Empty" else "Content"}: photos=$photos days=$days")
     }
 
     /** The first frame that follows the composition with calendar content, so the content has been drawn. */
     fun onFirstContentFrame() {
-        if (firstFrameLogged.value) return
+        if (!PerfLog.isEnabled() || firstFrameLogged.value) return
         firstFrameLogged.value = true
         log("first frame with calendar content drawn")
     }
 
     fun onThumbnail(date: LocalDate, load: ThumbnailLoad) {
+        if (!PerfLog.isEnabled()) return
         when (load.phase) {
             ThumbnailPhase.Started -> {
                 images.incrementAndGet()
@@ -96,28 +94,28 @@ internal object CalendarPerf {
 
     /** Suspends in the composition; logs the summary once the thumbnails have been quiet for a moment. */
     suspend fun logSummaryWhenThumbnailsLoaded() {
+        if (!PerfLog.isEnabled()) return
         combine(pendingImages, firstFrameLogged) { pending, frameDrawn -> pending == 0 && frameDrawn }.collectLatest { idle ->
             if (!idle || images.get() == 0 || summaryLogged) return@collectLatest
             delay(SETTLE_MS)
             if (!summaryLogged) {
                 summaryLogged = true
-                log("all visible thumbnails loaded: images=${images.get()}, queries=${queries.get()}")
+                log("all visible thumbnails loaded: images=${images.get()}")
             }
         }
     }
 
     private fun reset() {
         t0 = nanoTime()
-        queries.set(0)
         images.set(0)
         pendingImages.value = 0
-        firstDataLogged = false
+        indexShownLogged = false
         firstFrameLogged.value = false
         summaryLogged = false
     }
 
     private fun log(message: String) {
         val sinceT0 = (nanoTime() - t0) / NANOS_PER_MILLI
-        sink("[${threadName()}] +${sinceT0}ms $message")
+        PerfLog.d { "+${sinceT0}ms $message" }
     }
 }

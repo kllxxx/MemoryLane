@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.R as UiR
+import com.kllxx.memorylane.core.ui.component.EmptyState
 import com.kllxx.memorylane.core.ui.component.IconTile
 import com.kllxx.memorylane.core.ui.component.PrimaryButton
 import com.kllxx.memorylane.core.ui.component.RowDivider
@@ -62,7 +63,6 @@ internal fun streakUnitTag(valueTag: String) = "$valueTag-unit"
 
 private val CardGap = 12.dp
 private val CardIconTileSize = 32.dp
-private val IllustrationSize = 104.dp
 
 @Composable
 internal fun AchievementsContent(
@@ -209,45 +209,17 @@ private fun CardHeader(icon: Painter, label: String) {
 
 @Composable
 private fun AchievementsEmpty(onIntent: (AchievementsIntent) -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp).testTag(EMPTY_STATE_TAG),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(IllustrationSize)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(UiR.drawable.ic_best_streak),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(48.dp),
+    EmptyState(
+        icon = painterResource(UiR.drawable.ic_best_streak),
+        title = stringResource(R.string.achievements_empty_title),
+        body = stringResource(R.string.achievements_empty_body),
+        modifier = modifier.testTag(EMPTY_STATE_TAG),
+        action = {
+            PrimaryButton(
+                text = stringResource(R.string.achievements_empty_button),
+                onClick = { onIntent(AchievementsIntent.GoToCalendarClicked) },
+                modifier = Modifier.testTag(GO_TO_CALENDAR_TAG),
             )
-        }
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = stringResource(R.string.achievements_empty_title),
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.ExtraBold,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.achievements_empty_body),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(28.dp))
-        PrimaryButton(
-            text = stringResource(R.string.achievements_empty_button),
-            onClick = { onIntent(AchievementsIntent.GoToCalendarClicked) },
-            modifier = Modifier.testTag(GO_TO_CALENDAR_TAG),
-        )
-    }
+        },
+    )
 }

@@ -1,30 +1,57 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
+import androidx.compose.runtime.Immutable
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
+import java.time.LocalDate
+import java.time.MonthDay
 import java.time.YearMonth
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 private const val DAYS_IN_WEEK = 7
+private const val MONTHS_IN_YEAR = 12
 
 /** [rows] are Mon-Sun weeks; null marks the empty cells before day 1 and after the last day. */
+@Immutable
 data class CalendarMonth(
     val yearMonth: YearMonth,
-    val rows: List<List<DayItem?>>,
-) {
-    /** At least one day of the month has photos. Days that are not loaded yet do not count. */
-    val hasPhotos: Boolean
-        get() = rows.any { row -> row.any { it?.loadState is DayLoadState.Loaded } }
-}
+    val rows: ImmutableList<ImmutableList<DayItem?>>,
+)
 
-/** Groups days by month, oldest first, padded so that every row has seven cells starting on Monday. */
-fun List<DayItem>.toMonths(): List<CalendarMonth> = groupBy { YearMonth.from(it.date) }
-    .toSortedMap()
-    .map { (yearMonth, days) ->
-        val sorted = days.sortedBy { it.date }
-        // Monday = 0 ... Sunday = 6
-        val leading = yearMonth.atDay(1).dayOfWeek.value - 1
-        val cells = List<DayItem?>(leading) { null } + sorted
-        val trailing = (DAYS_IN_WEEK - cells.size % DAYS_IN_WEEK) % DAYS_IN_WEEK
-        CalendarMonth(yearMonth, (cells + List<DayItem?>(trailing) { null }).chunked(DAYS_IN_WEEK))
-    }
+/**
+ * Every month of [year], January first, built from dates only. A month is never left out, whether or not it has
+ * photos. Rows are padded so that each has seven cells starting on Monday.
+ */
+fun buildYearGrid(year: Int): ImmutableList<CalendarMonth> = (1..MONTHS_IN_YEAR).map { month ->
+    val yearMonth = YearMonth.of(year, month)
+    // Monday = 0 ... Sunday = 6
+    val leading = yearMonth.atDay(1).dayOfWeek.value - 1
+    val days = (1..yearMonth.lengthOfMonth()).map { DayItem(yearMonth.atDay(it)) }
+    val cells = List<DayItem?>(leading) { null } + days
+    val trailing = (DAYS_IN_WEEK - cells.size % DAYS_IN_WEEK) % DAYS_IN_WEEK
+    CalendarMonth(
+        yearMonth = yearMonth,
+        rows = (cells + List<DayItem?>(trailing) { null })
+            .chunked(DAYS_IN_WEEK) { it.toImmutableList() }
+            .toImmutableList(),
+    )
+}.toImmutableList()
 
-/** Only the months that have photos. */
-fun List<DayItem>.toVisibleMonths(): List<CalendarMonth> = toMonths().filter { it.hasPhotos }
+/**
+ * The same grid with the photos of [index] on its days. Days after [today] have not happened yet, so they get
+ * none. A month that is not changed by the index is returned as it was.
+ */
+fun ImmutableList<CalendarMonth>.withMemories(index: OnThisDayIndex?, today: LocalDate): ImmutableList<CalendarMonth> =
+    map { month ->
+        val rows = month.rows.map { row ->
+            row.map { item ->
+                if (item == null) {
+                    null
+                } else {
+                    val memories = index?.entries?.get(MonthDay.from(item.date))?.takeIf { !item.date.isAfter(today) }
+                    item.copy(memory = memories?.let { DayMemory(it.count, it.cover.uri) })
+                }
+            }.toImmutableList()
+        }.toImmutableList()
+        if (rows == month.rows) month else month.copy(rows = rows)
+    }.toImmutableList()

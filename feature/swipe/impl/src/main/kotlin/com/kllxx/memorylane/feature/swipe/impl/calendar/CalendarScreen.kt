@@ -23,7 +23,10 @@ fun CalendarScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> viewModel.onIntent(CalendarIntent.PermissionResult(granted)) }
 
-    LaunchedEffect(Unit) { CalendarPerf.onRouteEntered() }
+    LaunchedEffect(Unit) {
+        CalendarPerf.onRouteEntered()
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->

@@ -63,6 +63,7 @@ class ReviewViewModelTest {
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
+        coEvery { photoRepository.refreshOnThisDayIndex() } returns Unit
         coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
             PendingDelete(1, date),
             PendingDelete(3, date),
@@ -182,6 +183,44 @@ class ReviewViewModelTest {
             coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
         }
 
+
+    @Test
+    fun `a confirmed delete refreshes the photo index once, before leaving review`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(listOf(1L, 3L)) } returns DeleteResult.Deleted
+        loadStats()
+
+        viewModel.effects.test {
+            viewModel.onIntent(ReviewIntent.ConfirmDelete)
+            advanceUntilIdle()
+            assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
+        }
+        coVerify(exactly = 1) { photoRepository.refreshOnThisDayIndex() }
+    }
+
+    @Test
+    fun `a cancelled delete does not refresh the photo index`() = runTest(dispatcher) {
+        loadStats()
+
+        viewModel.onIntent(ReviewIntent.SystemDeleteCancelled)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { photoRepository.refreshOnThisDayIndex() }
+    }
+
+    @Test
+    fun `a failing photo index refresh does not keep the user on review`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(listOf(1L, 3L)) } returns DeleteResult.Deleted
+        coEvery { photoRepository.refreshOnThisDayIndex() } throws IllegalStateException("query failed")
+        loadStats()
+
+        viewModel.effects.test {
+            viewModel.onIntent(ReviewIntent.ConfirmDelete)
+            advanceUntilIdle()
+            assertEquals(ReviewEffect.ShowFreedSpaceAnimation, awaitItem())
+            assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
+        }
+    }
     @Test
     fun `failing to save the session after the delete still plays the animation and leaves review`() =
         runTest(dispatcher) {

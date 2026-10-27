@@ -1,10 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
-import android.net.Uri
-import com.kllxx.memorylane.core.photos.domain.model.Photo
-import io.mockk.mockk
 import java.time.LocalDate
-import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -15,9 +12,7 @@ class CalendarReducerTest {
 
     private val initial = CalendarState()
     private val d1 = LocalDate.of(2026, 1, 1)
-    private val d2 = LocalDate.of(2026, 1, 2)
-
-    private fun skeleton() = listOf(DayItem(d1, DayLoadState.NotLoaded), DayItem(d2, DayLoadState.NotLoaded))
+    private val grid = buildYearGrid(2026)
 
     private fun reduce(state: CalendarState, event: CalendarEvent) =
         CalendarReducer.reduce(state, event)
@@ -26,16 +21,14 @@ class CalendarReducerTest {
         CalendarReducer.reduce(state, intent)
 
     @Test
-    fun `LoadDays with permission starts loading and clears error`() {
-        val result = reduce(initial.copy(hasPermission = true, error = CalendarError.LoadFailed), CalendarIntent.LoadDays)
-        assertTrue(result.isLoading)
-        assertNull(result.error)
+    fun `a new state starts in Loading with no months`() {
+        assertEquals(CalendarPhase.Loading, initial.phase)
+        assertTrue(initial.months.isEmpty())
     }
 
     @Test
-    fun `LoadDays without permission does not start loading but clears error`() {
-        val result = reduce(initial.copy(hasPermission = false, error = CalendarError.LoadFailed), CalendarIntent.LoadDays)
-        assertFalse(result.isLoading)
+    fun `LoadDays clears the error`() {
+        val result = reduce(initial.copy(hasPermission = true, error = CalendarError.LoadFailed), CalendarIntent.LoadDays)
         assertNull(result.error)
     }
 
@@ -48,49 +41,58 @@ class CalendarReducerTest {
     }
 
     @Test
-    fun `RequestPermission OpenDay and LoadRange leave state unchanged`() {
+    fun `ScreenEntered RequestPermission and OpenDay leave state unchanged`() {
+        assertEquals(initial, reduce(initial, CalendarIntent.ScreenEntered))
         assertEquals(initial, reduce(initial, CalendarIntent.RequestPermission))
         assertEquals(initial, reduce(initial, CalendarIntent.OpenDay(d1)))
-        assertEquals(initial, reduce(initial, CalendarIntent.RefreshDay(d1)))
-        assertEquals(initial, reduce(initial, CalendarIntent.LoadRange(d1, d2)))
     }
 
     @Test
-    fun `DaysInitialized sets the skeleton`() {
-        val result = reduce(initial, CalendarEvent.DaysInitialized(skeleton()))
-        assertEquals(skeleton(), result.days)
+    fun `an index with photos gives Content with its months`() {
+        val result = reduce(initial, CalendarEvent.IndexLoaded(grid, isEmpty = false))
+
+        assertEquals(CalendarPhase.Content, result.phase)
+        assertEquals(grid, result.months)
     }
 
     @Test
-    fun `DaysLoaded replaces matching days and stops loading`() {
-        val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 1, 2), 10)
-        val state = initial.copy(days = skeleton().toImmutableList(), isLoading = true)
-        val loaded = DayItem(d2, DayLoadState.Loaded(photo, 3))
+    fun `an index without photos gives Empty`() {
+        val result = reduce(initial, CalendarEvent.IndexLoaded(grid, isEmpty = true))
 
-        val result = reduce(state, CalendarEvent.DaysLoaded(listOf(loaded)))
-
-        assertEquals(listOf(DayItem(d1, DayLoadState.NotLoaded), loaded), result.days)
-        assertFalse(result.isLoading)
+        assertEquals(CalendarPhase.Empty, result.phase)
     }
 
     @Test
-    fun `DaysLoaded ignores dates not in the list`() {
-        val state = initial.copy(days = skeleton().toImmutableList())
-        val stray = DayItem(LocalDate.of(2027, 5, 5), DayLoadState.Empty)
-        assertEquals(skeleton(), reduce(state, CalendarEvent.DaysLoaded(listOf(stray))).days)
-    }
+    fun `a newer index replaces Empty with Content`() {
+        val empty = reduce(initial, CalendarEvent.IndexLoaded(grid, isEmpty = true))
 
-    @Test
-    fun `LoadFailed sets error and stops loading`() {
-        val result = reduce(initial.copy(isLoading = true), CalendarEvent.LoadFailed)
-        assertEquals(CalendarError.LoadFailed, result.error)
-        assertFalse(result.isLoading)
+        assertEquals(CalendarPhase.Content, reduce(empty, CalendarEvent.IndexLoaded(grid, isEmpty = false)).phase)
     }
 
     @Test
     fun `StatsLoaded sets sorted dates and streak`() {
-        val result = reduce(initial, CalendarEvent.StatsLoaded(setOf(d1, d2), currentStreak = 4))
-        assertEquals(setOf(d1, d2), result.sortedDates)
-        assertEquals(4, result.currentStreak)
+        val result = reduce(initial, CalendarEvent.StatsLoaded(setOf(d1), currentStreak = 3))
+
+        assertEquals(setOf(d1), result.sortedDates)
+        assertEquals(3, result.currentStreak)
+    }
+
+    @Test
+    fun `LoadFailed shows the grid with the error`() {
+        val result = reduce(initial.copy(months = grid), CalendarEvent.LoadFailed)
+
+        assertEquals(CalendarError.LoadFailed, result.error)
+        assertEquals(CalendarPhase.Content, result.phase)
+        assertEquals(grid, result.months)
+    }
+
+    @Test
+    fun `LoadSucceeded clears the error and keeps the rest`() {
+        val failed = reduce(initial.copy(months = persistentListOf()), CalendarEvent.LoadFailed)
+
+        val result = reduce(failed, CalendarEvent.LoadSucceeded)
+
+        assertNull(result.error)
+        assertEquals(CalendarPhase.Content, result.phase)
     }
 }

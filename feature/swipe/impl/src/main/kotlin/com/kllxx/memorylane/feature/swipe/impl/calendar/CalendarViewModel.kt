@@ -5,8 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.domain.streak.StreakCalculator
+import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
-import com.kllxx.memorylane.feature.swipe.impl.SwipeConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,18 +29,22 @@ class CalendarViewModel @Inject constructor(
     private val clock: Clock,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(CalendarState(today = LocalDate.now(clock)))
+    private val today = LocalDate.now(clock)
+
+    // The grid depends on dates only, so it is there from the start; the photos are added when they are known
+    private val yearGrid = buildYearGrid(today.year)
+
+    private val _state = MutableStateFlow(CalendarState(months = yearGrid, today = today))
     val state: StateFlow<CalendarState> = _state.asStateFlow()
 
     private val _effects = Channel<CalendarEffect>(Channel.BUFFERED)
     val effects: Flow<CalendarEffect> = _effects.receiveAsFlow()
 
-    private val loadedDates = mutableSetOf<LocalDate>()
-
     init {
         CalendarPerf.onViewModelCreated()
-        // The real permission state decides whether to load, so a revoked permission never leaves a spinner
-        onIntent(CalendarIntent.PermissionResult(photoRepository.hasMediaPermission()))
+        // The real permission state decides whether to load, so a revoked permission never leaves a blank screen
+        _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(photoRepository.hasMediaPermission())) }
+        observePhotoIndex()
         observeSortedDays()
     }
 
@@ -47,26 +52,41 @@ class CalendarViewModel @Inject constructor(
         _state.update { CalendarReducer.reduce(it, intent) }
 
         when (intent) {
-            CalendarIntent.LoadDays -> if (_state.value.hasPermission) loadInitial()
-            is CalendarIntent.LoadRange ->
-                if (_state.value.hasPermission) loadRange(intent.from, intent.to.plusDays(SwipeConstants.BUFFER_DAYS))
+            CalendarIntent.ScreenEntered -> {
+                // The permission may have been revoked while the app was away
+                val granted = photoRepository.hasMediaPermission()
+                _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
+                if (granted) refresh()
+            }
+            CalendarIntent.LoadDays -> if (_state.value.hasPermission) refresh()
             CalendarIntent.RequestPermission ->
                 _effects.trySend(CalendarEffect.RequestPermissionLauncher)
-            is CalendarIntent.PermissionResult -> if (intent.granted) onIntent(CalendarIntent.LoadDays)
+            is CalendarIntent.PermissionResult -> if (intent.granted) refresh()
             is CalendarIntent.OpenDay ->
                 // A day that has not happened yet has no photos to sort
                 if (!intent.date.isAfter(LocalDate.now(clock))) {
                     _effects.trySend(CalendarEffect.NavigateToSwipe(intent.date))
                 }
-            is CalendarIntent.RefreshDay -> if (_state.value.hasPermission) {
-                loadedDates.remove(intent.date)
-                loadRange(intent.date, intent.date)
-            }
         }
     }
 
     private fun onEvent(event: CalendarEvent) {
         _state.update { CalendarReducer.reduce(it, event) }
+    }
+
+    /** The last loaded index is shown at once; every new one replaces it in a single state update. */
+    private fun observePhotoIndex() {
+        viewModelScope.launch {
+            photoRepository.onThisDayIndex.filterNotNull().collect { index ->
+                val months = yearGrid.withMemories(index, today)
+                onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
+                CalendarPerf.onIndexShown(
+                    isEmpty = index.isEmpty,
+                    photos = index.totalPhotos,
+                    days = index.entries.size,
+                )
+            }
+        }
     }
 
     private fun observeSortedDays() {
@@ -90,84 +110,26 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    private fun loadInitial() {
-        val today = LocalDate.now(clock)
-        val yearStart = LocalDate.of(today.year, 1, 1)
-        val skeleton = (0 until today.lengthOfYear()).map {
-            DayItem(date = yearStart.plusDays(it.toLong()), loadState = DayLoadState.NotLoaded)
-        }
-        loadedDates.clear()
-        onEvent(CalendarEvent.DaysInitialized(skeleton))
-
-        val from = today.withDayOfMonth(1)
-        loadRange(from, from.plusDays(SwipeConstants.INITIAL_WINDOW_DAYS - 1))
-        loadRestOfYear(today)
-    }
-
-    /**
-     * A month is only shown once one of its days is known to have photos, so every month has to be
-     * looked up, not only the ones that are scrolled to. The current month goes first (see [loadInitial]).
-     */
-    private fun loadRestOfYear(today: LocalDate) {
+    /** One gallery query; the result arrives through [observePhotoIndex]. */
+    private fun refresh() {
         viewModelScope.launch {
-            for (month in 1..MONTHS_IN_YEAR) {
-                val start = LocalDate.of(today.year, month, 1)
-                val toLoad = claimUnloaded(start, start.withDayOfMonth(start.lengthOfMonth()))
-                if (toLoad.isNotEmpty() && !loadDays(toLoad)) return@launch
+            CalendarPerf.onRefreshStarted()
+            try {
+                photoRepository.refreshOnThisDayIndex()
+                onEvent(CalendarEvent.LoadSucceeded)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PermissionDeniedException) {
+                // Not an empty gallery: the prompt takes over
+                _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(false)) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not load the photos of the calendar", e)
+                onEvent(CalendarEvent.LoadFailed)
             }
-            CalendarPerf.onYearLoaded()
         }
-    }
-
-    private fun loadRange(from: LocalDate, to: LocalDate) {
-        val toLoad = claimUnloaded(from, to)
-        if (toLoad.isEmpty()) {
-            _state.update { it.copy(isLoading = false) }
-            return
-        }
-        viewModelScope.launch { loadDays(toLoad) }
-    }
-
-    /** Dates in the range that nobody has asked for yet; they are marked as requested. */
-    private fun claimUnloaded(from: LocalDate, to: LocalDate): List<LocalDate> =
-        _state.value.days.map { it.date }
-            .filter { it >= from && it <= to }
-            .filter { loadedDates.add(it) }
-
-    /** Returns false if the days could not be loaded. */
-    private suspend fun loadDays(toLoad: List<LocalDate>): Boolean = try {
-        val startedAt = System.nanoTime()
-        val items = toLoad.map { date ->
-            CalendarPerf.onQuery()
-            val (firstPhoto, totalCount) = photoRepository.getDayInfo(date)
-            DayItem(
-                date = date,
-                loadState = if (firstPhoto == null) {
-                    DayLoadState.Empty
-                } else {
-                    DayLoadState.Loaded(firstPhoto, totalCount)
-                },
-            )
-        }
-        onEvent(CalendarEvent.DaysLoaded(items))
-        CalendarPerf.onDaysLoaded(
-            days = items.size,
-            batchMs = (System.nanoTime() - startedAt) / NANOS_PER_MILLI,
-            anyPhotos = items.any { it.loadState is DayLoadState.Loaded },
-        )
-        true
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        loadedDates.removeAll(toLoad.toSet())
-        Log.e(TAG, "Could not load ${toLoad.size} calendar days", e)
-        onEvent(CalendarEvent.LoadFailed)
-        false
     }
 
     private companion object {
         const val TAG = "CalendarViewModel"
-        const val MONTHS_IN_YEAR = 12
-        const val NANOS_PER_MILLI = 1_000_000L
     }
 }

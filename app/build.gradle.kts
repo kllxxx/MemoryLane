@@ -22,6 +22,7 @@ android {
     }
 
     buildTypes {
+        val r8Scope = setOf("androidx.**", "kotlin.**", "kotlinx.**", "com.kllxx.memorylane.**")
         debug {
             buildConfigField("boolean", "PERF_LOGGING", "false")
         }
@@ -29,17 +30,25 @@ android {
             buildConfigField("boolean", "PERF_LOGGING", "false")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                packageScope = r8Scope
+                // R8 removes the PerfLog calls (see release-rules.pro); the app's own packages have to be in scope for that
+                keepRules {
+                    files.add(file("release-rules.pro"))
+                }
             }
         }
-        // Release-like build for performance measurements: same R8 setup, signed with the debug key, logging on
+        // Release-like build for performance measurements: the same R8 setup as release, but without the rule
+        // that removes the logging, signed with the debug key. Not initWith(release): that would share the rules.
         create("perf") {
-            initWith(getByName("release"))
             isDebuggable = false
             signingConfig = signingConfigs.getByName("debug")
             // Library modules only have debug and release variants
             matchingFallbacks += "release"
             buildConfigField("boolean", "PERF_LOGGING", "true")
+            optimization {
+                enable = true
+                packageScope = r8Scope
+            }
         }
     }
     compileOptions {
@@ -72,6 +81,7 @@ dependencies {
     implementation(project(":core:photos:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:domain"))
+    implementation(project(":core:common"))
     implementation(project(":core:ui"))
 
     implementation(libs.androidx.navigation.compose)

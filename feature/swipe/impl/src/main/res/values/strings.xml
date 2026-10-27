@@ -12,4 +12,6 @@
     <string name="calendar_permission_button">Разрешить доступ</string>
     <string name="calendar_error_text">Не удалось загрузить фото</string>
     <string name="calendar_error_retry">Повторить</string>
+    <string name="calendar_empty_title">Пока нет фото</string>
+    <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
 </resources>

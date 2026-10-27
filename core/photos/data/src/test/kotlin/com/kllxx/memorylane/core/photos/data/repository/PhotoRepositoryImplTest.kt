@@ -13,6 +13,7 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -46,6 +47,8 @@ class FakeMediaProvider : ContentProvider() {
     ): Cursor {
         queries++
         lastSelectionArgs = selectionArgs?.toList()
+        lastSelection = selection
+        lastProjection = projection?.toList()
         val columns = projection.orEmpty()
         val cursor = MatrixCursor(columns)
         rows.forEach { row -> cursor.addRow(columns.map { column -> row[column] }) }
@@ -61,11 +64,15 @@ class FakeMediaProvider : ContentProvider() {
         var rows: List<Map<String, Any?>> = emptyList()
         var queries = 0
         var lastSelectionArgs: List<String>? = null
+        var lastSelection: String? = null
+        var lastProjection: List<String>? = null
 
         fun reset() {
             rows = emptyList()
             queries = 0
             lastSelectionArgs = null
+            lastSelection = null
+            lastProjection = null
         }
     }
 }
@@ -76,6 +83,7 @@ class PhotoRepositoryImplTest {
     private val application: Application = RuntimeEnvironment.getApplication()
     private val date = LocalDate.of(2026, 10, 15)
     private val zone = ZoneId.systemDefault()
+    private val clock = Clock.fixed(date.atTime(12, 0).atZone(zone).toInstant(), zone)
 
     // Locations are only looked up per photo; any unexpected geocoding call fails the test
     private val geocoder = mockk<LocationGeocoder>()
@@ -85,7 +93,7 @@ class PhotoRepositoryImplTest {
     fun setUp() {
         FakeMediaProvider.reset()
         Robolectric.buildContentProvider(FakeMediaProvider::class.java).create(MediaStore.AUTHORITY)
-        repository = PhotoRepositoryImpl(application, geocoder, UnconfinedTestDispatcher())
+        repository = PhotoRepositoryImpl(application, geocoder, UnconfinedTestDispatcher(), clock)
     }
 
     private fun grantMedia() = shadowOf(application).grantPermissions(Manifest.permission.READ_MEDIA_IMAGES)
@@ -120,43 +128,14 @@ class PhotoRepositoryImplTest {
         }
     }
 
-    @Test
-    fun `getDayInfo throws PermissionDeniedException without permission and never queries`() = runTest {
-        denyMedia()
-        try {
-            repository.getDayInfo(date)
-            fail("expected PermissionDeniedException")
-        } catch (e: PermissionDeniedException) {
-            assertEquals(0, FakeMediaProvider.queries)
-        }
-    }
 
     @Test
     fun `an empty cursor with permission is an empty day, not an error`() = runTest {
         grantMedia()
         assertTrue(repository.getPhotosForDate(date).isEmpty())
-        assertEquals(null to 0, repository.getDayInfo(date))
         assertTrue(FakeMediaProvider.queries > 0)
     }
 
-    @Test
-    fun `getDayInfo returns the first photo and the count from one query`() = runTest {
-        grantMedia()
-        val day = date.minusYears(1)
-        FakeMediaProvider.rows = listOf(3L, 4L, 5L).mapIndexed { index, id ->
-            mapOf(
-                MediaStore.Images.Media._ID to id,
-                MediaStore.Images.Media.DATE_TAKEN to day.atTime(8 + index, 0).atZone(zone).toInstant().toEpochMilli(),
-                MediaStore.Images.Media.SIZE to 10L,
-            )
-        }
-
-        val (first, count) = repository.getDayInfo(date)
-
-        assertEquals(3L, first?.id)
-        assertEquals(3, count)
-        assertEquals(1, FakeMediaProvider.queries)
-    }
 
     @Test
     fun `a row from the cursor becomes a photo`() = runTest {

@@ -40,6 +40,7 @@ All processing is local — no network, no cloud, no uploads.
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
 :core:domain                — repository interfaces, domain models
+:core:common                — PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
 :lib:lazycardstack          — vendored Tinder-style card stack library
 :build-logic                — convention plugins (shared Gradle config)
@@ -94,7 +95,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-22
-- fix: last used MMLN-08
+- fix: last used MMLN-09
 - refactor: last used MMLN-06
 
 **Commit format (Conventional Commits):**

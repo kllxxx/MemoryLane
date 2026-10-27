@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.ui.component.PhotoThumbnail
 import com.kllxx.memorylane.core.ui.component.ThumbnailLoad
 import com.kllxx.memorylane.core.ui.theme.EmptyTile
@@ -43,7 +44,7 @@ import com.kllxx.memorylane.core.ui.theme.Emerald
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarPerf
 import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
-import com.kllxx.memorylane.feature.swipe.impl.calendar.DayLoadState
+import com.kllxx.memorylane.feature.swipe.impl.calendar.DayMemory
 import java.time.LocalDate
 
 private val TileShape = RoundedCornerShape(10.dp)
@@ -61,9 +62,8 @@ internal fun DayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val loadState = item.loadState
-    val photo = loadState as? DayLoadState.Loaded
-    val hasPhoto = !isFuture && photo != null
+    val memory = item.memory
+    val hasPhoto = !isFuture && memory != null
     val primary = MaterialTheme.colorScheme.primary
 
     Column(
@@ -80,8 +80,8 @@ internal fun DayCell(
                 .then(if (hasPhoto) Modifier.clickable(onClick = onClick) else Modifier),
         ) {
             when {
-                photo != null && hasPhoto -> PhotoTile(photo, item.date)
-                isFuture || loadState is DayLoadState.NotLoaded ->
+                memory != null && hasPhoto -> PhotoTile(memory, item.date)
+                isFuture ->
                     Box(Modifier.fillMaxSize().background(emptyTileColor().copy(alpha = 0.6f)))
                 else -> EmptyTileContent()
             }
@@ -110,19 +110,28 @@ internal fun DayCell(
 }
 
 @Composable
-private fun PhotoTile(loaded: DayLoadState.Loaded, date: LocalDate) {
-    val description = stringResource(R.string.calendar_photo_count, loaded.totalCount)
+private fun PhotoTile(memory: DayMemory, date: LocalDate) {
+    val description = stringResource(R.string.calendar_photo_count, memory.count)
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(Emerald.copy(alpha = 0.6f), Emerald)))
             .semantics { contentDescription = description },
     ) {
-        // Remembered: PhotoThumbnail rebuilds its request when the callback changes
-        val onLoad = remember(loaded.firstPhoto.id, date) { { load: ThumbnailLoad -> CalendarPerf.onThumbnail(date, load) } }
-        PhotoThumbnail(uri = loaded.firstPhoto.uri, modifier = Modifier.fillMaxSize(), onLoad = onLoad)
+        // Only measured in the debug and perf builds; PhotoThumbnail rebuilds its request when the callback changes
+        val onLoad = if (PerfLog.isEnabled()) {
+            remember(date) { { load: ThumbnailLoad -> CalendarPerf.onThumbnail(date, load) } }
+        } else {
+            null
+        }
+        PhotoThumbnail(
+            uri = memory.coverUri,
+            modifier = Modifier.fillMaxSize(),
+            decodeToCellSize = true,
+            onLoad = onLoad,
+        )
         Text(
-            text = loaded.totalCount.toString(),
+            text = memory.count.toString(),
             color = Color.White,
             fontSize = 9.sp,
             fontWeight = FontWeight.ExtraBold,

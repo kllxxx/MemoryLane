@@ -4,16 +4,12 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -31,9 +27,7 @@ import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
-import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarIntent
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
-import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarViewModel
 import java.time.LocalDate
 import kotlin.reflect.KClass
 
@@ -66,8 +60,6 @@ fun AppNavHost(
     today: LocalDate,
     navController: NavHostController = rememberNavController(),
 ) {
-    // ISO date of the day last opened in Swipe or Review, waiting to be reloaded on Calendar
-    var lastSortedDate by rememberSaveable { mutableStateOf<String?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     // Bottom bar only on the tab screens; hidden during Onboarding and Swipe.
@@ -110,9 +102,7 @@ fun AppNavHost(
                 },
             )
         }
-        composable<SwipeRoute> { entry ->
-            // Remembered so Calendar can reload this day once the user is back on it
-            LaunchedEffect(entry) { lastSortedDate = entry.toRoute<SwipeRoute>().date }
+        composable<SwipeRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 SwipeScreen(
                     onNavigateToReview = { date, totalPhotosCount ->
@@ -124,23 +114,13 @@ fun AppNavHost(
                 )
             }
         }
-        composable<ReviewRoute> { entry ->
-            LaunchedEffect(entry) { lastSortedDate = entry.toRoute<ReviewRoute>().date }
+        composable<ReviewRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) { ReviewScreen() }
         }
         composable<CalendarRoute> {
-            val calendarViewModel: CalendarViewModel = hiltViewModel()
-            // Calendar caches each day, so the day that was just sorted has to be reloaded
-            LaunchedEffect(lastSortedDate) {
-                lastSortedDate?.let { date ->
-                    calendarViewModel.onIntent(CalendarIntent.RefreshDay(LocalDate.parse(date)))
-                    lastSortedDate = null
-                }
-            }
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 CalendarScreen(
                     onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
-                    viewModel = calendarViewModel,
                 )
             }
         }

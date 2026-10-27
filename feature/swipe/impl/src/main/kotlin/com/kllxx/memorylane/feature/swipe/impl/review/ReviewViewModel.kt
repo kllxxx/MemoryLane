@@ -16,6 +16,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -168,9 +169,23 @@ class ReviewViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Could not clear the pending deletes", e)
             }
+            // The deleted photos must be gone from the Calendar when it opens: the new index is read while the
+            // freed space animation plays, and only a failure is allowed to skip it
+            val photoIndexRefresh = async { refreshPhotoIndex() }
             _effects.trySend(ReviewEffect.ShowFreedSpaceAnimation)
             delay(ReviewConstants.FREED_SPACE_ANIMATION_DELAY_MS)
+            photoIndexRefresh.await()
             _effects.trySend(ReviewEffect.NavigateToCalendar)
+        }
+    }
+
+    private suspend fun refreshPhotoIndex() {
+        try {
+            photoRepository.refreshOnThisDayIndex()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not refresh the photo index after the deletion", e)
         }
     }
 

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.ui.component.ThumbnailLoad
 import com.kllxx.memorylane.core.ui.component.ThumbnailPhase
 import java.time.LocalDate
@@ -19,18 +20,20 @@ class CalendarPerfTest {
 
     private val lines = mutableListOf<String>()
     private var nowMs = 0L
+    private val threadName = Thread.currentThread().name
     private val day = LocalDate.of(2026, 10, 15)
 
     @Before
     fun setUp() {
-        CalendarPerf.sink = { lines += it }
+        PerfLog.setEnabled(true)
+        PerfLog.sink = { lines += it }
         CalendarPerf.nanoTime = { nowMs * 1_000_000L }
-        CalendarPerf.threadName = { "main" }
     }
 
     @After
     fun tearDown() {
-        CalendarPerf.sink = { }
+        PerfLog.setEnabled(false)
+        CalendarPerf.nanoTime = PerfLog::nanoTime
     }
 
     private fun started() = ThumbnailLoad(ThumbnailPhase.Started)
@@ -54,8 +57,8 @@ class CalendarPerfTest {
 
         assertEquals(
             listOf(
-                "[main] +0ms t0: CalendarViewModel created",
-                "[main] +250ms route entered (cold)",
+                "[$threadName] +0ms t0: CalendarViewModel created",
+                "[$threadName] +250ms route entered (cold)",
             ),
             lines,
         )
@@ -71,20 +74,29 @@ class CalendarPerfTest {
         nowMs = 5_100
         CalendarPerf.onFirstContentFrame()
 
-        assertEquals("[main] +0ms t0: route entered (warm, ViewModel reused)", lines[2])
-        assertEquals("[main] +100ms first frame with calendar content drawn", lines[3])
+        assertEquals("[$threadName] +0ms t0: route entered (warm, ViewModel reused)", lines[2])
+        assertEquals("[$threadName] +100ms first frame with calendar content drawn", lines[3])
     }
 
     @Test
-    fun `the first state with data is logged once, with the batch and the query count`() {
+    fun `the move from Loading to Content or Empty is logged with the time since t0`() {
+        nowMs = 0
         CalendarPerf.onViewModelCreated()
-        repeat(3) { CalendarPerf.onQuery() }
-        CalendarPerf.onDaysLoaded(days = 3, batchMs = 12, anyPhotos = false)
-        CalendarPerf.onDaysLoaded(days = 3, batchMs = 15, anyPhotos = true)
-        CalendarPerf.onDaysLoaded(days = 3, batchMs = 9, anyPhotos = true)
+        nowMs = 80
+        CalendarPerf.onIndexShown(isEmpty = false, photos = 120, days = 90)
+        nowMs = 900
+        CalendarPerf.onIndexShown(isEmpty = false, photos = 118, days = 89)
 
-        assertEquals(1, lines.count { it.endsWith("first state with calendar data emitted") })
-        assertTrue(lines.any { it.endsWith("loadDays: 3 days in 15ms, queries so far=3") })
+        assertEquals("[$threadName] +80ms Loading -> Content: photos=120 days=90", lines[1])
+        assertEquals("[$threadName] +900ms index replaced: photos=118 days=89", lines[2])
+    }
+
+    @Test
+    fun `an empty gallery is logged as Empty`() {
+        CalendarPerf.onViewModelCreated()
+        CalendarPerf.onIndexShown(isEmpty = true, photos = 0, days = 0)
+
+        assertTrue(lines.last().endsWith("Loading -> Empty: photos=0 days=0"))
     }
 
     @Test
@@ -112,7 +124,7 @@ class CalendarPerfTest {
         CalendarPerf.onThumbnail(day.plusDays(1), succeeded())
         advanceTimeBy(1_000)
         runCurrent()
-        assertEquals(1, lines.count { it.endsWith("all visible thumbnails loaded: images=2, queries=0") })
+        assertEquals(1, lines.count { it.endsWith("all visible thumbnails loaded: images=2") })
 
         // Scrolling in more thumbnails later does not log a second summary
         CalendarPerf.onThumbnail(day.plusDays(2), started())
@@ -138,7 +150,20 @@ class CalendarPerfTest {
 
         assertTrue(lines.any { it.endsWith("thumb cancelled 2026-10-15 5ms") })
         assertTrue(lines.any { it.endsWith("thumb FAILED 2026-10-16 7ms boom") })
-        assertEquals(1, lines.count { it.endsWith("all visible thumbnails loaded: images=2, queries=0") })
+        assertEquals(1, lines.count { it.endsWith("all visible thumbnails loaded: images=2") })
         job.cancel()
+    }
+
+    @Test
+    fun `nothing is logged or counted when logging is off`() {
+        PerfLog.setEnabled(false)
+
+        CalendarPerf.onViewModelCreated()
+        CalendarPerf.onRouteEntered()
+        CalendarPerf.onRefreshStarted()
+        CalendarPerf.onIndexShown(isEmpty = false, photos = 1, days = 1)
+        CalendarPerf.onThumbnail(day, succeeded())
+
+        assertTrue(lines.isEmpty())
     }
 }

@@ -1,49 +1,79 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
-import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.model.DayCover
+import com.kllxx.memorylane.core.photos.domain.model.DayMemories
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import io.mockk.mockk
 import java.time.LocalDate
+import java.time.MonthDay
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CalendarMonthsTest {
 
-    private fun days(year: Int, month: Int, state: DayLoadState = DayLoadState.NotLoaded): List<DayItem> {
-        val first = LocalDate.of(year, month, 1)
-        return (1..first.lengthOfMonth()).map { DayItem(first.withDayOfMonth(it), state) }
+    private val uri = mockk<Uri>(relaxed = true)
+
+    private fun month(year: Int, month: Int) = buildYearGrid(year)[month - 1]
+
+    private fun memories(count: Int) = DayMemories(count, DayCover(1, uri, LocalDate.of(2020, 1, 1)))
+
+    private fun index(vararg entries: Pair<MonthDay, DayMemories>) = OnThisDayIndex(2026, mapOf(*entries))
+
+    @Test
+    fun `the grid has all 12 months of the year in order`() {
+        val grid = buildYearGrid(2026)
+
+        assertEquals((1..12).map { YearMonth.of(2026, it) }, grid.map { it.yearMonth })
     }
 
-    private val loaded = DayLoadState.Loaded(Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 1, 1), 1), 2)
+    @Test
+    fun `the grid is built from dates only`() {
+        val days = buildYearGrid(2026).flatMap { it.rows }.flatten().filterNotNull()
+
+        assertEquals(365, days.size)
+        assertTrue(days.all { it.memory == null })
+        assertEquals(LocalDate.of(2026, 1, 1), days.first().date)
+        assertEquals(LocalDate.of(2026, 12, 31), days.last().date)
+    }
+
+    @Test
+    fun `a leap year has 366 days and a Feb 29`() {
+        val days = buildYearGrid(2028).flatMap { it.rows }.flatten().filterNotNull()
+
+        assertEquals(366, days.size)
+        assertTrue(days.any { it.date == LocalDate.of(2028, 2, 29) })
+    }
 
     @Test
     fun `a month starting on Monday has no leading blanks`() {
         // June 2026 starts on a Monday
-        val month = days(2026, 6).toMonths().single()
-        assertEquals(LocalDate.of(2026, 6, 1), month.rows.first().first()?.date)
+        assertEquals(LocalDate.of(2026, 6, 1), month(2026, 6).rows.first().first()?.date)
     }
 
     @Test
     fun `a month starting on Sunday has six leading blanks`() {
         // March 2026 starts on a Sunday
-        val first = days(2026, 3).toMonths().single().rows.first()
+        val first = month(2026, 3).rows.first()
         assertEquals(6, first.take(6).count { it == null })
         assertEquals(LocalDate.of(2026, 3, 1), first[6]?.date)
     }
 
     @Test
     fun `September 2026 starts on Tuesday`() {
-        val first = days(2026, 9).toMonths().single().rows.first()
+        val first = month(2026, 9).rows.first()
         assertNull(first[0])
         assertEquals(LocalDate.of(2026, 9, 1), first[1]?.date)
     }
 
     @Test
     fun `every row has seven cells and the last row is padded`() {
-        val month = days(2026, 9).toMonths().single()
+        val month = month(2026, 9)
         assertTrue(month.rows.all { it.size == 7 })
         // 1 leading blank + 30 days = 31 cells, padded to 35
         assertEquals(5, month.rows.size)
@@ -51,46 +81,57 @@ class CalendarMonthsTest {
     }
 
     @Test
-    fun `leap February keeps its 29th day`() {
-        val month = days(2028, 2).toMonths().single()
-        assertEquals(29, month.rows.flatten().count { it != null })
+    fun `memories land on the month and day of every year`() {
+        val grid = buildYearGrid(2026).withMemories(index(MonthDay.of(3, 9) to memories(4)), today = LocalDate.of(2026, 12, 31))
+
+        val march9 = grid[2].rows.flatten().filterNotNull().single { it.date == LocalDate.of(2026, 3, 9) }
+        assertEquals(4, march9.memory?.count)
+        assertEquals(uri, march9.memory?.coverUri)
+        assertEquals(1, grid.flatMap { it.rows }.flatten().filterNotNull().count { it.memory != null })
     }
 
     @Test
-    fun `months are ordered oldest first`() {
-        val months = (days(2026, 10) + days(2026, 1) + days(2026, 5)).toMonths()
-        assertEquals(listOf(YearMonth.of(2026, 1), YearMonth.of(2026, 5), YearMonth.of(2026, 10)), months.map { it.yearMonth })
+    fun `months without photos stay in the grid`() {
+        val grid = buildYearGrid(2026).withMemories(index(MonthDay.of(3, 9) to memories(1)), today = LocalDate.of(2026, 12, 31))
+
+        assertEquals(12, grid.size)
+        assertTrue(grid[0].rows.flatten().filterNotNull().all { it.memory == null })
     }
 
     @Test
-    fun `only months with photos are shown, whatever the load state of the others`() {
-        val all = days(2026, 1, DayLoadState.Empty) + days(2026, 2, DayLoadState.NotLoaded) + days(2026, 3, loaded)
-        assertEquals(listOf(YearMonth.of(2026, 3)), all.toVisibleMonths().map { it.yearMonth })
+    fun `days after today get no memory`() {
+        val today = LocalDate.of(2026, 3, 1)
+        val grid = buildYearGrid(2026).withMemories(index(MonthDay.of(3, 9) to memories(1)), today)
+
+        assertNull(grid[2].rows.flatten().filterNotNull().single { it.date == LocalDate.of(2026, 3, 9) }.memory)
     }
 
     @Test
-    fun `a month that is not loaded yet is not shown`() {
-        assertTrue(days(2026, 6, DayLoadState.NotLoaded).toVisibleMonths().isEmpty())
+    fun `Feb 29 appears only in a leap year grid`() {
+        val index = index(MonthDay.of(2, 29) to memories(2))
+
+        val leap = buildYearGrid(2028).withMemories(index, today = LocalDate.of(2028, 12, 31))
+        val plain = buildYearGrid(2026).withMemories(index, today = LocalDate.of(2026, 12, 31))
+
+        assertNotNull(leap[1].rows.flatten().filterNotNull().single { it.date == LocalDate.of(2028, 2, 29) }.memory)
+        assertTrue(plain.flatMap { it.rows }.flatten().filterNotNull().all { it.memory == null })
     }
 
     @Test
-    fun `a month appears as soon as one of its days has photos`() {
-        val loading = days(2026, 6, DayLoadState.NotLoaded)
-        assertTrue(loading.toVisibleMonths().isEmpty())
-        val oneLoaded = loading.map { if (it.date.dayOfMonth == 12) it.copy(loadState = loaded) else it }
-        assertEquals(listOf(YearMonth.of(2026, 6)), oneLoaded.toVisibleMonths().map { it.yearMonth })
+    fun `an unchanged month is the same instance after applying an index`() {
+        val base = buildYearGrid(2026)
+        val first = base.withMemories(index(MonthDay.of(3, 9) to memories(1)), today = LocalDate.of(2026, 12, 31))
+        val second = first.withMemories(index(MonthDay.of(3, 9) to memories(1)), today = LocalDate.of(2026, 12, 31))
+
+        // Equal months are equal values, so the list rows are not recomposed
+        assertEquals(first, second)
+        assertSame(first[0].yearMonth, second[0].yearMonth)
     }
 
     @Test
-    fun `a month with a single photo day stays visible`() {
-        val mixed = days(2026, 4, DayLoadState.Empty).map {
-            if (it.date.dayOfMonth == 9) it.copy(loadState = loaded) else it
-        }
-        assertEquals(1, mixed.toVisibleMonths().size)
-    }
+    fun `no index leaves the grid without photos`() {
+        val grid = buildYearGrid(2026).withMemories(null, today = LocalDate.of(2026, 12, 31))
 
-    @Test
-    fun `no days gives no months`() {
-        assertTrue(emptyList<DayItem>().toVisibleMonths().isEmpty())
+        assertEquals(buildYearGrid(2026), grid)
     }
 }

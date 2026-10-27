@@ -38,6 +38,7 @@ include(":feature:profile:impl")
 include(":core:photos:domain")
 include(":core:photos:data")
 include(":core:ui")
+include(":core:common")
 include(":core:domain")
 include(":core:data")
 
