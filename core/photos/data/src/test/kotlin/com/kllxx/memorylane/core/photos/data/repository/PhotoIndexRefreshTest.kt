@@ -292,6 +292,111 @@ class PhotoIndexRefreshTest {
         assertEquals(setOf(3L), cache.entries.keys)
     }
 
+    // --- no blink: the first index already has what the cache knows ---
+
+    @Test
+    fun `with a warm cache the first published index already has the cached photos`() = runTest {
+        FakeMediaProvider.rows = listOf(
+            row(1, millis(LocalDate.of(2024, 3, 9))),
+            row(2, null, name = "photo.jpg"),
+            row(3, null, name = "IMG_20160309_101500.jpg"),
+        )
+        reader.tags[2] = exifOriginal("2016:03:09 09:00:00")
+        // An earlier run of the app filled the cache
+        repository(StandardTestDispatcher(testScheduler)).also {
+            it.refreshOnThisDayIndex()
+            advanceUntilIdle()
+        }
+        reader.reads.clear()
+
+        // A new process: the cache is warm, the index is not
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        repository.onThisDayIndex.test {
+            assertNull(awaitItem())
+
+            repository.refreshOnThisDayIndex()
+            val first = awaitItem()!!
+            advanceUntilIdle()
+
+            assertEquals(3, first.totalPhotos)
+            assertEquals(3, first.entries.getValue(MonthDay.of(3, 9)).count)
+            // Nothing was missing, so the index is not emitted a second time and no file is read
+            expectNoEvents()
+        }
+        assertTrue(reader.reads.isEmpty())
+    }
+
+    @Test
+    fun `an index is never a subset of the one before it only because the pass has not run`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(
+            row(1, millis(LocalDate.of(2024, 3, 9))),
+            row(2, null, name = "photo.jpg"),
+        )
+        reader.tags[2] = exifOriginal("2016:03:09 09:00:00")
+
+        repository.onThisDayIndex.test {
+            assertNull(awaitItem())
+            repository.refreshOnThisDayIndex()
+            assertEquals(1, awaitItem()!!.totalPhotos)
+            advanceUntilIdle()
+            assertEquals(2, awaitItem()!!.totalPhotos)
+
+            // A new undated photo shows up; the cached one must stay in the index while the new one is read
+            FakeMediaProvider.rows += row(4, null, name = "IMG_20150309_101500.jpg")
+            repository.refreshOnThisDayIndex()
+            advanceUntilIdle()
+
+            assertEquals(3, awaitItem()!!.totalPhotos)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a file changed since it was cached keeps its old date in the index until it is read again`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:03:09 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 200, name = "photo.jpg"))
+        val queriesBefore = FakeMediaProvider.queries
+
+        repository.onThisDayIndex.test {
+            assertEquals(1, awaitItem()!!.totalPhotos)
+
+            repository.refreshOnThisDayIndex()
+            advanceUntilIdle()
+
+            // Read again, same date: nothing to publish, no second query
+            expectNoEvents()
+        }
+        assertEquals(queriesBefore + 1, FakeMediaProvider.queries)
+        assertEquals(200L, cache.entries.getValue(2).dateModified)
+    }
+
+    @Test
+    fun `a changed file with another date moves the photo, and the index never loses it on the way`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:03:09 09:00:00")
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 200, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2017:05:01 09:00:00")
+
+        repository.onThisDayIndex.test {
+            assertEquals(setOf(MonthDay.of(3, 9)), awaitItem()!!.entries.keys)
+
+            repository.refreshOnThisDayIndex()
+            advanceUntilIdle()
+
+            assertEquals(setOf(MonthDay.of(5, 1)), awaitItem()!!.entries.keys)
+            expectNoEvents()
+        }
+    }
+
+
     @Test
     fun `a photo is on the same day in getPhotosForDate and in the index`() = runTest {
         val repository = repository(StandardTestDispatcher(testScheduler))
@@ -409,15 +514,16 @@ class PhotoIndexRefreshTest {
         )
         repository.refreshOnThisDayIndex()
         advanceUntilIdle()
+        val first = lines.single { it.contains("dates: undated=") }
+        assertTrue(first, first.contains("undated=2 phase1CacheHits=0 misses=2 stale=0 exif=0 fileName=1 stillUndated=1"))
         lines.clear()
 
         repository.refreshOnThisDayIndex()
         advanceUntilIdle()
 
         val summary = lines.single { it.contains("dates: undated=") }
-        assertTrue(summary, summary.contains("undated=2 cacheHits=2 cacheMisses=0"))
-        assertTrue(summary, summary.contains("fileName=1"))
-        assertTrue(summary, summary.contains("stillUndated=1"))
+        assertTrue(summary, summary.contains("undated=2 phase1CacheHits=2 misses=0 stale=0"))
+        assertTrue(summary, summary.contains("indexChanged=false"))
     }
 
     @Test

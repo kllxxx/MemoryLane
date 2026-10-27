@@ -11,8 +11,12 @@ internal class FakeExifDateReader : ExifDateReader {
     val tags = HashMap<Long, ExifDateTags>()
     val reads = mutableListOf<Long>()
 
+    /** Called after each read, to let a test react to the progress of a pass. */
+    var onRead: () -> Unit = {}
+
     override fun read(photoId: Long): ExifDateTags {
         reads += photoId
+        onRead()
         return tags[photoId] ?: throw FileNotFoundException("no file for $photoId")
     }
 }

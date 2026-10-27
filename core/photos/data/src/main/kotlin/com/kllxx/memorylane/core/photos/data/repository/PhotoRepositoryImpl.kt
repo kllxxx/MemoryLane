@@ -16,6 +16,7 @@ import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
+import com.kllxx.memorylane.core.photos.data.date.CacheLookup
 import com.kllxx.memorylane.core.photos.data.date.ExifDateReader
 import com.kllxx.memorylane.core.photos.data.date.PhotoDateResolver
 import com.kllxx.memorylane.core.photos.data.date.ResolvedDate
@@ -109,10 +110,15 @@ internal class PhotoRepositoryImpl @Inject constructor(
         }
         try {
             val scan = withContext(ioDispatcher) { scanMediaStore() }
+            // What the cache knows about the undated photos is part of the first index: publishing the MediaStore dates
+            // alone would drop those photos for a moment and bring them back with the next one
+            val lookup = withContext(ioDispatcher) { undatedPhotoDates.lookup(scan.undated) }
+            lookup.dates.forEach { (id, date) -> scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli())) }
             _onThisDayIndex.value = scan.toIndex()
-            // The photos MediaStore has no date for are dated after this index was shown, then the index is emitted once more
+            // Only the files the cache has no date for are read, after this index was shown; the index is emitted
+            // again, once, if that found anything
             resolutionJob?.cancel()
-            resolutionJob = scope.launch { resolveUndatedDates(scan) }
+            resolutionJob = scope.launch { resolveUndatedDates(scan, lookup) }
             run.complete(Unit)
         } catch (e: Throwable) {
             run.completeExceptionally(e)
@@ -209,26 +215,43 @@ internal class PhotoRepositoryImpl @Inject constructor(
     }
 
     /**
-     * Dates the photos without a `DATE_TAKEN` from the cache, their EXIF data or their file name, adds them to the
-     * index of [scan] and emits it again, once, when that changed anything. Photos with no date at all stay out.
+     * Dates the photos the cache has no date for, from their EXIF data or file name, adds them to the index of [scan]
+     * and emits it again, once, when that changed anything. Photos with no date at all stay out.
      */
-    private suspend fun resolveUndatedDates(scan: MediaScan) {
+    private suspend fun resolveUndatedDates(scan: MediaScan, lookup: CacheLookup) {
         val startedAt = PerfLog.nanoTime()
         try {
             if (PerfLog.isEnabled()) logExifSamples(scan.undated)
-            val resolution = undatedPhotoDates.resolve(scan.undated)
-            val countedBefore = scan.builder.counted
-            resolution.dates.forEach { (id, date) ->
-                scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli()))
-            }
+            val resolution = undatedPhotoDates.resolveMisses(lookup.misses)
             currentCoroutineContext().ensureActive()
-            resolvedDates = resolution.dates
-            val changed = scan.builder.counted != countedBefore
-            if (changed) _onThisDayIndex.value = scan.toIndex()
+            val changed: Boolean
+            if (lookup.changedBy(resolution)) {
+                // A file that was changed since it was cached has another date than the one the index was built with:
+                // the index is built again, now from a cache that is up to date (the only case with a second query)
+                val rebuilt = withContext(ioDispatcher) {
+                    scanMediaStore().also { again ->
+                        undatedPhotoDates.lookup(again.undated).dates.forEach { (id, date) ->
+                            again.builder.add(IndexedImage(id, date.toInstant(again.zone).toEpochMilli()))
+                        }
+                    }
+                }
+                currentCoroutineContext().ensureActive()
+                _onThisDayIndex.value = rebuilt.toIndex()
+                changed = true
+            } else {
+                val countedBefore = scan.builder.counted
+                // A stale photo is in the index already, with the date the file still has
+                resolution.dates.filterKeys { it !in lookup.dates }.forEach { (id, date) ->
+                    scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli()))
+                }
+                changed = scan.builder.counted != countedBefore
+                if (changed) _onThisDayIndex.value = scan.toIndex()
+            }
+            resolvedDates = lookup.dates + resolution.dates
             PerfLog.d {
-                "dates: undated=${resolution.undated} cacheHits=${resolution.cacheHits} cacheMisses=${resolution.cacheMisses} " +
-                    "exif=${resolution.fromExif} fileName=${resolution.fromFileName} stillUndated=${resolution.stillUndated} " +
-                    "indexChanged=$changed took=${PerfLog.sinceMs(startedAt)}ms"
+                "dates: undated=${lookup.undated} phase1CacheHits=${lookup.cacheHits} misses=${lookup.misses.size} " +
+                    "stale=${lookup.stale.size} exif=${resolution.fromExif} fileName=${resolution.fromFileName} " +
+                    "stillUndated=${resolution.stillUndated} indexChanged=$changed took=${PerfLog.sinceMs(startedAt)}ms"
             }
         } catch (e: CancellationException) {
             throw e
