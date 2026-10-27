@@ -214,7 +214,7 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `an empty day saves a completed session and goes to timeline, never to review`() = runTest(dispatcher) {
+    fun `an empty day records no session and goes to timeline, never to review`() = runTest(dispatcher) {
         coEvery { photoRepository.getPhotosForDate(date) } returns emptyList()
         createViewModel()
         viewModel.effects.test {
@@ -222,7 +222,7 @@ class SwipeViewModelTest {
             assertEquals(SwipeEffect.NavigateToTimeline, awaitItem())
             expectNoEvents()
         }
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 
     @Test

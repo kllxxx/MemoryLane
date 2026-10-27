@@ -1,6 +1,8 @@
 package com.kllxx.memorylane
 
 import android.app.Application
+import android.net.Uri
+import com.kllxx.memorylane.core.photos.domain.model.Photo
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -43,8 +45,10 @@ class AppViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
     private val appSettingsRepository = mockk<AppSettingsRepository>()
     private val swipeRepository = mockk<SwipeRepository>()
+    private val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 10, 15), sizeBytes = 100)
     private val photoRepository = mockk<PhotoRepository> {
         every { hasMediaPermission() } returns true
+        coEvery { getPhotosForDate(any()) } returns listOf(photo)
     }
 
     @Before
@@ -154,6 +158,28 @@ class AppViewModelTest {
     fun `onboarded with a day sorted today starts at main`() = runTest {
         givenState(onboardingCompleted = true, sortedToday = true)
         assertResolvesTo(StartDestination.Main)
+        coVerify(exactly = 0) { photoRepository.getPhotosForDate(any()) }
+    }
+
+    @Test
+    fun `no photos today starts at main instead of bouncing off swipe`() = runTest {
+        coEvery { photoRepository.getPhotosForDate(today) } returns emptyList()
+        givenState(onboardingCompleted = true, sortedToday = false)
+        assertResolvesTo(StartDestination.Main)
+    }
+
+    @Test
+    fun `photos today and no completed session starts at swipe`() = runTest {
+        givenState(onboardingCompleted = true, sortedToday = false)
+        assertResolvesTo(StartDestination.Swipe)
+        coVerify(exactly = 1) { photoRepository.getPhotosForDate(today) }
+    }
+
+    @Test
+    fun `a failed photo lookup starts at swipe, which handles its own errors`() = runTest {
+        coEvery { photoRepository.getPhotosForDate(any()) } throws IllegalStateException("query failed")
+        givenState(onboardingCompleted = true, sortedToday = false)
+        assertResolvesTo(StartDestination.Swipe)
     }
 
     @Test

@@ -15,6 +15,31 @@ class StreakCalculatorTest {
     }
 
     @Test
+    fun `only yesterday gives one`() {
+        assertEquals(1, StreakCalculator.currentStreak(listOf(today.minusDays(1)), today))
+    }
+
+    @Test
+    fun `only two days ago gives zero`() {
+        assertEquals(0, StreakCalculator.currentStreak(listOf(today.minusDays(2)), today))
+    }
+
+    @Test
+    fun `three consecutive days ending today or yesterday give three`() {
+        val endingToday = (0L..2L).map { today.minusDays(it) }
+        val endingYesterday = (1L..3L).map { today.minusDays(it) }
+        assertEquals(3, StreakCalculator.currentStreak(endingToday, today))
+        assertEquals(3, StreakCalculator.currentStreak(endingYesterday, today))
+    }
+
+    @Test
+    fun `a gap resets the count`() {
+        val dates = listOf(today, today.minusDays(1), today.minusDays(3), today.minusDays(4), today.minusDays(5))
+        assertEquals(2, StreakCalculator.currentStreak(dates, today))
+        assertEquals(3, StreakCalculator.bestStreak(dates))
+    }
+
+    @Test
     fun `only today gives one`() {
         assertEquals(1, StreakCalculator.currentStreak(listOf(today), today))
     }

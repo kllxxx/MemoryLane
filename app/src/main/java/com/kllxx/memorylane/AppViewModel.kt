@@ -61,6 +61,8 @@ class AppViewModel @Inject constructor(
                     // Some day was already sorted today; otherwise (including an unfinished session,
                     // e.g. the app was killed on Review) it goes back to Swipe
                     swipeRepository.getSessionByCompletedAt(currentDay) != null -> StartDestination.Main
+                    // Nothing to review today: go straight to the calendar instead of bouncing off Swipe
+                    hasNoPhotosToReview(currentDay) -> StartDestination.Main
                     else -> StartDestination.Swipe
                 }
             } catch (e: CancellationException) {
@@ -74,6 +76,16 @@ class AppViewModel @Inject constructor(
             launch { cleanupStalePendingDeletes() }
             followThemeChanges()
         }
+    }
+
+    /** A failed lookup is not an empty day: Swipe does its own loading and error handling. */
+    private suspend fun hasNoPhotosToReview(day: LocalDate): Boolean = try {
+        photoRepository.getPhotosForDate(day).isEmpty()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Could not look up the photos of $day", e)
+        false
     }
 
     /** Keeps the theme in step with the Profile setting once the app is up. */

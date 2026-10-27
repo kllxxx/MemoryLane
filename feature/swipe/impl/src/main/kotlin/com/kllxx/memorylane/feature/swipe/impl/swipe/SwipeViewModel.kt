@@ -174,20 +174,23 @@ class SwipeViewModel @Inject constructor(
         viewModelScope.launch {
             // The user has finished swiping, so a failed session write must not keep them on this screen
             try {
-                // Nothing to delete means nothing left to review, so the day is done. Otherwise it only
-                // completes once Review has deleted the photos, and an existing result is never reset.
-                val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
-                val completed = state.pendingDeletes.isEmpty() || existing?.completed == true
-                swipeRepository.saveSession(
-                    SwipeSession(
-                        date = state.date,
-                        completed = completed,
-                        savedBytes = existing?.savedBytes ?: 0,
-                        deletedCount = existing?.deletedCount ?: 0,
-                        // A day that was already completed keeps the day it was completed on
-                        completedAt = existing?.completedAt ?: LocalDate.now(clock),
-                    ),
-                )
+                // A day without photos has no activity: recording it would count opening the app as a sorted day
+                if (state.photos.isNotEmpty()) {
+                    // Nothing to delete means nothing left to review, so the day is done. Otherwise it only
+                    // completes once Review has deleted the photos, and an existing result is never reset.
+                    val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
+                    val completed = state.pendingDeletes.isEmpty() || existing?.completed == true
+                    swipeRepository.saveSession(
+                        SwipeSession(
+                            date = state.date,
+                            completed = completed,
+                            savedBytes = existing?.savedBytes ?: 0,
+                            deletedCount = existing?.deletedCount ?: 0,
+                            // A day that was already completed keeps the day it was completed on
+                            completedAt = existing?.completedAt ?: LocalDate.now(clock),
+                        ),
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
