@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,6 +60,7 @@ internal const val EMPTY_STATE_TAG = "calendar-empty"
 @Composable
 internal fun CalendarContent(
     state: CalendarState,
+    listState: LazyListState,
     onIntent: (CalendarIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -78,6 +79,7 @@ internal fun CalendarContent(
                     months = state.months,
                     today = state.today,
                     sortedDates = state.sortedDates,
+                    listState = listState,
                     onIntent = onIntent,
                 )
             }
@@ -100,12 +102,9 @@ private fun MonthList(
     months: ImmutableList<CalendarMonth>,
     today: LocalDate,
     sortedDates: ImmutableSet<LocalDate>,
+    listState: LazyListState,
     onIntent: (CalendarIntent) -> Unit,
 ) {
-    // The list opens on the current month: its position is known from the dates alone, so there is no jump later
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = remember(months, today) { indexOfMonth(months, YearMonth.from(today)) },
-    )
     val locale = currentLocale()
     val weekdays = remember(locale) {
         DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, locale).uppercase(locale) }
@@ -251,10 +250,6 @@ private fun LogCalendarPerf() {
     }
     LaunchedEffect(Unit) { CalendarPerf.logSummaryWhenThumbnailsLoaded() }
 }
-
-/** The index of the first row item of [current] in the list: the weekday header is item 0, then each month is a separator and its rows. */
-private fun indexOfMonth(months: List<CalendarMonth>, current: YearMonth): Int =
-    1 + months.takeWhile { it.yearMonth != current }.sumOf { 1 + it.rows.size }
 
 private fun rowKey(row: List<DayItem?>): String = ROW_KEY_PREFIX + row.first { it != null }!!.date
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -30,6 +31,7 @@ import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
 import java.time.LocalDate
 import kotlin.reflect.KClass
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 private data class BottomNavItem(
     val route: Any,
@@ -67,6 +69,9 @@ fun AppNavHost(
         bottomNavItems.any { destination.hasRoute(it.routeClass) }
     } == true
 
+    // A tap on the Calendar tab while Calendar is shown: the list goes back to the current month
+    val calendarReselected = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+
     AppNavShell(
         navController = navController,
         startDestination = startDestination.toRoute(today),
@@ -74,12 +79,19 @@ fun AppNavHost(
         bottomBar = {
             BottomNavBar(
                 tabs = bottomNavItems.map { item ->
+                    val selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true
                     BottomBarTab(
                         label = stringResource(item.labelRes),
                         outlinedIcon = item.outlinedIcon,
                         filledIcon = item.filledIcon,
-                        selected = currentDestination?.hierarchy?.any { it.hasRoute(item.routeClass) } == true,
-                        onClick = { navController.navigateToTab(item.route) },
+                        selected = selected,
+                        onClick = {
+                            if (selected && item.route == CalendarRoute) {
+                                calendarReselected.tryEmit(Unit)
+                            } else {
+                                navController.navigateToTab(item.route)
+                            }
+                        },
                     )
                 },
             )
@@ -121,6 +133,7 @@ fun AppNavHost(
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 CalendarScreen(
                     onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
+                    reselected = calendarReselected,
                 )
             }
         }

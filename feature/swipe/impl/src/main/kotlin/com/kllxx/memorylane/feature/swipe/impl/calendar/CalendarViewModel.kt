@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -21,6 +22,9 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** The first visible list item and how far it is scrolled off, in pixels. */
+data class ScrollAnchor(val index: Int, val offset: Int)
 
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
@@ -39,6 +43,21 @@ class CalendarViewModel @Inject constructor(
 
     private val _effects = Channel<CalendarEffect>(Channel.BUFFERED)
     val effects: Flow<CalendarEffect> = _effects.receiveAsFlow()
+
+    /**
+     * Where the list is scrolled to. It starts on the current month and then follows the user, so a list that is
+     * created again (back from a day, from another tab, after a rotation) opens where it was left. It is not part of
+     * [state] because scrolling must not emit states.
+     */
+    var scrollAnchor = ScrollAnchor(listIndexOfMonth(yearGrid, YearMonth.from(today)), offset = 0)
+        private set
+
+    fun onScrolled(index: Int, offset: Int) {
+        scrollAnchor = ScrollAnchor(index, offset)
+    }
+
+    /** The list position of the current month, for scrolling back to it. */
+    val currentMonthIndex: Int = scrollAnchor.index
 
     init {
         CalendarPerf.onViewModelCreated()

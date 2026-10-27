@@ -38,6 +38,13 @@ fun buildYearGrid(year: Int): ImmutableList<CalendarMonth> = (1..MONTHS_IN_YEAR)
 }.toImmutableList()
 
 /**
+ * The index in the calendar list of the first row of [month]. The list is the weekday header (item 0), then for each
+ * month its separator followed by its rows.
+ */
+fun listIndexOfMonth(months: List<CalendarMonth>, month: YearMonth): Int =
+    1 + months.takeWhile { it.yearMonth != month }.sumOf { 1 + it.rows.size }
+
+/**
  * The same grid with the photos of [index] on its days. Days after [today] have not happened yet, so they get
  * none. A month that is not changed by the index is returned as it was.
  */

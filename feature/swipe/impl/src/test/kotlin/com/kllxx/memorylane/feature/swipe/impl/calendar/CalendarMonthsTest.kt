@@ -134,4 +134,22 @@ class CalendarMonthsTest {
 
         assertEquals(buildYearGrid(2026), grid)
     }
+
+    @Test
+    fun `the first month starts right after the weekday header`() {
+        val grid = buildYearGrid(2026)
+
+        // item 0 is the weekday header, item 1 the January separator
+        assertEquals(1, listIndexOfMonth(grid, YearMonth.of(2026, 1)))
+    }
+
+    @Test
+    fun `each month is a separator plus its rows`() {
+        val grid = buildYearGrid(2026)
+
+        val january = grid[0].rows.size
+        assertEquals(1 + 1 + january, listIndexOfMonth(grid, YearMonth.of(2026, 2)))
+        val beforeOctober = grid.take(9).sumOf { 1 + it.rows.size }
+        assertEquals(1 + beforeOctober, listIndexOfMonth(grid, YearMonth.of(2026, 10)))
+    }
 }

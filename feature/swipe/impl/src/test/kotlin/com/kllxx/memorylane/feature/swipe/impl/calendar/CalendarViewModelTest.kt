@@ -16,6 +16,7 @@ import io.mockk.mockk
 import java.time.Clock
 import java.time.LocalDate
 import java.time.MonthDay
+import java.time.YearMonth
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -102,6 +103,61 @@ class CalendarViewModelTest {
     )
 
     private fun CalendarState.days() = months.flatMap { it.rows }.flatten().filterNotNull()
+
+    // --- scroll position ---
+
+    @Test
+    fun `the list starts on the current month`() {
+        val expected = listIndexOfMonth(viewModel.state.value.months, YearMonth.of(2026, 10))
+
+        assertEquals(ScrollAnchor(expected, offset = 0), viewModel.scrollAnchor)
+        assertEquals(expected, viewModel.currentMonthIndex)
+    }
+
+    @Test
+    fun `the anchor follows the scrolling and is what a new list starts from`() {
+        viewModel.onScrolled(index = 1, offset = 40)
+
+        assertEquals(ScrollAnchor(1, 40), viewModel.scrollAnchor)
+    }
+
+    @Test
+    fun `entering the screen again does not move the anchor back to the current month`() = runTest(dispatcher) {
+        repository.next = indexWith(MonthDay.of(3, 9) to 2)
+        viewModel.onScrolled(index = 1, offset = 40)
+
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+
+        assertEquals(ScrollAnchor(1, 40), viewModel.scrollAnchor)
+        assertTrue(viewModel.currentMonthIndex != 1)
+    }
+
+    @Test
+    fun `scrolling does not emit a state`() = runTest(dispatcher) {
+        viewModel.state.test {
+            awaitItem()
+
+            viewModel.onScrolled(index = 5, offset = 0)
+            viewModel.onScrolled(index = 6, offset = 12)
+
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a new index keeps the anchor`() = runTest(dispatcher) {
+        viewModel.onScrolled(index = 1, offset = 40)
+        repository.next = indexWith(MonthDay.of(3, 9) to 2)
+
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+
+        assertEquals(CalendarPhase.Content, viewModel.state.value.phase)
+        assertEquals(ScrollAnchor(1, 40), viewModel.scrollAnchor)
+    }
 
     @Test
     fun `before the photos are known the state is Loading with the full grid`() {

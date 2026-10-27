@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -21,6 +22,7 @@ import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.dayTestTag
 import com.kllxx.memorylane.feature.swipe.impl.calendar.ui.sortedTestTag
 import java.time.LocalDate
 import java.time.MonthDay
+import java.time.YearMonth
 import kotlinx.collections.immutable.persistentSetOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -61,7 +63,7 @@ class CalendarContentTest {
     private fun show(state: CalendarState = baseState()) {
         composeRule.setContent {
             MemoryLaneTheme {
-                CalendarContent(state = state, onIntent = { sent += it })
+                CalendarContent(state = state, listState = rememberLazyListState(listIndexOfMonth(state.months, YearMonth.from(today))), onIntent = { sent += it })
             }
         }
     }
@@ -142,7 +144,7 @@ class CalendarContentTest {
     }
 
     @Test
-    fun `the list opens on the current month`() {
+    fun `a list started on the current month shows it and not January`() {
         show()
 
         composeRule.onNodeWithText("FEBRUARY 2027").assertIsDisplayed()
