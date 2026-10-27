@@ -2,6 +2,7 @@ package com.kllxx.memorylane.core.data.db
 
 import android.content.Context
 import androidx.room.Room
+import com.kllxx.memorylane.core.data.db.entity.PhotoDateCacheEntity
 import com.kllxx.memorylane.core.data.db.entity.ReviewedPhotoEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -45,7 +46,7 @@ class MigrationTest {
         v1.close()
 
         database = Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
     }
@@ -103,6 +104,22 @@ class MigrationTest {
         dao.insert(ReviewedPhotoEntity(1L, LocalDate.of(2026, 10, 15)))
 
         assertEquals(1, dao.observeCount().first())
+    }
+
+    @Test
+    fun `the photo date cache table exists, is empty and accepts rows`() = runTest {
+        val dao = database.photoDateCacheDao()
+        assertTrue(dao.allIds().isEmpty())
+
+        dao.upsertAll(listOf(PhotoDateCacheEntity(1, 100, 1_452_161_700, 10_800, "EXIF")))
+
+        assertEquals(listOf(1L), dao.allIds())
+    }
+
+    @Test
+    fun `the data of earlier versions is untouched by the cache table`() = runTest {
+        assertEquals(500L, database.swipeSessionDao().observeFreedBytes().first())
+        assertNotNull(database.pendingDeleteDao().getAll().singleOrNull { it.photoId == 7L })
     }
 
     @Test

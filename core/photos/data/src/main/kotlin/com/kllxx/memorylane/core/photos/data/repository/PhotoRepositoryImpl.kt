@@ -16,6 +16,11 @@ import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
+import com.kllxx.memorylane.core.photos.data.date.ExifDateReader
+import com.kllxx.memorylane.core.photos.data.date.PhotoDateResolver
+import com.kllxx.memorylane.core.photos.data.date.ResolvedDate
+import com.kllxx.memorylane.core.photos.data.date.UndatedPhoto
+import com.kllxx.memorylane.core.photos.data.date.UndatedPhotoDates
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DayCover
@@ -23,13 +28,20 @@ import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoDateCache
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -46,9 +58,24 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private val geocoder: LocationGeocoder,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val clock: Clock,
+    private val exifReader: ExifDateReader,
+    dateCache: PhotoDateCache,
 ) : PhotoRepository {
 
     private val resolver: ContentResolver get() = context.contentResolver
+
+    private val dateResolver = PhotoDateResolver(exifReader, clock)
+    private val undatedPhotoDates = UndatedPhotoDates(dateCache, dateResolver)
+
+    // Reading the files of undated photos goes on after the index was shown, so it is not tied to the caller
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
+
+    @Volatile
+    private var resolutionJob: Job? = null
+
+    // The dates found for undated photos by the last finished resolution; null until there was one
+    @Volatile
+    private var resolvedDates: Map<Long, ResolvedDate>? = null
 
     override fun hasMediaPermission(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -81,7 +108,11 @@ internal class PhotoRepositoryImpl @Inject constructor(
             return
         }
         try {
-            _onThisDayIndex.value = withContext(ioDispatcher) { readOnThisDayIndex() }
+            val scan = withContext(ioDispatcher) { scanMediaStore() }
+            _onThisDayIndex.value = scan.toIndex()
+            // The photos MediaStore has no date for are dated after this index was shown, then the index is emitted once more
+            resolutionJob?.cancel()
+            resolutionJob = scope.launch { resolveUndatedDates(scan) }
             run.complete(Unit)
         } catch (e: Throwable) {
             run.completeExceptionally(e)
@@ -91,13 +122,36 @@ internal class PhotoRepositoryImpl @Inject constructor(
         }
     }
 
-    /** One query over every image of the gallery: no filter on type, folder or date. */
-    private fun readOnThisDayIndex(): OnThisDayIndex {
+    /** What one pass over the gallery found: the dated images already counted, and the photos that still need a date. */
+    private class MediaScan(
+        val builder: OnThisDayIndexBuilder,
+        val undated: List<UndatedPhoto>,
+        val currentYear: Int,
+        val zone: ZoneId,
+    ) {
+        fun toIndex(): OnThisDayIndex = OnThisDayIndex(
+            currentYear = currentYear,
+            entries = builder.entries().mapValues { (_, value) ->
+                val (count, cover) = value
+                DayMemories(
+                    count = count,
+                    cover = DayCover(cover.id, ContentUris.withAppendedId(COLLECTION_URI, cover.id), cover.takenOn),
+                )
+            },
+        )
+    }
+
+    /**
+     * One query over every image of the gallery: no filter on type, folder or date. Images with a `DATE_TAKEN` go
+     * straight into the index; the others are only listed, nothing opens their files here.
+     */
+    private fun scanMediaStore(): MediaScan {
         val diagnostics = PerfLog.isEnabled()
         val startedAt = PerfLog.nanoTime()
         val zone = ZoneId.systemDefault()
         val currentYear = LocalDate.now(clock).year
         val builder = OnThisDayIndexBuilder(currentYear, PhotosConstants.MAX_YEARS_BACK, zone)
+        val undated = ArrayList<UndatedPhoto>()
         val stats = IndexLoadStats()
 
         val projection = buildList {
@@ -112,7 +166,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
         cursor?.use {
             val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
             val takenColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
-            val addedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+            val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+            val nameColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
             val mimeColumn = it.getColumnIndex(MediaStore.Images.Media.MIME_TYPE)
             val pathColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 it.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
@@ -121,16 +176,18 @@ internal class PhotoRepositoryImpl @Inject constructor(
             }
             while (it.moveToNext()) {
                 stats.rows++
+                val id = it.getLong(idColumn)
                 val taken = if (it.isNull(takenColumn)) null else it.getLong(takenColumn)
-                val added = if (it.isNull(addedColumn)) null else it.getLong(addedColumn)
-                val takenMissing = taken == null || taken <= 0
-                if (takenMissing) stats.dateTakenMissing++
-                val millis = effectiveTakenAtMillis(taken, added)
-                if (millis == null) {
-                    stats.unusable++
+                if (taken != null && taken > 0) {
+                    builder.add(IndexedImage(id, taken))
                 } else {
-                    if (takenMissing) stats.usedDateAdded++
-                    builder.add(IndexedImage(it.getLong(idColumn), millis))
+                    stats.dateTakenMissing++
+                    undated += UndatedPhoto(
+                        id = id,
+                        dateModified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn),
+                        name = it.getString(nameColumn),
+                        mimeType = if (mimeColumn >= 0) it.getString(mimeColumn) else null,
+                    )
                 }
                 if (diagnostics) {
                     if (mimeColumn >= 0) stats.byMime.merge(it.getString(mimeColumn) ?: "null", 1, Int::plus)
@@ -139,26 +196,62 @@ internal class PhotoRepositoryImpl @Inject constructor(
             }
         }
 
-        val index = OnThisDayIndex(
-            currentYear = currentYear,
-            entries = builder.entries().mapValues { (_, value) ->
-                val (count, cover) = value
-                DayMemories(
-                    count = count,
-                    cover = DayCover(cover.id, ContentUris.withAppendedId(COLLECTION_URI, cover.id), cover.takenOn),
-                )
-            },
-        )
+        val scan = MediaScan(builder, undated, currentYear, zone)
         PerfLog.d {
             "index: query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms rows=${stats.rows} " +
-                "dateTakenNullOrZero=${stats.dateTakenMissing} usedDateAdded=${stats.usedDateAdded} " +
-                "unusable=${stats.unusable} inWindow=${builder.counted} entries=${index.entries.size} " +
-                "years=${currentYear - PhotosConstants.MAX_YEARS_BACK}..${currentYear - 1}"
+                "dateTakenNullOrZero=${stats.dateTakenMissing} inWindow=${builder.counted} " +
+                "entries=${builder.entries().size} years=${currentYear - PhotosConstants.MAX_YEARS_BACK}..${currentYear - 1}"
         }
         PerfLog.d { "index: by mime type ${stats.byMime.toSortedMap()}" }
         PerfLog.d { "index: by relative path ${stats.byPath.toSortedMap()}" }
         PerfLog.d { "index: permissions ${permissionStates()}" }
-        return index
+        return scan
+    }
+
+    /**
+     * Dates the photos without a `DATE_TAKEN` from the cache, their EXIF data or their file name, adds them to the
+     * index of [scan] and emits it again, once, when that changed anything. Photos with no date at all stay out.
+     */
+    private suspend fun resolveUndatedDates(scan: MediaScan) {
+        val startedAt = PerfLog.nanoTime()
+        try {
+            if (PerfLog.isEnabled()) logExifSamples(scan.undated)
+            val resolution = undatedPhotoDates.resolve(scan.undated)
+            val countedBefore = scan.builder.counted
+            resolution.dates.forEach { (id, date) ->
+                scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli()))
+            }
+            currentCoroutineContext().ensureActive()
+            resolvedDates = resolution.dates
+            val changed = scan.builder.counted != countedBefore
+            if (changed) _onThisDayIndex.value = scan.toIndex()
+            PerfLog.d {
+                "dates: undated=${resolution.undated} cacheHits=${resolution.cacheHits} cacheMisses=${resolution.cacheMisses} " +
+                    "exif=${resolution.fromExif} fileName=${resolution.fromFileName} stillUndated=${resolution.stillUndated} " +
+                    "indexChanged=$changed took=${PerfLog.sinceMs(startedAt)}ms"
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The index stays as it was; the next refresh tries again with whatever reached the cache
+            Log.e(TAG, "Could not date the photos without a MediaStore date", e)
+        }
+    }
+
+    /** For up to [DIAGNOSTIC_SAMPLES] undated photos: the raw EXIF tags, and what the chain makes of them. */
+    private fun logExifSamples(undated: List<UndatedPhoto>) {
+        undated.take(DIAGNOSTIC_SAMPLES).forEach { photo ->
+            val tags = try {
+                exifReader.read(photo.id).describe()
+            } catch (e: Exception) {
+                "unreadable: $e"
+            }
+            val resolved = dateResolver.resolve(photo)
+            PerfLog.d {
+                "dates: sample id=${photo.id} name=${photo.name} mime=${photo.mimeType} modified=${photo.dateModified}s " +
+                    "exif[$tags] resolved=${resolved?.let { "${it.dateTime} offset=${it.offset} via ${it.source}" }}"
+            }
+        }
     }
 
     /** The raw state of every photo permission that applies to this Android version, to tell full from partial access. */
@@ -182,26 +275,90 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private class IndexLoadStats {
         var rows = 0
         var dateTakenMissing = 0
-        var usedDateAdded = 0
-        var unusable = 0
         val byMime = HashMap<String, Int>()
         val byPath = HashMap<String, Int>()
     }
 
+    /**
+     * The photos taken on this month/day in earlier years: those with a MediaStore `DATE_TAKEN` from the query, plus the
+     * undated ones whose resolved date (EXIF, file name) falls on the same day, so a photo is on the same day here and in
+     * the calendar index. Photos with no date at all are in neither.
+     */
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = withContext(ioDispatcher) {
         val zone = ZoneId.systemDefault()
         val startedAt = PerfLog.nanoTime()
+        val resolved = awaitResolvedDates()
         val cursor = queryOnThisDay(date, zone)
         val queryMs = PerfLog.sinceMs(startedAt)
-        val photos = cursor?.use {
+        val dated = cursor?.use {
             buildList {
                 while (it.moveToNext()) add(it.toPhoto(zone))
             }
         }.orEmpty()
+        val fromFiles = photosFromResolvedDates(date, zone, resolved)
+        // Stable, so photos of the same day keep the order of the query
+        val photos = (dated + fromFiles).sortedBy { it.dateTaken }
         PerfLog.d {
-            "mediastore getPhotosForDate date=$date query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms rows=${photos.size}"
+            "mediastore getPhotosForDate date=$date query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms " +
+                "rows=${photos.size} fromFiles=${fromFiles.size}"
         }
         photos
+    }
+
+    /**
+     * The dates of the undated photos, once they are known. Before the first resolution of this process the gallery is
+     * scanned and the files are read (once per file, then the cache answers), so a photo is not missing from the day it belongs to.
+     */
+    private suspend fun awaitResolvedDates(): Map<Long, ResolvedDate> {
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        try {
+            if (resolvedDates == null && resolutionJob == null) refreshOnThisDayIndex()
+            while (true) {
+                val job = resolutionJob ?: break
+                job.join()
+                // A refresh may have replaced the job while we waited
+                if (resolutionJob === job) break
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PermissionDeniedException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not date the photos without a MediaStore date", e)
+        }
+        return resolvedDates.orEmpty()
+    }
+
+    private fun photosFromResolvedDates(date: LocalDate, zone: ZoneId, resolved: Map<Long, ResolvedDate>): List<Photo> {
+        val monthDay = MonthDay.from(date)
+        val years = (date.year - PhotosConstants.MAX_YEARS_BACK)..(date.year - 1)
+        val onThisDay = resolved.mapNotNull { (id, resolvedDate) ->
+            val day = resolvedDate.toLocalDate(zone)
+            if (day.year in years && MonthDay.from(day) == monthDay) id to day else null
+        }.toMap()
+        if (onThisDay.isEmpty()) return emptyList()
+
+        return onThisDay.keys.chunked(SQL_VARIABLE_LIMIT).flatMap { ids ->
+            val selection = "${MediaStore.Images.Media._ID} IN (${ids.joinToString(",") { "?" }})"
+            val args = ids.map { it.toString() }.toTypedArray()
+            resolver.query(COLLECTION_URI, PROJECTION, selection, args, null)?.use {
+                buildList {
+                    while (it.moveToNext()) {
+                        val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                        // The id is the key: a query answering with other rows must not add photos
+                        val day = onThisDay[id] ?: continue
+                        add(
+                            Photo(
+                                id = id,
+                                uri = ContentUris.withAppendedId(COLLECTION_URI, id),
+                                dateTaken = day,
+                                sizeBytes = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)),
+                            ),
+                        )
+                    }
+                }
+            }.orEmpty()
+        }
     }
 
     override suspend fun getPhotoLocation(photoId: Long): String? = withContext(ioDispatcher) {
@@ -324,11 +481,19 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private companion object {
         const val TAG = "PhotoRepositoryImpl"
 
+        // DATE_MODIFIED and DISPLAY_NAME are for the photos without DATE_TAKEN: the cache key and the file-name date
         val INDEX_PROJECTION = listOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DATE_TAKEN,
-            MediaStore.Images.Media.DATE_ADDED,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.DISPLAY_NAME,
         )
+
+        /** How many undated photos get their raw EXIF tags logged. */
+        const val DIAGNOSTIC_SAMPLES = 10
+
+        // SQLite allows 999 variables per statement on older Android versions
+        const val SQL_VARIABLE_LIMIT = 500
         val COLLECTION_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         // The LATITUDE/LONGITUDE columns are deprecated and empty since API 29, so they are

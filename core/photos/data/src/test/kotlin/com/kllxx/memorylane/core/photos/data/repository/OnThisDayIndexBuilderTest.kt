@@ -5,7 +5,6 @@ import java.time.MonthDay
 import java.time.ZoneId
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -117,25 +116,5 @@ class OnThisDayIndexBuilderTest {
         builder.add(2, LocalDate.of(2023, 7, 7))
 
         assertEquals(1, builder.entries().getValue(MonthDay.of(7, 7)).first)
-    }
-
-    // --- which moment a gallery row means ---
-
-    @Test
-    fun `DATE_TAKEN is used when it is set`() {
-        assertEquals(5_000L, effectiveTakenAtMillis(dateTaken = 5_000L, dateAddedSeconds = 9L))
-    }
-
-    @Test
-    fun `a missing or zero DATE_TAKEN falls back to DATE_ADDED seconds as milliseconds`() {
-        assertEquals(9_000L, effectiveTakenAtMillis(dateTaken = null, dateAddedSeconds = 9L))
-        assertEquals(9_000L, effectiveTakenAtMillis(dateTaken = 0L, dateAddedSeconds = 9L))
-    }
-
-    @Test
-    fun `a row with neither date has no moment`() {
-        assertNull(effectiveTakenAtMillis(null, null))
-        assertNull(effectiveTakenAtMillis(0L, 0L))
-        assertNull(effectiveTakenAtMillis(0L, null))
     }
 }

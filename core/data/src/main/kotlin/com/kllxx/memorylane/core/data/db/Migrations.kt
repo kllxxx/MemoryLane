@@ -30,3 +30,13 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE swipe_sessions ADD COLUMN deleted_count INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/** Adds the cache of dates found in the files of photos that MediaStore has no date for; it is empty until the first scan. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `photo_date_cache` (`id` INTEGER NOT NULL, `date_modified` INTEGER NOT NULL, " +
+                "`taken_local_epoch_second` INTEGER, `offset_seconds` INTEGER, `source` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        )
+    }
+}

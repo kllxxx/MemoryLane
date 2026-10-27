@@ -9,6 +9,7 @@ ksp {
 
 dependencies {
     implementation(project(":core:domain"))
+    implementation(project(":core:photos:domain"))
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

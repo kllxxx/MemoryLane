@@ -2,15 +2,19 @@ package com.kllxx.memorylane.core.data.di
 
 import android.content.Context
 import androidx.room.Room
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoDateCache
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.MIGRATION_1_2
 import com.kllxx.memorylane.core.data.db.MIGRATION_2_3
 import com.kllxx.memorylane.core.data.db.MIGRATION_3_4
+import com.kllxx.memorylane.core.data.db.MIGRATION_4_5
 import com.kllxx.memorylane.core.data.db.dao.PendingDeleteDao
+import com.kllxx.memorylane.core.data.db.dao.PhotoDateCacheDao
 import com.kllxx.memorylane.core.data.db.dao.ReviewedPhotoDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
+import com.kllxx.memorylane.core.data.repository.PhotoDateCacheImpl
 import com.kllxx.memorylane.core.data.repository.StatsRepositoryImpl
 import com.kllxx.memorylane.core.data.repository.SwipeRepositoryImpl
 import dagger.Binds
@@ -29,6 +33,9 @@ internal abstract class DataBindsModule {
 
     @Binds
     abstract fun bindStatsRepository(impl: StatsRepositoryImpl): StatsRepository
+
+    @Binds
+    abstract fun bindPhotoDateCache(impl: PhotoDateCacheImpl): PhotoDateCache
 }
 
 @Module
@@ -38,7 +45,7 @@ internal object DataProvidesModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, DataConstants.DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
 
     @Provides
@@ -49,4 +56,7 @@ internal object DataProvidesModule {
 
     @Provides
     fun provideReviewedPhotoDao(db: AppDatabase): ReviewedPhotoDao = db.reviewedPhotoDao()
+
+    @Provides
+    fun providePhotoDateCacheDao(db: AppDatabase): PhotoDateCacheDao = db.photoDateCacheDao()
 }

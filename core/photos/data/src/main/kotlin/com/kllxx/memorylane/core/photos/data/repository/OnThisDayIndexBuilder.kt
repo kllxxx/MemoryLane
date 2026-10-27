@@ -5,7 +5,7 @@ import java.time.LocalDate
 import java.time.MonthDay
 import java.time.ZoneId
 
-/** One gallery image as the index needs it: when it was taken (or added), and what that means for the index. */
+/** One gallery image as the index needs it: when it was taken, from `DATE_TAKEN` or from the date resolved out of its file. */
 internal class IndexedImage(val id: Long, val takenAtMillis: Long)
 
 /**
@@ -47,15 +47,3 @@ internal class OnThisDayIndexBuilder(
     /** The collected month/days as (count, cover); the caller turns the cover into a Uri. */
     fun entries(): Map<MonthDay, Pair<Int, Cover>> = counts.mapValues { (key, count) -> count to covers.getValue(key) }
 }
-
-/**
- * The moment a gallery row was taken: `DATE_TAKEN` (milliseconds) or, when that is missing or 0 as for many files
- * saved from other apps, `DATE_ADDED` (seconds). Null when the row has neither.
- */
-internal fun effectiveTakenAtMillis(dateTaken: Long?, dateAddedSeconds: Long?): Long? = when {
-    dateTaken != null && dateTaken > 0 -> dateTaken
-    dateAddedSeconds != null && dateAddedSeconds > 0 -> dateAddedSeconds * MILLIS_PER_SECOND
-    else -> null
-}
-
-private const val MILLIS_PER_SECOND = 1_000L

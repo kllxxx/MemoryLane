@@ -51,7 +51,15 @@ class FakeMediaProvider : ContentProvider() {
         lastProjection = projection?.toList()
         val columns = projection.orEmpty()
         val cursor = MatrixCursor(columns)
-        rows.forEach { row -> cursor.addRow(columns.map { column -> row[column] }) }
+        // MediaStore is not simulated, only the two filters the repository relies on to keep undated photos apart
+        val answered = when {
+            selection?.contains("${MediaStore.Images.Media.DATE_TAKEN} >=") == true ->
+                rows.filter { it[MediaStore.Images.Media.DATE_TAKEN] != null }
+            selection?.startsWith("${MediaStore.Images.Media._ID} IN") == true ->
+                rows.filter { it[MediaStore.Images.Media._ID].toString() in selectionArgs.orEmpty() }
+            else -> rows
+        }
+        answered.forEach { row -> cursor.addRow(columns.map { column -> row[column] }) }
         return cursor
     }
 
@@ -93,7 +101,9 @@ class PhotoRepositoryImplTest {
     fun setUp() {
         FakeMediaProvider.reset()
         Robolectric.buildContentProvider(FakeMediaProvider::class.java).create(MediaStore.AUTHORITY)
-        repository = PhotoRepositoryImpl(application, geocoder, UnconfinedTestDispatcher(), clock)
+        repository = PhotoRepositoryImpl(
+            application, geocoder, UnconfinedTestDispatcher(), clock, FakeExifDateReader(), FakePhotoDateCache(),
+        )
     }
 
     private fun grantMedia() = shadowOf(application).grantPermissions(Manifest.permission.READ_MEDIA_IMAGES)
