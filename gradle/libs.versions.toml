@@ -24,8 +24,11 @@ hilt = "2.60.1"
 # Images
 coil = "3.6.3"
 
+# Logging
+timber = "5.0.1"
+
 # Async
-coroutines = "1.11.0"
+coroutines ="1.11.0"
 
 # Serialization
 serialization = "1.11.0"
@@ -86,6 +89,9 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 # Coil
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+
+# Timber
+timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 
 # Coroutines
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }

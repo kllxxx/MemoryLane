@@ -24,6 +24,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.time.Instant
 import java.time.LocalDate
 import java.time.MonthDay
@@ -49,20 +50,30 @@ internal class PhotoRepositoryImpl @Inject constructor(
 
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = withContext(ioDispatcher) {
         val zone = ZoneId.systemDefault()
-        queryOnThisDay(date, zone)?.use { cursor ->
+        val startedAt = System.nanoTime()
+        val cursor = queryOnThisDay(date, zone)
+        val queryMs = elapsedMs(startedAt)
+        val photos = cursor?.use {
             buildList {
-                while (cursor.moveToNext()) add(cursor.toPhoto(zone))
+                while (it.moveToNext()) add(it.toPhoto(zone))
             }
         }.orEmpty()
+        logQuery("getPhotosForDate", date, queryMs, startedAt, photos.size)
+        photos
     }
 
     override suspend fun getDayInfo(date: LocalDate): Pair<Photo?, Int> = withContext(ioDispatcher) {
         val zone = ZoneId.systemDefault()
-        queryOnThisDay(date, zone)?.use { cursor ->
+        val startedAt = System.nanoTime()
+        val cursor = queryOnThisDay(date, zone)
+        val queryMs = elapsedMs(startedAt)
+        val info = cursor?.use {
             // Only the first row becomes a Photo; the rest are just counted
-            val first = if (cursor.moveToFirst()) cursor.toPhoto(zone) else null
-            first to cursor.count
+            val first = if (it.moveToFirst()) it.toPhoto(zone) else null
+            first to it.count
         } ?: (null to 0)
+        logQuery("getDayInfo", date, queryMs, startedAt, info.second)
+        info
     }
 
     override suspend fun getPhotoLocation(photoId: Long): String? = withContext(ioDispatcher) {
@@ -181,8 +192,21 @@ internal class PhotoRepositoryImpl @Inject constructor(
         )
     }
 
+    private fun elapsedMs(startedAt: Long): Long = (System.nanoTime() - startedAt) / NANOS_PER_MILLI
+
+    /** One line per MediaStore query: what was asked, how long the query and the whole call took, and the rows found. */
+    private fun logQuery(what: String, date: LocalDate, queryMs: Long, startedAt: Long, rows: Int) {
+        Timber.tag(PERF_TAG).d(
+            "[${Thread.currentThread().name}] mediastore $what date=$date " +
+                "(on this day, up to ${PhotosConstants.MAX_YEARS_BACK} years back) " +
+                "query=${queryMs}ms total=${elapsedMs(startedAt)}ms rows=$rows",
+        )
+    }
+
     private companion object {
         const val TAG = "PhotoRepositoryImpl"
+        const val PERF_TAG = "CalendarPerf"
+        const val NANOS_PER_MILLI = 1_000_000L
         val COLLECTION_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
         // The LATITUDE/LONGITUDE columns are deprecated and empty since API 29, so they are

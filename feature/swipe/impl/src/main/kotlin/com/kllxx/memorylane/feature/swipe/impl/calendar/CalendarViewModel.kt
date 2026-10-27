@@ -37,6 +37,7 @@ class CalendarViewModel @Inject constructor(
     private val loadedDates = mutableSetOf<LocalDate>()
 
     init {
+        CalendarPerf.onViewModelCreated()
         // The real permission state decides whether to load, so a revoked permission never leaves a spinner
         onIntent(CalendarIntent.PermissionResult(photoRepository.hasMediaPermission()))
         observeSortedDays()
@@ -114,6 +115,7 @@ class CalendarViewModel @Inject constructor(
                 val toLoad = claimUnloaded(start, start.withDayOfMonth(start.lengthOfMonth()))
                 if (toLoad.isNotEmpty() && !loadDays(toLoad)) return@launch
             }
+            CalendarPerf.onYearLoaded()
         }
     }
 
@@ -134,7 +136,9 @@ class CalendarViewModel @Inject constructor(
 
     /** Returns false if the days could not be loaded. */
     private suspend fun loadDays(toLoad: List<LocalDate>): Boolean = try {
+        val startedAt = System.nanoTime()
         val items = toLoad.map { date ->
+            CalendarPerf.onQuery()
             val (firstPhoto, totalCount) = photoRepository.getDayInfo(date)
             DayItem(
                 date = date,
@@ -146,6 +150,11 @@ class CalendarViewModel @Inject constructor(
             )
         }
         onEvent(CalendarEvent.DaysLoaded(items))
+        CalendarPerf.onDaysLoaded(
+            days = items.size,
+            batchMs = (System.nanoTime() - startedAt) / NANOS_PER_MILLI,
+            anyPhotos = items.any { it.loadState is DayLoadState.Loaded },
+        )
         true
     } catch (e: CancellationException) {
         throw e
@@ -159,5 +168,6 @@ class CalendarViewModel @Inject constructor(
     private companion object {
         const val TAG = "CalendarViewModel"
         const val MONTHS_IN_YEAR = 12
+        const val NANOS_PER_MILLI = 1_000_000L
     }
 }

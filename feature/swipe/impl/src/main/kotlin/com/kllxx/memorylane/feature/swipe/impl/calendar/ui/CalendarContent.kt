@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -42,6 +43,7 @@ import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarError
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarIntent
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarMonth
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarPerf
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarState
 import com.kllxx.memorylane.feature.swipe.impl.calendar.toVisibleMonths
 import java.time.DayOfWeek
@@ -86,6 +88,7 @@ private fun MonthList(state: CalendarState, onIntent: (CalendarIntent) -> Unit) 
         DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, locale).uppercase(locale) }
     }
 
+    LogCalendarPerf(hasContent = months.isNotEmpty())
     ScrollToCurrentMonth(listState, months, YearMonth.from(state.today))
     LoadVisibleDays(listState, onIntent)
 
@@ -209,6 +212,18 @@ private fun ErrorBanner(error: CalendarError, onRetry: () -> Unit) {
         )
         TextButton(onClick = onRetry) { Text(stringResource(R.string.calendar_error_retry)) }
     }
+}
+
+/** Measurements only: when the content was first drawn and when its thumbnails have all loaded. */
+@Composable
+private fun LogCalendarPerf(hasContent: Boolean) {
+    LaunchedEffect(hasContent) {
+        if (!hasContent) return@LaunchedEffect
+        // The next frame starts after the one that committed the content, so by then the content has been drawn
+        withFrameNanos { }
+        CalendarPerf.onFirstContentFrame()
+    }
+    LaunchedEffect(Unit) { CalendarPerf.logSummaryWhenThumbnailsLoaded() }
 }
 
 /** Opens the list on the current month once it has been laid out. */

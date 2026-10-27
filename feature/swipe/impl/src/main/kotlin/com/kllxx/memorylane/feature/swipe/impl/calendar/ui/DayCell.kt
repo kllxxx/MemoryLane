@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,11 +37,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.component.PhotoThumbnail
+import com.kllxx.memorylane.core.ui.component.ThumbnailLoad
 import com.kllxx.memorylane.core.ui.theme.EmptyTile
 import com.kllxx.memorylane.core.ui.theme.Emerald
 import com.kllxx.memorylane.feature.swipe.impl.R
+import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarPerf
 import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
 import com.kllxx.memorylane.feature.swipe.impl.calendar.DayLoadState
+import java.time.LocalDate
 
 private val TileShape = RoundedCornerShape(10.dp)
 private const val TILE_ASPECT = 1f / 1.1f
@@ -76,7 +80,7 @@ internal fun DayCell(
                 .then(if (hasPhoto) Modifier.clickable(onClick = onClick) else Modifier),
         ) {
             when {
-                photo != null && hasPhoto -> PhotoTile(photo)
+                photo != null && hasPhoto -> PhotoTile(photo, item.date)
                 isFuture || loadState is DayLoadState.NotLoaded ->
                     Box(Modifier.fillMaxSize().background(emptyTileColor().copy(alpha = 0.6f)))
                 else -> EmptyTileContent()
@@ -106,7 +110,7 @@ internal fun DayCell(
 }
 
 @Composable
-private fun PhotoTile(loaded: DayLoadState.Loaded) {
+private fun PhotoTile(loaded: DayLoadState.Loaded, date: LocalDate) {
     val description = stringResource(R.string.calendar_photo_count, loaded.totalCount)
     Box(
         modifier = Modifier
@@ -114,7 +118,9 @@ private fun PhotoTile(loaded: DayLoadState.Loaded) {
             .background(Brush.verticalGradient(listOf(Emerald.copy(alpha = 0.6f), Emerald)))
             .semantics { contentDescription = description },
     ) {
-        PhotoThumbnail(uri = loaded.firstPhoto.uri, modifier = Modifier.fillMaxSize())
+        // Remembered: PhotoThumbnail rebuilds its request when the callback changes
+        val onLoad = remember(loaded.firstPhoto.id, date) { { load: ThumbnailLoad -> CalendarPerf.onThumbnail(date, load) } }
+        PhotoThumbnail(uri = loaded.firstPhoto.uri, modifier = Modifier.fillMaxSize(), onLoad = onLoad)
         Text(
             text = loaded.totalCount.toString(),
             color = Color.White,

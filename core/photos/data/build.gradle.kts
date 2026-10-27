@@ -8,6 +8,7 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.timber)
 
     testImplementation(libs.robolectric)
 }

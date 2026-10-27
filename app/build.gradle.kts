@@ -22,11 +22,24 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "PERF_LOGGING", "false")
+        }
         release {
+            buildConfigField("boolean", "PERF_LOGGING", "false")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
             }
+        }
+        // Release-like build for performance measurements: same R8 setup, signed with the debug key, logging on
+        create("perf") {
+            initWith(getByName("release"))
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            // Library modules only have debug and release variants
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "PERF_LOGGING", "true")
         }
     }
     compileOptions {
@@ -36,6 +49,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         // Robolectric reads the generated test config to find the manifest and resources
@@ -75,6 +89,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.timber)
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
