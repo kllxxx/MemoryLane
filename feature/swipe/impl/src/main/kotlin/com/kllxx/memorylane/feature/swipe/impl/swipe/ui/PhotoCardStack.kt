@@ -150,9 +150,10 @@ internal fun PhotoCardStack(
                 )
             },
     ) {
+        val areaTop = SwipeLayout.cardAreaTop(state.buttonsMode)
         val areaBottom = SwipeLayout.cardAreaBottom(state.buttonsMode)
         val areaWidth = (maxWidth - SwipeLayout.CardInset * 2).coerceAtLeast(0.dp)
-        val areaHeight = (maxHeight - SwipeLayout.CardAreaTop - areaBottom).coerceAtLeast(0.dp)
+        val areaHeight = (maxHeight - areaTop - areaBottom).coerceAtLeast(0.dp)
 
         fun cardSizeOf(item: DeckPhoto): CardSize =
             fitInside(areaWidth.value, areaHeight.value, item.aspectRatio ?: decodedAspects[item.id] ?: PROVISIONAL_ASPECT_RATIO)
@@ -174,7 +175,7 @@ internal fun PhotoCardStack(
                 Modifier.padding(
                     start = SwipeLayout.CardInset,
                     end = SwipeLayout.CardInset,
-                    top = SwipeLayout.CardAreaTop,
+                    top = areaTop,
                     bottom = areaBottom,
                 ),
             ) {
@@ -208,7 +209,7 @@ internal fun PhotoCardStack(
                     // The circles are centred on the bottom edge of the card, wherever that is
                     modifier = Modifier.offset(
                         x = SwipeLayout.CardInset + (areaWidth - size.width.dp) / 2,
-                        y = SwipeLayout.CardAreaTop + (areaHeight + size.height.dp) / 2 - SwipeLayout.DecisionButton / 2,
+                        y = areaTop + (areaHeight + size.height.dp) / 2 - SwipeLayout.DecisionButton / 2,
                     ),
                 )
             }

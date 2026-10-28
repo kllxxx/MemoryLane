@@ -1,5 +1,8 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -291,6 +294,25 @@ class SwipeLayoutTest {
         show(swipeState(count = 2, aspectRatio = 1f / 3f))
 
         assertTrue(bounds(SwipeTags.cardPhoto(1)).bottom.value <= bounds(SwipeTags.STRIP).top.value)
+    }
+
+    @Test
+    fun `switching buttons mode does not move a card that has room`() {
+        var buttonsMode by mutableStateOf(false)
+        composeRule.setContent {
+            MemoryLaneTheme {
+                SwipeContent(state = swipeState(count = 2, aspectRatio = landscape, buttonsMode = buttonsMode), onIntent = {})
+            }
+        }
+        composeRule.waitForIdle()
+        val off = bounds(SwipeTags.cardPhoto(1))
+
+        composeRule.runOnIdle { buttonsMode = true }
+        composeRule.waitForIdle()
+        val on = bounds(SwipeTags.cardPhoto(1))
+
+        assertEquals(off.top.value, on.top.value, tolerance)
+        assertEquals(off.height.value, on.height.value, tolerance)
     }
 
     @Test

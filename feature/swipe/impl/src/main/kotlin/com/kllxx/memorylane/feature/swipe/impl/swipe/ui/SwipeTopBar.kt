@@ -134,14 +134,20 @@ internal object SwipeLayout {
 
     /**
      * The space above and below the cards in the photo area. The gap above the strip belongs to the area. In buttons
-     * mode the room below is half of a ✕ / ✓ circle instead, so the circles that hang over the bottom edge of a tall
-     * card stay inside the area and can be tapped.
+     * mode the room below grows to half of a ✕ / ✓ circle, so the circles that hang over the bottom edge of a tall
+     * card stay inside the area and can be tapped, and the room above grows by the same amount, so the centre of
+     * the cards does not move when the mode is switched.
      */
     val CardAreaTop = 4.dp
     val CardAreaBottom = StripGap
 
-    fun cardAreaBottom(buttonsMode: Boolean) = if (buttonsMode) DecisionButton / 2 else CardAreaBottom
-
     val CardRadius = 20.dp
     val DecisionButton = 60.dp
+
+    // Declared after DecisionButton, which it is computed from
+    private val ButtonsReserve = DecisionButton / 2 - CardAreaBottom
+
+    fun cardAreaTop(buttonsMode: Boolean) = if (buttonsMode) CardAreaTop + ButtonsReserve else CardAreaTop
+
+    fun cardAreaBottom(buttonsMode: Boolean) = if (buttonsMode) CardAreaBottom + ButtonsReserve else CardAreaBottom
 }
