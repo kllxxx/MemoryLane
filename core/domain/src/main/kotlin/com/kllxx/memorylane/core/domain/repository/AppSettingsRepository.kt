@@ -14,4 +14,5 @@ interface AppSettingsRepository {
     suspend fun setStreakGoal(goal: StreakGoal)
     suspend fun setReminderTime(time: LocalTime)
     suspend fun markNotificationPermissionRequested()
+    suspend fun setSwipeButtonsEnabled(enabled: Boolean)
 }

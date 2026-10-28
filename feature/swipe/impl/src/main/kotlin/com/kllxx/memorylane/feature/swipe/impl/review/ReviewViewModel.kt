@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
@@ -62,7 +63,8 @@ class ReviewViewModel @Inject constructor(
                 if (!before.isDeleting && !before.isFinished && before.pendingDeleteIds.isNotEmpty()) {
                     deletePending(before.pendingDeleteIds)
                 }
-            ReviewIntent.SystemDeleteConfirmed -> if (!before.isFinished) onDeleted(before.sessionFreedBytes, before.pendingDeleteIds.size)
+            ReviewIntent.SystemDeleteConfirmed ->
+                if (!before.isFinished) onDeleted(before.sessionFreedBytes, before.pendingDeleteIds)
             ReviewIntent.SystemDeleteCancelled -> Unit
         }
     }
@@ -74,7 +76,8 @@ class ReviewViewModel @Inject constructor(
     private fun loadStats() {
         viewModelScope.launch(exceptionHandler) {
             try {
-                val markedIds = swipeRepository.getPendingDeletesByDate(date).map { it.photoId }
+                val markedIds = swipeRepository.getDecisionsByDate(date)
+                    .filterValues { it == PhotoDecision.DELETE }.keys.toList()
                 if (markedIds.isEmpty()) {
                     // Nothing to review, so the review screen is not shown at all
                     _effects.trySend(ReviewEffect.NavigateToCalendar)
@@ -84,7 +87,7 @@ class ReviewViewModel @Inject constructor(
                 // A marked photo that is no longer in the library (deleted elsewhere) cannot be deleted again
                 val existing = photos.mapTo(mutableSetOf()) { it.id }
                 val (ids, staleIds) = markedIds.partition { it in existing }
-                staleIds.forEach(::removeStalePendingDelete)
+                staleIds.forEach(::removeStaleDecision)
                 if (ids.isEmpty()) {
                     _effects.trySend(ReviewEffect.NavigateToCalendar)
                     return@launch
@@ -108,14 +111,14 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
-    private fun removeStalePendingDelete(photoId: Long) {
+    private fun removeStaleDecision(photoId: Long) {
         viewModelScope.launch(exceptionHandler) {
             try {
-                swipeRepository.removePendingDelete(photoId)
+                swipeRepository.removeDecision(photoId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not remove the stale pending delete of photo $photoId", e)
+                Log.e(TAG, "Could not remove the stale decision of photo $photoId", e)
             }
         }
     }
@@ -140,7 +143,8 @@ class ReviewViewModel @Inject constructor(
         }
     }
 
-    private fun onDeleted(freedBytes: Long, deletedCount: Int) {
+    private fun onDeleted(freedBytes: Long, deletedIds: List<Long>) {
+        val deletedCount = deletedIds.size
         viewModelScope.launch(exceptionHandler) {
             // The photos are already gone, so a failed write must never keep the user on this screen.
             // The session only counts as completed once the photos are really gone. The two writes
@@ -163,11 +167,12 @@ class ReviewViewModel @Inject constructor(
                 Log.e(TAG, "Could not save the completed session", e)
             }
             try {
-                swipeRepository.clearPendingDeletesByDate(date)
+                // createDeleteRequest removes the photos for good; Task 3 moves them to the trash instead
+                swipeRepository.setDecisions(deletedIds, PhotoDecision.DELETED)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not clear the pending deletes", e)
+                Log.e(TAG, "Could not record the deleted photos", e)
             }
             // The deleted photos must be gone from the Calendar when it opens: the new index is read while the
             // freed space animation plays, and only a failure is allowed to skip it

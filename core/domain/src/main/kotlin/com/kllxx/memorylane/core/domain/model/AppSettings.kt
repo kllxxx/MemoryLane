@@ -11,4 +11,6 @@ data class AppSettings(
     val reminderTime: LocalTime = LocalTime.of(20, 0),
     /** Set after the first POST_NOTIFICATIONS request, to tell "not asked yet" from "permanently denied". */
     val notificationPermissionRequested: Boolean = false,
+    /** Swipe shows the keep and delete buttons on the card, next to the gesture. */
+    val swipeButtonsEnabled: Boolean = false,
 )

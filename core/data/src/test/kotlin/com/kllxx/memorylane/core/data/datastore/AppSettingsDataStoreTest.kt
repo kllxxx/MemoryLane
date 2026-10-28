@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.core.data.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -12,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -162,6 +164,25 @@ class AppSettingsDataStoreTest {
             assertEquals(AppSettings().reminderTime, awaitItem().reminderTime)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `the swipe buttons are off until they are turned on`() = runTest {
+        store.settings.test {
+            assertEquals(false, awaitItem().swipeButtonsEnabled)
+            store.setSwipeButtonsEnabled(true)
+            assertEquals(true, awaitItem().swipeButtonsEnabled)
+            store.setSwipeButtonsEnabled(false)
+            assertEquals(false, awaitItem().swipeButtonsEnabled)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `the swipe buttons setting is stored under swipe_buttons_enabled`() = runTest {
+        store.setSwipeButtonsEnabled(true)
+
+        assertEquals(true, prefs.data.first()[booleanPreferencesKey("swipe_buttons_enabled")])
     }
 
     @Test

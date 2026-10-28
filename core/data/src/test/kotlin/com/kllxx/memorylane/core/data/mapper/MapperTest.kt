@@ -1,8 +1,10 @@
 package com.kllxx.memorylane.core.data.mapper
 
-import com.kllxx.memorylane.core.domain.model.PendingDelete
+import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 
@@ -10,9 +12,17 @@ class MapperTest {
     private val date = LocalDate.of(2024, 10, 15)
 
     @Test
-    fun pendingDeleteRoundTrip() {
-        val domain = PendingDelete(photoId = 42L, sessionDate = date)
-        assertEquals(domain, domain.toEntity().toDomain())
+    fun `every decision is read back from its stored name`() {
+        PhotoDecision.entries.forEach { decision ->
+            val entity = PhotoDecisionEntity(photoId = 42L, sessionDate = date, decision = decision.name, decidedAt = 1)
+            assertEquals(decision, entity.toDecisionOrNull())
+        }
+    }
+
+    @Test
+    fun `an unknown stored decision is null`() {
+        val entity = PhotoDecisionEntity(photoId = 42L, sessionDate = date, decision = "ARCHIVED", decidedAt = 1)
+        assertNull(entity.toDecisionOrNull())
     }
 
     @Test

@@ -73,7 +73,6 @@ class AppViewModel @Inject constructor(
                 StartDestination.Onboarding
             }
             _uiState.value = AppUiState.Ready(themeMode, startDestination, currentDay)
-            launch { cleanupStalePendingDeletes() }
             followThemeChanges()
         }
     }
@@ -98,17 +97,6 @@ class AppViewModel @Inject constructor(
                     if (state is AppUiState.Ready) state.copy(themeMode = themeMode) else state
                 }
             }
-    }
-
-    /** Housekeeping after routing: a failure here is logged and never affects where the app starts. */
-    private suspend fun cleanupStalePendingDeletes() {
-        try {
-            swipeRepository.cleanupStalePendingDeletes()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not clean up the stale pending deletes", e)
-        }
     }
 
     private companion object {

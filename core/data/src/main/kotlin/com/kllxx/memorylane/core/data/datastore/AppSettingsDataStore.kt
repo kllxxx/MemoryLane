@@ -43,6 +43,7 @@ internal class AppSettingsDataStore @Inject constructor(
                     ?: defaults.reminderTime,
                 notificationPermissionRequested = prefs[NOTIFICATION_PERMISSION_REQUESTED]
                     ?: defaults.notificationPermissionRequested,
+                swipeButtonsEnabled = prefs[SWIPE_BUTTONS_ENABLED] ?: defaults.swipeButtonsEnabled,
             )
         }
 
@@ -70,6 +71,10 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[NOTIFICATION_PERMISSION_REQUESTED] = true }
     }
 
+    suspend fun setSwipeButtonsEnabled(enabled: Boolean) {
+        dataStore.edit { it[SWIPE_BUTTONS_ENABLED] = enabled }
+    }
+
     private companion object {
         const val TAG = "AppSettingsDataStore"
         const val MINUTES_PER_HOUR = 60
@@ -92,5 +97,6 @@ internal class AppSettingsDataStore @Inject constructor(
         val STREAK_GOAL = stringPreferencesKey("streak_goal")
         val REMINDER_MINUTE_OF_DAY = intPreferencesKey("reminder_minute_of_day")
         val NOTIFICATION_PERMISSION_REQUESTED = booleanPreferencesKey("notification_permission_requested")
+        val SWIPE_BUTTONS_ENABLED = booleanPreferencesKey("swipe_buttons_enabled")
     }
 }

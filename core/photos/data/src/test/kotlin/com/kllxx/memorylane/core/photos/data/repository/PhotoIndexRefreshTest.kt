@@ -11,6 +11,7 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import io.mockk.mockk
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.MonthDay
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
@@ -59,7 +60,7 @@ class PhotoIndexRefreshTest {
     }
 
     private fun repository(dispatcher: CoroutineDispatcher) =
-        PhotoRepositoryImpl(application, geocoder, dispatcher, clock, reader, cache)
+        PhotoRepositoryImpl(application, geocoder, dispatcher, clock, reader, cache, FakePhotoLocationCache())
 
     private fun row(
         id: Long,
@@ -413,6 +414,8 @@ class PhotoIndexRefreshTest {
 
         assertEquals(listOf(2L, 1L), photos.map { it.id })
         assertEquals(LocalDate.of(2016, 10, 15), photos.first().dateTaken)
+        assertEquals(LocalDateTime.of(2016, 10, 15, 9, 0), photos.first().takenAt)
+        assertEquals(100L, photos.first().dateModified)
         assertEquals(20L, photos.first().sizeBytes)
         val day = repository.onThisDayIndex.value!!.entries.getValue(MonthDay.of(10, 15))
         assertEquals(photos.size, day.count)

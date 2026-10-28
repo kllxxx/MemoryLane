@@ -17,9 +17,13 @@ fun SwipeScreen(
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is SwipeEffect.NavigateToReview -> onNavigateToReview(effect.date, effect.totalPhotosCount)
+                is SwipeEffect.NavigateToBeforeDelete -> onNavigateToReview(effect.date, effect.totalPhotosCount)
+                // The result screen comes with the delete flow; until then Calendar is where the day ends
+                is SwipeEffect.NavigateToResult -> onNavigateToCalendar()
                 SwipeEffect.NavigateToCalendar -> onNavigateToCalendar()
                 SwipeEffect.PermissionRequired -> Unit
+                // The screen that builds the intents comes with the Swipe UI
+                is SwipeEffect.ShareImage, is SwipeEffect.OpenInGallery -> Unit
             }
         }
     }

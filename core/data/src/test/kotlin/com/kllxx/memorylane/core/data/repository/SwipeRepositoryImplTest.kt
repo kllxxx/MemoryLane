@@ -1,15 +1,19 @@
 package com.kllxx.memorylane.core.data.repository
 
-import com.kllxx.memorylane.core.data.db.dao.PendingDeleteDao
+import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
-import com.kllxx.memorylane.core.data.db.entity.PendingDeleteEntity
+import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
-import com.kllxx.memorylane.core.domain.model.PendingDelete
 import com.kllxx.memorylane.core.data.mapper.toDomain
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -17,37 +21,73 @@ import org.junit.Test
 
 class SwipeRepositoryImplTest {
 
-    private val pendingDeleteDao = mockk<PendingDeleteDao>()
+    private val photoDecisionDao = mockk<PhotoDecisionDao>()
     private val swipeSessionDao = mockk<SwipeSessionDao>()
-    private val repository = SwipeRepositoryImpl(pendingDeleteDao, swipeSessionDao)
+    private val now = Instant.parse("2026-10-28T12:00:00Z")
+    private val clock = Clock.fixed(now, ZoneOffset.UTC)
+    private val repository = SwipeRepositoryImpl(photoDecisionDao, swipeSessionDao, clock)
+    private val date = LocalDate.of(2026, 10, 15)
 
     @Test
-    fun `getPendingDeletesByDate reads only that date and maps to domain`() = runTest {
-        val date = LocalDate.of(2026, 10, 15)
-        coEvery { pendingDeleteDao.getByDate(date) } returns listOf(PendingDeleteEntity(7L, date))
+    fun `saveDecision stores the decision with the day and the time of the decision`() = runTest {
+        val saved = slot<PhotoDecisionEntity>()
+        coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
 
-        assertEquals(listOf(PendingDelete(7L, date)), repository.getPendingDeletesByDate(date))
+        repository.saveDecision(7L, date, PhotoDecision.DELETE)
 
-        coVerify(exactly = 0) { pendingDeleteDao.getAll() }
+        assertEquals(PhotoDecisionEntity(7L, date, "DELETE", now.toEpochMilli()), saved.captured)
     }
 
     @Test
-    fun `removePendingDelete deletes only that photo`() = runTest {
-        coEvery { pendingDeleteDao.deleteByPhotoId(7L) } returns Unit
+    fun `getDecisionsByDate reads only that date and maps to a map by photo`() = runTest {
+        coEvery { photoDecisionDao.getByDate(date) } returns listOf(
+            PhotoDecisionEntity(7L, date, "KEEP", 1),
+            PhotoDecisionEntity(8L, date, "TRASHED", 1),
+        )
 
-        repository.removePendingDelete(7L)
+        assertEquals(
+            mapOf(7L to PhotoDecision.KEEP, 8L to PhotoDecision.TRASHED),
+            repository.getDecisionsByDate(date),
+        )
 
-        coVerify(exactly = 1) { pendingDeleteDao.deleteByPhotoId(7L) }
+        coVerify(exactly = 0) { photoDecisionDao.getAll() }
     }
 
     @Test
-    fun `clearPendingDeletesByDate clears only that date`()= runTest {
-        val date = LocalDate.of(2026, 10, 15)
-        coEvery { pendingDeleteDao.clearByDate(date) } returns Unit
+    fun `getDecisionsByDate ignores a decision this version does not know`() = runTest {
+        coEvery { photoDecisionDao.getByDate(date) } returns listOf(
+            PhotoDecisionEntity(7L, date, "KEEP", 1),
+            PhotoDecisionEntity(8L, date, "FROM_THE_FUTURE", 1),
+        )
 
-        repository.clearPendingDeletesByDate(date)
+        assertEquals(mapOf(7L to PhotoDecision.KEEP), repository.getDecisionsByDate(date))
+    }
 
-        coVerify(exactly = 1) { pendingDeleteDao.clearByDate(date) }
+    @Test
+    fun `removeDecision deletes only that photo`() = runTest {
+        coEvery { photoDecisionDao.deleteById(7L) } returns Unit
+
+        repository.removeDecision(7L)
+
+        coVerify(exactly = 1) { photoDecisionDao.deleteById(7L) }
+    }
+
+    @Test
+    fun `setDecisions updates the listed photos with the time of the change`() = runTest {
+        coEvery { photoDecisionDao.updateDecisions(any(), any(), any()) } returns Unit
+
+        repository.setDecisions(listOf(1L, 2L), PhotoDecision.TRASHED)
+
+        coVerify(exactly = 1) { photoDecisionDao.updateDecisions(listOf(1L, 2L), "TRASHED", now.toEpochMilli()) }
+    }
+
+    @Test
+    fun `setDecisions splits a long list under the SQLite variable limit`() = runTest {
+        coEvery { photoDecisionDao.updateDecisions(any(), any(), any()) } returns Unit
+
+        repository.setDecisions((1L..1_200L).toList(), PhotoDecision.DELETED)
+
+        coVerify(exactly = 3) { photoDecisionDao.updateDecisions(match { it.size <= 500 }, "DELETED", any()) }
     }
 
     @Test
@@ -65,14 +105,5 @@ class SwipeRepositoryImplTest {
         coEvery { swipeSessionDao.getCompletedOn(day) } returns null
 
         assertNull(repository.getSessionByCompletedAt(day))
-    }
-
-    @Test
-    fun `cleanupStalePendingDeletes clears the pending deletes of completed sessions`() = runTest {
-        coEvery { pendingDeleteDao.clearForCompletedSessions() } returns Unit
-
-        repository.cleanupStalePendingDeletes()
-
-        coVerify(exactly = 1) { pendingDeleteDao.clearForCompletedSessions() }
     }
 }

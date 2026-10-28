@@ -1,67 +1,101 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
-import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.haroncode.lazycardstack.swiper.SwipeDirection
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toPersistentList
 
 object SwipeReducer {
 
     fun reduce(state: SwipeState, intent: SwipeIntent): SwipeState = when (intent) {
-        SwipeIntent.SwipeRight -> advance(state, delete = false)
-        SwipeIntent.SwipeLeft -> advance(state, delete = true)
-        SwipeIntent.Close -> state
+        is SwipeIntent.Swipe -> swipe(state, intent.direction)
+        SwipeIntent.Undo -> undo(state)
+        is SwipeIntent.JumpTo -> jumpTo(state, intent.index)
+        // Handled by the ViewModel: the setting is stored first, the screen follows the stored value
+        SwipeIntent.ToggleButtonsMode,
+        SwipeIntent.Share,
+        SwipeIntent.OpenInGallery,
+        SwipeIntent.Close,
+        -> state
     }
 
     internal fun reduce(state: SwipeState, event: SwipeEvent): SwipeState = when (event) {
-        is SwipeEvent.PhotosLoaded -> {
-            // Resume: photos already marked for deletion on an earlier run are not shown again
-            val photoIds = event.photos.mapTo(mutableSetOf()) { it.id }
-            val pending = event.pendingDeleteIds.filter { it in photoIds }.distinct()
-            // A restored index also skips the photos that were kept before the process died
-            val firstToShow = firstIndexToShow(
-                event.photos,
-                from = event.restoredIndex.coerceIn(0, event.photos.size),
-                pending = pending,
-            )
-            state.copy(
-                photos = event.photos.toImmutableList(),
-                pendingDeletes = pending.toImmutableList(),
-                currentIndex = firstToShow,
-                isLoading = false,
-                isFinished = firstToShow >= event.photos.size,
-            )
-        }
+        is SwipeEvent.PhotosLoaded -> load(state, event)
         is SwipeEvent.LocationLoaded ->
-            if (event.location == null || state.photos.none { it.id == event.photoId }) {
+            if (event.location == null || state.deck.none { it.id == event.photoId }) {
                 state
             } else {
                 state.copy(
-                    photos = state.photos
-                        .map { if (it.id == event.photoId) it.copy(location = event.location) else it }
+                    deck = state.deck
+                        .map { if (it.id == event.photoId) it.copy(photo = it.photo.copy(location = event.location)) else it }
                         .toImmutableList(),
                 )
             }
+        is SwipeEvent.ButtonsModeChanged -> state.copy(buttonsMode = event.enabled)
     }
 
-    private fun advance(state: SwipeState, delete: Boolean): SwipeState {
-        val photo = state.photos.getOrNull(state.currentIndex)
-        if (state.isFinished || photo == null) return state
-        val pending = when {
-            delete && photo.id !in state.pendingDeletes -> state.pendingDeletes + photo.id
-            // Keeping a photo that was marked earlier takes the mark back
-            !delete && photo.id in state.pendingDeletes -> state.pendingDeletes - photo.id
-            else -> state.pendingDeletes
-        }
-        val nextIndex = firstIndexToShow(state.photos, from = state.currentIndex + 1, pending = pending)
+    private fun load(state: SwipeState, event: SwipeEvent.PhotosLoaded): SwipeState {
+        val deck = event.deck
+        val photoIds = deck.mapTo(mutableSetOf()) { it.id }
+        // A photo that left the deck cannot be undone
+        val undo = event.restoredUndo.filter { it.photoId in photoIds }
+        // A fresh visit starts at the first undecided photo, or at the first one when the whole day is decided
+        val start = event.restoredIndex?.coerceIn(0, maxOf(deck.lastIndex, 0))
+            ?: deck.indexOfFirst { it.decision == null }.takeIf { it >= 0 }
+            ?: 0
         return state.copy(
-            currentIndex = nextIndex,
-            pendingDeletes = pending.toImmutableList(),
-            isFinished = nextIndex >= state.photos.size,
+            deck = deck.toImmutableList(),
+            trashed = event.trashed.toImmutableList(),
+            currentIndex = start,
+            undoStack = undo.toImmutableList(),
+            isLoading = false,
+            isFinished = deck.isEmpty(),
         )
     }
 
-    /** Index of the first photo at or after [from] that is not in [pending], or the list size. */
-    private fun firstIndexToShow(photos: List<Photo>, from: Int, pending: List<Long>): Int {
-        val index = (from until photos.size).firstOrNull { photos[it].id !in pending }
-        return index ?: photos.size
+    private fun swipe(state: SwipeState, direction: SwipeDirection): SwipeState {
+        val decision = when (direction) {
+            SwipeDirection.Left -> PhotoDecision.DELETE
+            SwipeDirection.Right -> PhotoDecision.KEEP
+            SwipeDirection.Up, SwipeDirection.Down -> return state
+        }
+        val current = state.currentPhoto
+        if (state.isFinished || current == null) return state
+        // Whatever the photo had is overwritten, and what it had is kept for undo
+        val deck = state.deck.toPersistentList().set(state.currentIndex, current.copy(decision = decision))
+        val nextIndex = indexAfter(deck, state.currentIndex)
+        return state.copy(
+            deck = deck,
+            currentIndex = nextIndex,
+            undoStack = state.undoStack.toPersistentList().add(UndoEntry(current.id, current.decision)),
+            isFinished = nextIndex >= deck.size,
+        )
     }
+
+    /**
+     * The next photo is simply the following one, decided or not. After the last photo the deck goes back to the
+     * first photo that is still undecided (the user jumped around), and when there is none the deck size is returned,
+     * which means the day is completed.
+     */
+    private fun indexAfter(deck: List<DeckPhoto>, swipedIndex: Int): Int {
+        if (swipedIndex < deck.lastIndex) return swipedIndex + 1
+        return deck.indexOfFirst { it.decision == null }.takeIf { it >= 0 } ?: deck.size
+    }
+
+    private fun undo(state: SwipeState): SwipeState {
+        val entry = state.undoStack.lastOrNull() ?: return state
+        val remaining = state.undoStack.toPersistentList().removeAt(state.undoStack.lastIndex)
+        val index = state.deck.indexOfFirst { it.id == entry.photoId }
+        // The photo is gone, so there is nothing to restore; the entry is just dropped
+        if (index < 0) return state.copy(undoStack = remaining)
+        return state.copy(
+            deck = state.deck.toPersistentList().set(index, state.deck[index].copy(decision = entry.previous)),
+            currentIndex = index,
+            undoStack = remaining,
+            isFinished = false,
+        )
+    }
+
+    private fun jumpTo(state: SwipeState, index: Int): SwipeState =
+        if (index !in state.deck.indices) state else state.copy(currentIndex = index, isFinished = false)
 }

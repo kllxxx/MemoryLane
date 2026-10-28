@@ -3,6 +3,7 @@ package com.kllxx.memorylane.core.data.db
 import android.content.Context
 import androidx.room.Room
 import com.kllxx.memorylane.core.data.db.entity.PhotoDateCacheEntity
+import com.kllxx.memorylane.core.data.db.entity.PhotoLocationCacheEntity
 import com.kllxx.memorylane.core.data.db.entity.ReviewedPhotoEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -46,7 +47,7 @@ class MigrationTest {
         v1.close()
 
         database = Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
     }
@@ -68,24 +69,51 @@ class MigrationTest {
     }
 
     @Test
-    fun `the unfinished session and the pending deletes are kept`() = runTest {
+    fun `the unfinished session is kept, and the pending delete became a DELETE decision`() = runTest {
         // Not completed, so it is not visible through the DAO queries: read the row directly
         database.openHelper.readableDatabase.query("SELECT completed, completed_at FROM swipe_sessions WHERE date = 20001").use {
             assertTrue(it.moveToFirst())
             assertEquals(0, it.getInt(0))
             assertEquals(0L, it.getLong(1))
         }
-        assertNotNull(database.pendingDeleteDao().getAll().singleOrNull { it.photoId == 7L })
+        val decision = database.photoDecisionDao().getAll().single { it.photoId == 7L }
+        assertEquals("DELETE", decision.decision)
+        assertEquals(LocalDate.ofEpochDay(20001), decision.sessionDate)
+    }
+
+    @Test
+    fun `a migrated decision is stamped with the time of the migration`() = runTest {
+        val decision = database.photoDecisionDao().getAll().single { it.photoId == 7L }
+
+        // The real time was never recorded; any plausible clock reading is later than 2026-01-01
+        assertTrue(decision.decidedAt > 1_767_225_600_000L)
+    }
+
+    @Test
+    fun `the pending deletes table is gone`() {
+        database.openHelper.readableDatabase.query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_deletes'",
+        ).use { assertEquals(0, it.count) }
     }
 
     @Test
     fun `the session date index exists after migrating`() {
         database.openHelper.readableDatabase.query(
-            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'pending_deletes'",
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'photo_decisions'",
         ).use {
             val names = generateSequence { if (it.moveToNext()) it.getString(0) else null }.toList()
-            assertTrue(names.contains("index_pending_deletes_sessionDate"))
+            assertTrue(names.contains("index_photo_decisions_sessionDate"))
         }
+    }
+
+    @Test
+    fun `the photo locations table exists, is empty and accepts rows`() = runTest {
+        val dao = database.photoLocationCacheDao()
+        assertTrue(dao.allIds().isEmpty())
+
+        dao.upsertAll(listOf(PhotoLocationCacheEntity(1, 100, "en", "Paris, France")))
+
+        assertEquals(listOf(1L), dao.allIds())
     }
 
     @Test
@@ -119,7 +147,7 @@ class MigrationTest {
     @Test
     fun `the data of earlier versions is untouched by the cache table`() = runTest {
         assertEquals(500L, database.swipeSessionDao().observeFreedBytes().first())
-        assertNotNull(database.pendingDeleteDao().getAll().singleOrNull { it.photoId == 7L })
+        assertNotNull(database.photoDecisionDao().getAll().singleOrNull { it.photoId == 7L })
     }
 
     @Test

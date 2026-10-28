@@ -46,7 +46,7 @@ class AppViewModelTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
     private val appSettingsRepository = mockk<AppSettingsRepository>()
     private val swipeRepository = mockk<SwipeRepository>()
-    private val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 10, 15), sizeBytes = 100)
+    private val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 10, 15).atStartOfDay(), sizeBytes = 100)
     private val photoRepository = mockk<PhotoRepository> {
         every { hasMediaPermission() } returns true
         coEvery { getPhotosForDate(any()) } returns listOf(photo)
@@ -71,7 +71,6 @@ class AppViewModelTest {
         // A day from the past that was sorted today: only completedAt decides the routing
         coEvery { swipeRepository.getSessionByCompletedAt(today) } returns
             if (sortedToday) SwipeSession(today.minusDays(3), completed = true, savedBytes = 0L, completedAt = today) else null
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
     }
 
     private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, photoRepository, clock)
@@ -99,7 +98,6 @@ class AppViewModelTest {
         val settings = MutableSharedFlow<AppSettings>(replay = 1)
         every { appSettingsRepository.getSettings() } returns settings
         coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
 
         val viewModel = viewModel()
         viewModel.uiState.test {
@@ -117,7 +115,6 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns
             flowOf(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
         coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
 
         viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
@@ -131,7 +128,6 @@ class AppViewModelTest {
         val settings = MutableStateFlow(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
         every { appSettingsRepository.getSettings() } returns settings
         coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
 
         viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
@@ -222,21 +218,6 @@ class AppViewModelTest {
     fun `a failure while resolving falls back to onboarding instead of hanging`() = runTest {
         every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = true))
         coEvery { swipeRepository.getSessionByCompletedAt(any()) } throws IllegalStateException("db closed")
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } returns Unit
         assertResolvesTo(StartDestination.Onboarding)
-    }
-
-    @Test
-    fun `stale pending deletes are cleaned up after routing`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = true)
-        assertResolvesTo(StartDestination.Main)
-        coVerify(exactly = 1) { swipeRepository.cleanupStalePendingDeletes() }
-    }
-
-    @Test
-    fun `a failing cleanup does not change where the app starts`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = true)
-        coEvery { swipeRepository.cleanupStalePendingDeletes() } throws IllegalStateException("db locked")
-        assertResolvesTo(StartDestination.Main)
     }
 }

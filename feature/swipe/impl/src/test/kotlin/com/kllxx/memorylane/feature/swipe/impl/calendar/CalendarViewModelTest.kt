@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -20,9 +21,11 @@ import java.time.YearMonth
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -65,7 +68,8 @@ private class FakePhotoRepository : PhotoRepository {
     }
 
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = error("not used by the calendar")
-    override suspend fun getPhotoLocation(photoId: Long): String? = null
+    override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = emptyList()
+    override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = emptyFlow()
     override suspend fun deletePhotos(photoIds: List<Long>): DeleteResult = DeleteResult.Deleted
 }
 

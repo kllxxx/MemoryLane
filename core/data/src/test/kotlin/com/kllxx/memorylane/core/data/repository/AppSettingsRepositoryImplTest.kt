@@ -39,7 +39,9 @@ class AppSettingsRepositoryImplTest {
         coEvery { dataStore.setStreakGoal(any()) } returns Unit
         coEvery { dataStore.setReminderTime(any()) } returns Unit
         coEvery { dataStore.markNotificationPermissionRequested() } returns Unit
+        coEvery { dataStore.setSwipeButtonsEnabled(any()) } returns Unit
 
+        repository.setSwipeButtonsEnabled(true)
         repository.setOnboardingCompleted(true)
         repository.setThemeMode(ThemeMode.System)
         repository.setNotificationsEnabled(false)
@@ -53,5 +55,6 @@ class AppSettingsRepositoryImplTest {
         coVerify(exactly = 1) { dataStore.setStreakGoal(StreakGoal.D30) }
         coVerify(exactly = 1) { dataStore.setReminderTime(LocalTime.of(8, 30)) }
         coVerify(exactly = 1) { dataStore.markNotificationPermissionRequested() }
+        coVerify(exactly = 1) { dataStore.setSwipeButtonsEnabled(true) }
     }
 }

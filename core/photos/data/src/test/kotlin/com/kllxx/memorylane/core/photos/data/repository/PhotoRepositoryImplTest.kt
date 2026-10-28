@@ -3,20 +3,33 @@ package com.kllxx.memorylane.core.photos.data.repository
 import android.Manifest
 import android.app.Application
 import android.content.ContentProvider
+import android.content.ContentResolver
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.Bundle
+import android.os.CancellationSignal
 import android.provider.MediaStore
+import com.kllxx.memorylane.core.photos.data.geocoder.GeocodeResult
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
+import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoLocation
+import com.kllxx.memorylane.core.photos.domain.model.DateSource
+import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.util.Locale
 import java.time.ZoneId
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -63,6 +76,17 @@ class FakeMediaProvider : ContentProvider() {
         return cursor
     }
 
+    // Remembers the bundle, then lets the default implementation hand its selection to the query above
+    override fun query(
+        uri: Uri,
+        projection: Array<String>?,
+        queryArgs: Bundle?,
+        cancellationSignal: CancellationSignal?,
+    ): Cursor? {
+        lastQueryArgs = queryArgs
+        return super.query(uri, projection, queryArgs, cancellationSignal)
+    }
+
     override fun getType(uri: Uri): String? = null
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?) = 0
@@ -70,6 +94,7 @@ class FakeMediaProvider : ContentProvider() {
 
     companion object {
         var rows: List<Map<String, Any?>> = emptyList()
+        var lastQueryArgs: Bundle? = null
         var queries = 0
         var lastSelectionArgs: List<String>? = null
         var lastSelection: String? = null
@@ -77,6 +102,7 @@ class FakeMediaProvider : ContentProvider() {
 
         fun reset() {
             rows = emptyList()
+            lastQueryArgs = null
             queries = 0
             lastSelectionArgs = null
             lastSelection = null
@@ -95,6 +121,8 @@ class PhotoRepositoryImplTest {
 
     // Locations are only looked up per photo; any unexpected geocoding call fails the test
     private val geocoder = mockk<LocationGeocoder>()
+    private val dateCache = FakePhotoDateCache()
+    private val locationCache = FakePhotoLocationCache()
     private lateinit var repository: PhotoRepositoryImpl
 
     @Before
@@ -102,7 +130,7 @@ class PhotoRepositoryImplTest {
         FakeMediaProvider.reset()
         Robolectric.buildContentProvider(FakeMediaProvider::class.java).create(MediaStore.AUTHORITY)
         repository = PhotoRepositoryImpl(
-            application, geocoder, UnconfinedTestDispatcher(), clock, FakeExifDateReader(), FakePhotoDateCache(),
+            application, geocoder, UnconfinedTestDispatcher(), clock, FakeExifDateReader(), dateCache, locationCache,
         )
     }
 
@@ -155,6 +183,7 @@ class PhotoRepositoryImplTest {
             mapOf(
                 MediaStore.Images.Media._ID to 7L,
                 MediaStore.Images.Media.DATE_TAKEN to taken.toEpochMilli(),
+                MediaStore.Images.Media.DATE_MODIFIED to 1_234L,
                 MediaStore.Images.Media.SIZE to 2_048L,
             ),
         )
@@ -166,6 +195,8 @@ class PhotoRepositoryImplTest {
         assertEquals(7L, photo.id)
         assertEquals(2_048L, photo.sizeBytes)
         assertEquals(taken.atZone(zone).toLocalDate(), photo.dateTaken)
+        assertEquals(date.minusYears(1).atTime(10, 30), photo.takenAt)
+        assertEquals(1_234L, photo.dateModified)
         assertEquals(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.buildUpon().appendPath("7").build(), photo.uri)
         assertNull(photo.location)
     }
@@ -199,6 +230,56 @@ class PhotoRepositoryImplTest {
         coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
     }
 
+    // --- deck order ---
+
+    private fun datedRow(id: Long, taken: LocalDateTime, modified: Long = 100) = mapOf<String, Any?>(
+        MediaStore.Images.Media._ID to id,
+        MediaStore.Images.Media.DATE_TAKEN to taken.atZone(zone).toInstant().toEpochMilli(),
+        MediaStore.Images.Media.DATE_MODIFIED to modified,
+        MediaStore.Images.Media.SIZE to 1L,
+    )
+
+    @Test
+    fun `the deck is sorted by capture time, oldest first, and the id breaks a tie`() = runTest {
+        grantMedia()
+        val earlier = date.minusYears(2).atTime(10, 0)
+        val later = date.minusYears(1).atTime(8, 0)
+        FakeMediaProvider.rows = listOf(
+            datedRow(5, later),
+            datedRow(9, earlier),
+            datedRow(3, earlier),
+        )
+
+        assertEquals(listOf(3L, 9L, 5L), repository.getPhotosForDate(date).map { it.id })
+    }
+
+    @Test
+    fun `photos of the same day are told apart by the time of day, not only the date`() = runTest {
+        grantMedia()
+        val day = date.minusYears(1)
+        FakeMediaProvider.rows = listOf(
+            datedRow(1, day.atTime(21, 15)),
+            datedRow(2, day.atTime(7, 5)),
+        )
+
+        val photos = repository.getPhotosForDate(date)
+
+        assertEquals(listOf(2L, 1L), photos.map { it.id })
+        assertEquals(listOf(day.atTime(7, 5), day.atTime(21, 15)), photos.map { it.takenAt })
+    }
+
+    // --- locations ---
+
+    private val localeTag get() = Locale.getDefault().toLanguageTag()
+
+    private fun photo(id: Long = 7, modified: Long = 100) = Photo(
+        id = id,
+        uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI.buildUpon().appendPath(id.toString()).build(),
+        takenAt = date.minusYears(1).atTime(10, 0),
+        sizeBytes = 1,
+        dateModified = modified,
+    )
+
     @Suppress("DEPRECATION")
     private fun coordinates(latitude: Double?, longitude: Double?) = mapOf(
         MediaStore.Images.ImageColumns.LATITUDE to latitude,
@@ -207,64 +288,276 @@ class PhotoRepositoryImplTest {
 
     @Test
     @Config(sdk = [28])
-    fun `getPhotoLocation geocodes the MediaStore coordinates below API 29`() = runTest {
+    fun `resolveLocations geocodes the MediaStore coordinates below API 29 and remembers the place`() = runTest {
         FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
-        coEvery { geocoder.getLocation(48.85, 2.35) } returns "Paris, Rue de Rivoli"
+        coEvery { geocoder.getLocation(48.85, 2.35) } returns GeocodeResult.Found("Paris, France")
 
-        assertEquals("Paris, Rue de Rivoli", repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, "Paris, France")), found)
+        assertEquals(CachedPhotoLocation(7, 100, localeTag, "Paris, France"), locationCache.entries[7L])
     }
 
     @Test
     @Config(sdk = [28])
-    fun `getPhotoLocation treats 0 0 as no location and does not geocode`() = runTest {
+    fun `resolveLocations treats 0 0 as no GPS, caches that and does not geocode`() = runTest {
         FakeMediaProvider.rows = listOf(coordinates(0.0, 0.0))
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, null)), found)
+        assertEquals(CachedPhotoLocation(7, 100, localeTag, null), locationCache.entries[7L])
         coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
     }
 
     @Test
     @Config(sdk = [28])
-    fun `getPhotoLocation is null for a photo without coordinates`() = runTest {
+    fun `resolveLocations caches a photo without coordinates as having no place`() = runTest {
         FakeMediaProvider.rows = listOf(coordinates(null, null))
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, null)), found)
+        assertEquals(CachedPhotoLocation(7, 100, localeTag, null), locationCache.entries[7L])
         coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
     }
 
     @Test
     @Config(sdk = [28])
-    fun `getPhotoLocation is null when the geocoder finds nothing`() = runTest {
+    fun `resolveLocations caches a place the geocoder does not know as null`() = runTest {
         FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
-        coEvery { geocoder.getLocation(any(), any()) } returns null
+        coEvery { geocoder.getLocation(any(), any()) } returns GeocodeResult.NoResult
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, null)), found)
+        assertEquals(CachedPhotoLocation(7, 100, localeTag, null), locationCache.entries[7L])
     }
 
     @Test
     @Config(sdk = [28])
-    fun `getPhotoLocation never throws`() = runTest {
+    fun `a geocoder failure is neither emitted nor cached, so the next visit tries again`() = runTest {
         FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
-        coEvery { geocoder.getLocation(any(), any()) } throws IllegalStateException("boom")
+        coEvery { geocoder.getLocation(any(), any()) } returns GeocodeResult.Failure
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertTrue(found.isEmpty())
+        assertTrue(locationCache.entries.isEmpty())
     }
 
     @Test
-    fun `getPhotoLocation without ACCESS_MEDIA_LOCATION does not read the photo or geocode`() = runTest {
-        shadowOf(application).denyPermissions(Manifest.permission.ACCESS_MEDIA_LOCATION)
+    @Config(sdk = [28])
+    fun `a failure on one photo does not stop the next one`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        coEvery { geocoder.getLocation(any(), any()) } returnsMany
+            listOf(GeocodeResult.Failure, GeocodeResult.Found("Paris, France"))
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo(1), photo(2))).toList()
+
+        assertEquals(listOf(PhotoLocation(2, "Paris, France")), found)
+    }
+
+    @Test
+    fun `a remembered place is emitted without querying MediaStore or geocoding`() = runTest {
+        locationCache.entries[7] = CachedPhotoLocation(7, 100, localeTag, "Berlin, Germany")
+        locationCache.entries[8] = CachedPhotoLocation(8, 100, localeTag, null)
+
+        val found = repository.resolveLocations(listOf(photo(7), photo(8))).toList()
+
+        assertEquals(listOf(PhotoLocation(7, "Berlin, Germany"), PhotoLocation(8, null)), found)
         assertEquals(0, FakeMediaProvider.queries)
         coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
     }
 
     @Test
-    fun `getPhotoLocation is null when the original file cannot be read`() = runTest {
-        // The fake provider has no file behind the photo, so the EXIF read fails and yields no location
+    @Config(sdk = [28])
+    fun `a place remembered for another DATE_MODIFIED is looked up again`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        locationCache.entries[7] = CachedPhotoLocation(7, 99, localeTag, "Old, Place")
+        coEvery { geocoder.getLocation(any(), any()) } returns GeocodeResult.Found("Paris, France")
+
+        val found = repository.resolveLocations(listOf(photo(7, modified = 100))).toList()
+
+        assertEquals(listOf(PhotoLocation(7, "Paris, France")), found)
+        assertEquals(100L, locationCache.entries[7L]?.dateModified)
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `a place remembered in another language is looked up again`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        locationCache.entries[7] = CachedPhotoLocation(7, 100, "xx-YY", "Paris, France")
+        coEvery { geocoder.getLocation(any(), any()) } returns GeocodeResult.Found("Париж, Франция")
+
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, "Париж, Франция")), found)
+        assertEquals(localeTag, locationCache.entries[7L]?.locale)
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `remembered places come first, then the others one by one in the given order`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        locationCache.entries[2] = CachedPhotoLocation(2, 100, localeTag, "Cached, Place")
+        coEvery { geocoder.getLocation(any(), any()) } returnsMany
+            listOf(GeocodeResult.Found("First, Place"), GeocodeResult.Found("Third, Place"))
+
+        val found = repository.resolveLocations(listOf(photo(1), photo(2), photo(3))).toList()
+
+        assertEquals(
+            listOf(PhotoLocation(2, "Cached, Place"), PhotoLocation(1, "First, Place"), PhotoLocation(3, "Third, Place")),
+            found,
+        )
+    }
+
+    @Test
+    fun `without ACCESS_MEDIA_LOCATION nothing is read or geocoded, and nothing is remembered`() = runTest {
+        shadowOf(application).denyPermissions(Manifest.permission.ACCESS_MEDIA_LOCATION)
+
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        // Granting the permission later must still find the place
+        assertEquals(listOf(PhotoLocation(7, null)), found)
+        assertTrue(locationCache.entries.isEmpty())
+        assertEquals(0, FakeMediaProvider.queries)
+        coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Test
+    fun `a photo whose original file cannot be read has no place`() = runTest {
+        // The fake provider has no file behind the photo, so the EXIF read fails and yields no coordinates
         shadowOf(application).grantPermissions(Manifest.permission.ACCESS_MEDIA_LOCATION)
 
-        assertNull(repository.getPhotoLocation(7))
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, null)), found)
         coVerify(exactly = 0) { geocoder.getLocation(any(), any()) }
+    }
+
+    @Test
+    @Config(sdk = [28])
+    fun `a cache that cannot be written does not lose the place`() = runTest {
+        FakeMediaProvider.rows = listOf(coordinates(48.85, 2.35))
+        coEvery { geocoder.getLocation(any(), any()) } returns GeocodeResult.Found("Paris, France")
+        locationCache.failWrites = true
+
+        val found = repository.resolveLocations(listOf(photo())).toList()
+
+        assertEquals(listOf(PhotoLocation(7, "Paris, France")), found)
+    }
+
+    @Test
+    fun `no photos, no locations`() = runTest {
+        assertTrue(repository.resolveLocations(emptyList()).toList().isEmpty())
+    }
+
+    // --- trashed photos ---
+
+    private fun trashedRow(id: Long, taken: LocalDateTime?, modified: Long = 100, size: Long = 10) = mapOf<String, Any?>(
+        MediaStore.Images.Media._ID to id,
+        MediaStore.Images.Media.DATE_TAKEN to taken?.atZone(zone)?.toInstant()?.toEpochMilli(),
+        MediaStore.Images.Media.DATE_MODIFIED to modified,
+        MediaStore.Images.Media.SIZE to size,
+    )
+
+    @Test
+    @Config(sdk = [29])
+    fun `there is no trash below API 30, so no trashed photos and no query`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(trashedRow(5, date.minusYears(1).atTime(10, 0)))
+
+        assertTrue(repository.getTrashedPhotos(listOf(5L)).isEmpty())
+        assertEquals(0, FakeMediaProvider.queries)
+    }
+
+    @Test
+    fun `no ids, no query`() = runTest {
+        grantMedia()
+
+        assertTrue(repository.getTrashedPhotos(emptyList()).isEmpty())
+        assertEquals(0, FakeMediaProvider.queries)
+    }
+
+    @Test
+    fun `getTrashedPhotos throws PermissionDeniedException without permission and never queries`() = runTest {
+        denyMedia()
+        try {
+            repository.getTrashedPhotos(listOf(5L))
+            fail("expected PermissionDeniedException")
+        } catch (e: PermissionDeniedException) {
+            assertEquals(0, FakeMediaProvider.queries)
+        }
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `getTrashedPhotos asks for trashed items only, by id`() = runTest {
+        grantMedia()
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        FakeMediaProvider.rows = listOf(trashedRow(5, date.minusYears(1).atTime(10, 0)))
+
+        repository.getTrashedPhotos(listOf(5L, 6L))
+
+        val args = FakeMediaProvider.lastQueryArgs!!
+        assertEquals(MediaStore.MATCH_ONLY, args.getInt(MediaStore.QUERY_ARG_MATCH_TRASHED))
+        assertTrue(args.getString(ContentResolver.QUERY_ARG_SQL_SELECTION)!!.startsWith("${MediaStore.Images.Media._ID} IN"))
+        assertEquals(listOf("5", "6"), args.getStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS)!!.toList())
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `getTrashedPhotos returns the requested photos oldest first, with time and size`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        val old = date.minusYears(3).atTime(9, 30)
+        val recent = date.minusYears(1).atTime(18, 45)
+        FakeMediaProvider.rows = listOf(
+            trashedRow(5, recent, modified = 11, size = 500),
+            trashedRow(6, old, modified = 22, size = 700),
+            // Not asked for: a query that answers with more rows must not add photos
+            trashedRow(9, old),
+        )
+
+        val photos = repository.getTrashedPhotos(listOf(5L, 6L))
+
+        assertEquals(listOf(6L, 5L), photos.map { it.id })
+        assertEquals(listOf(old, recent), photos.map { it.takenAt })
+        assertEquals(listOf(22L, 11L), photos.map { it.dateModified })
+        assertEquals(listOf(700L, 500L), photos.map { it.sizeBytes })
+        assertEquals(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.buildUpon().appendPath("6").build(), photos.first().uri)
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `a trashed photo without DATE_TAKEN takes the resolved date, else the modification time`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        val resolved = LocalDateTime.of(2015, 6, 1, 12, 0)
+        dateCache.entries[5] = CachedPhotoDate(
+            id = 5,
+            dateModified = 100,
+            takenLocalEpochSecond = resolved.toEpochSecond(ZoneOffset.UTC),
+            offsetSeconds = null,
+            source = DateSource.EXIF,
+        )
+        val modified = date.minusYears(1).atTime(8, 0).atZone(zone).toEpochSecond()
+        FakeMediaProvider.rows = listOf(
+            trashedRow(5, taken = null),
+            trashedRow(6, taken = null, modified = modified),
+        )
+
+        val photos = repository.getTrashedPhotos(listOf(5L, 6L)).associateBy { it.id }
+
+        assertEquals(resolved, photos.getValue(5).takenAt)
+        assertEquals(date.minusYears(1).atTime(8, 0), photos.getValue(6).takenAt)
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `a trashed photo that has left the trash is missing from the result`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        FakeMediaProvider.rows = listOf(trashedRow(5, date.minusYears(1).atTime(10, 0)))
+
+        assertEquals(listOf(5L), repository.getTrashedPhotos(listOf(5L, 6L)).map { it.id })
     }
 }

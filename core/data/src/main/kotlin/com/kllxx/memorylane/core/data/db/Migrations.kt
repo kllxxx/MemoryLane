@@ -40,3 +40,27 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * Replaces the pending deletes with one decision per photo, and adds the cache of places found for photos.
+ * Every pending delete becomes a DELETE decision, stamped with the time of the migration because the real time
+ * was never recorded. Keep decisions were never stored, so those photos are undecided again.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `photo_decisions` (`photoId` INTEGER NOT NULL, `sessionDate` INTEGER NOT NULL, " +
+                "`decision` TEXT NOT NULL, `decided_at` INTEGER NOT NULL, PRIMARY KEY(`photoId`))",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_photo_decisions_sessionDate` ON `photo_decisions` (`sessionDate`)")
+        db.execSQL(
+            "INSERT INTO photo_decisions (photoId, sessionDate, decision, decided_at) " +
+                "SELECT photoId, sessionDate, 'DELETE', CAST(strftime('%s', 'now') AS INTEGER) * 1000 FROM pending_deletes",
+        )
+        db.execSQL("DROP TABLE IF EXISTS `pending_deletes`")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `photo_locations` (`photoId` INTEGER NOT NULL, `date_modified` INTEGER NOT NULL, " +
+                "`locale` TEXT NOT NULL, `location` TEXT, PRIMARY KEY(`photoId`))",
+        )
+    }
+}

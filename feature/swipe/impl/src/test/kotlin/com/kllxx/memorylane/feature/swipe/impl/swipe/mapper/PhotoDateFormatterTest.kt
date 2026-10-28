@@ -1,0 +1,64 @@
+package com.kllxx.memorylane.feature.swipe.impl.swipe.mapper
+
+import java.time.LocalDateTime
+import java.util.Locale
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class PhotoDateFormatterTest {
+
+    private val ru = Locale.forLanguageTag("ru-RU")
+
+    @Test
+    fun `Russian is the full date with the month in the genitive and the 24-hour clock`() {
+        assertEquals("7 января 2016, 21:15", formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), ru))
+    }
+
+    @Test
+    fun `Russian has no leading zero on the day and keeps the zero of the minutes`() {
+        assertEquals("1 марта 2024, 09:05", formatTakenAt(LocalDateTime.of(2024, 3, 1, 9, 5), ru))
+    }
+
+    @Test
+    fun `Russian midnight and noon use the 24-hour clock`() {
+        assertEquals("15 октября 2020, 00:00", formatTakenAt(LocalDateTime.of(2020, 10, 15, 0, 0), ru))
+        assertEquals("15 октября 2020, 12:00", formatTakenAt(LocalDateTime.of(2020, 10, 15, 12, 0), ru))
+    }
+
+    @Test
+    fun `every Russian month is in the genitive`() {
+        val expected = listOf(
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        )
+        expected.forEachIndexed { index, month ->
+            assertTrue(
+                month,
+                formatTakenAt(LocalDateTime.of(2016, index + 1, 7, 10, 0), ru).startsWith("7 $month 2016"),
+            )
+        }
+    }
+
+    @Test
+    fun `seconds are not shown`() {
+        assertEquals("7 января 2016, 21:15", formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15, 59), ru))
+    }
+
+    @Test
+    fun `another language uses its own long date with the year and a short time`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.US)
+
+        assertTrue(text, text.contains("January"))
+        assertTrue(text, text.contains("2016"))
+        assertTrue(text, text.contains("9:15"))
+    }
+
+    @Test
+    fun `English follows the locale rather than the Russian pattern`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.UK)
+
+        assertTrue(text, text.contains("January"))
+        assertTrue(text, text.contains("21:15"))
+    }
+}

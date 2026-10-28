@@ -4,7 +4,7 @@ import android.content.IntentSender
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
-import com.kllxx.memorylane.core.domain.model.PendingDelete
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
@@ -49,9 +49,9 @@ class ReviewViewModelTest {
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private val uri = mockk<Uri>(relaxed = true)
     private val photos = listOf(
-        Photo(1, uri, LocalDate.of(2024, 10, 15), sizeBytes = 100),
-        Photo(2, uri, LocalDate.of(2025, 10, 15), sizeBytes = 200),
-        Photo(3, uri, LocalDate.of(2023, 10, 15), sizeBytes = 400),
+        Photo(1, uri, LocalDate.of(2024, 10, 15).atStartOfDay(), sizeBytes = 100),
+        Photo(2, uri, LocalDate.of(2025, 10, 15).atStartOfDay(), sizeBytes = 200),
+        Photo(3, uri, LocalDate.of(2023, 10, 15).atStartOfDay(), sizeBytes = 400),
     )
     private lateinit var photoRepository: PhotoRepository
     private lateinit var swipeRepository: SwipeRepository
@@ -64,9 +64,11 @@ class ReviewViewModelTest {
         swipeRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } returns photos
         coEvery { photoRepository.refreshOnThisDayIndex() } returns Unit
-        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
-            PendingDelete(1, date),
-            PendingDelete(3, date),
+        // Kept photos are decisions too: only the marked ones are up for deletion
+        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(
+            1L to PhotoDecision.DELETE,
+            2L to PhotoDecision.KEEP,
+            3L to PhotoDecision.DELETE,
         )
         every { swipeRepository.getCompletedSessions() } returns flowOf(
             listOf(SwipeSession(date, true, 0, earlier), SwipeSession(otherDate, true, 1_000, earlier)),
@@ -86,7 +88,7 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `LoadStats loads only this date's pending deletes and stats`() = runTest(dispatcher) {
+    fun `LoadStats loads only the photos marked for deletion on this date, and the stats`() = runTest(dispatcher) {
         loadStats()
 
         val state = viewModel.state.value
@@ -108,10 +110,10 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `a pending delete whose photo is gone is left out and removed`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(
-            PendingDelete(1, date),
-            PendingDelete(77, date),
+    fun `a marked photo that is gone is left out and its decision removed`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(
+            1L to PhotoDecision.DELETE,
+            77L to PhotoDecision.DELETE,
         )
         loadStats()
 
@@ -120,26 +122,27 @@ class ReviewViewModelTest {
         assertEquals(1, state.deletedCount)
         assertEquals(2, state.keptCount)
         assertEquals(100, state.sessionFreedBytes)
-        coVerify(exactly = 1) { swipeRepository.removePendingDelete(77) }
-        coVerify(exactly = 0) { swipeRepository.removePendingDelete(1) }
+        coVerify(exactly = 1) { swipeRepository.removeDecision(77) }
+        coVerify(exactly = 0) { swipeRepository.removeDecision(1) }
     }
 
     @Test
-    fun `when every pending delete is stale review navigates to calendar`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns listOf(PendingDelete(77, date))
+    fun `when every marked photo is gone review navigates to calendar`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(77L to PhotoDecision.DELETE)
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)
             advanceUntilIdle()
             assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
-        coVerify(exactly = 1) { swipeRepository.removePendingDelete(77) }
+        coVerify(exactly = 1) { swipeRepository.removeDecision(77) }
         assertEquals(ReviewState(), viewModel.state.value)
     }
 
     @Test
     fun `LoadStats with nothing pending for the date navigates to calendar`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletesByDate(date) } returns emptyList()
+        // A day with only kept photos has nothing to review
+        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(1L to PhotoDecision.KEEP)
 
         viewModel.effects.test {
             viewModel.onIntent(ReviewIntent.LoadStats)
@@ -180,7 +183,7 @@ class ReviewViewModelTest {
             assertFalse(state.isDeleting)
             assertEquals(1_500, state.totalFreedBytes)
             coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
-            coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
+            coVerify(exactly = 1) { swipeRepository.setDecisions(listOf(1L, 3L), PhotoDecision.DELETED) }
         }
 
 
@@ -236,13 +239,13 @@ class ReviewViewModelTest {
             }
             assertTrue(viewModel.state.value.isFinished)
             // The two writes are independent, so the second still runs
-            coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
+            coVerify(exactly = 1) { swipeRepository.setDecisions(listOf(1L, 3L), PhotoDecision.DELETED) }
         }
 
     @Test
-    fun `failing to clear the pending deletes after the delete still leaves review`() = runTest(dispatcher) {
+    fun `failing to record the deleted photos still leaves review`() = runTest(dispatcher) {
         coEvery { photoRepository.deletePhotos(listOf(1L, 3L)) } returns DeleteResult.Deleted
-        coEvery { swipeRepository.clearPendingDeletesByDate(any()) } throws IllegalStateException("disk full")
+        coEvery { swipeRepository.setDecisions(any(), any()) } throws IllegalStateException("disk full")
         loadStats()
 
         viewModel.effects.test {
@@ -312,7 +315,7 @@ class ReviewViewModelTest {
             expectNoEvents()
         }
         assertTrue(viewModel.state.value.isDeleting)
-        coVerify(exactly = 0) { swipeRepository.clearPendingDeletesByDate(any()) }
+        coVerify(exactly = 0) { swipeRepository.setDecisions(any(), any()) }
     }
 
     @Test
@@ -326,11 +329,11 @@ class ReviewViewModelTest {
             assertEquals(ReviewEffect.NavigateToCalendar, awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 500, earlier, deletedCount = 2)) }
-        coVerify(exactly = 1) { swipeRepository.clearPendingDeletesByDate(date) }
+        coVerify(exactly = 1) { swipeRepository.setDecisions(listOf(1L, 3L), PhotoDecision.DELETED) }
     }
 
     @Test
-    fun `DeleteResult failure keeps pending deletes and emits nothing`() = runTest(dispatcher) {
+    fun `DeleteResult failure keeps the marked photos and emits nothing`() = runTest(dispatcher) {
         loadStats()
 
         viewModel.effects.test {
@@ -356,7 +359,7 @@ class ReviewViewModelTest {
         assertFalse(viewModel.state.value.isFinished)
         assertEquals(listOf(1L, 3L), viewModel.state.value.pendingDeleteIds)
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
-        coVerify(exactly = 0) { swipeRepository.clearPendingDeletesByDate(any()) }
+        coVerify(exactly = 0) { swipeRepository.setDecisions(any(), any()) }
     }
 
     @Test

@@ -22,14 +22,19 @@ import com.kllxx.memorylane.core.photos.data.date.PhotoDateResolver
 import com.kllxx.memorylane.core.photos.data.date.ResolvedDate
 import com.kllxx.memorylane.core.photos.data.date.UndatedPhoto
 import com.kllxx.memorylane.core.photos.data.date.UndatedPhotoDates
+import com.kllxx.memorylane.core.photos.data.geocoder.GeocodeResult
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
+import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoLocation
 import com.kllxx.memorylane.core.photos.domain.model.DayCover
 import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoDateCache
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoLocationCache
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -39,17 +44,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.MonthDay
 import java.time.ZoneId
 import java.time.Clock
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -62,6 +71,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private val clock: Clock,
     private val exifReader: ExifDateReader,
     private val dateCache: PhotoDateCache,
+    private val locationCache: PhotoLocationCache,
 ) : PhotoRepository {
 
     private val resolver: ContentResolver get() = context.contentResolver
@@ -323,8 +333,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             }
         }.orEmpty()
         val fromCache = photosFromCache(date, zone)
-        // Stable, so photos of the same day keep the order of the query
-        val photos = (dated + fromCache).sortedBy { it.dateTaken }
+        val photos = (dated + fromCache).sortedWith(DECK_ORDER)
         PerfLog.d {
             "mediastore getPhotosForDate date=$date query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms " +
                 "rows=${photos.size} fromCache=${fromCache.size}"
@@ -354,10 +363,11 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private suspend fun photosFromCache(date: LocalDate, zone: ZoneId): List<Photo> {
         val monthDay = MonthDay.from(date)
         val years = (date.year - PhotosConstants.MAX_YEARS_BACK)..(date.year - 1)
-        val onThisDay = HashMap<Long, Pair<LocalDate, Long>>()
+        val onThisDay = HashMap<Long, Pair<LocalDateTime, Long>>()
         for (entry in dateCache.getAllDated()) {
-            val day = ResolvedDate.fromCached(entry)?.toLocalDate(zone) ?: continue
-            if (day.year in years && MonthDay.from(day) == monthDay) onThisDay[entry.id] = day to entry.dateModified
+            val takenAt = ResolvedDate.fromCached(entry)?.toInstant(zone)?.atZone(zone)?.toLocalDateTime() ?: continue
+            val day = takenAt.toLocalDate()
+            if (day.year in years && MonthDay.from(day) == monthDay) onThisDay[entry.id] = takenAt to entry.dateModified
         }
         if (onThisDay.isEmpty()) return emptyList()
 
@@ -373,7 +383,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
                     while (it.moveToNext()) {
                         val id = it.getLong(idColumn)
                         // The cached id is the key: a query answering with other rows must not add photos
-                        val (day, cachedModified) = onThisDay[id] ?: continue
+                        val (takenAt, cachedModified) = onThisDay[id] ?: continue
                         // MediaStore has a date for it now, or the file changed: the cache entry no longer applies
                         val hasDateTaken = !it.isNull(takenColumn) && it.getLong(takenColumn) > 0
                         val modified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn)
@@ -382,8 +392,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
                             Photo(
                                 id = id,
                                 uri = ContentUris.withAppendedId(COLLECTION_URI, id),
-                                dateTaken = day,
+                                takenAt = takenAt,
                                 sizeBytes = it.getLong(sizeColumn),
+                                dateModified = modified,
                             ),
                         )
                     }
@@ -392,19 +403,124 @@ internal class PhotoRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getPhotoLocation(photoId: Long): String? = withContext(ioDispatcher) {
-        try {
-            val (latitude, longitude) = coordinatesOf(ContentUris.withAppendedId(COLLECTION_URI, photoId))
-                ?: return@withContext null
-            geocoder.getLocation(latitude, longitude)
+    /**
+     * Trashed photos are left out of every normal MediaStore query, so they are asked for by id with
+     * `MATCH_ONLY` (API 30+). A photo that has left the trash (the system purges it after about 30 days) is missing.
+     * A trashed photo without a `DATE_TAKEN` takes its date from the cache of resolved dates, else from the
+     * moment the file was last modified, because the strip only needs something to sort by.
+     */
+    override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = withContext(ioDispatcher) {
+        if (ids.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return@withContext emptyList()
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        val zone = ZoneId.systemDefault()
+        val distinct = ids.distinct()
+        val cachedDates = distinct.chunked(SQL_VARIABLE_LIMIT).fold(emptyMap<Long, CachedPhotoDate>()) { all, chunk ->
+            all + dateCache.get(chunk)
+        }
+        distinct.chunked(SQL_VARIABLE_LIMIT)
+            .flatMap { queryTrashed(it, zone, cachedDates) }
+            .sortedWith(DECK_ORDER)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun queryTrashed(ids: List<Long>, zone: ZoneId, cachedDates: Map<Long, CachedPhotoDate>): List<Photo> {
+        val selection = "${MediaStore.Images.Media._ID} IN (${ids.joinToString(",") { "?" }})"
+        val queryArgs = Bundle().apply {
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+            putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, ids.map { it.toString() }.toTypedArray())
+            putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY)
+        }
+        return resolver.query(COLLECTION_URI, PROJECTION, queryArgs, null)?.use {
+            val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val takenColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+            val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+            val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+            buildList {
+                while (it.moveToNext()) {
+                    val id = it.getLong(idColumn)
+                    // The ids are the key: a query answering with other rows must not add photos
+                    if (id !in ids) continue
+                    val taken = if (it.isNull(takenColumn)) 0L else it.getLong(takenColumn)
+                    val modified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn)
+                    val takenAt = when {
+                        taken > 0 -> Instant.ofEpochMilli(taken).atZone(zone).toLocalDateTime()
+                        else -> cachedDates[id]?.let(ResolvedDate::fromCached)
+                            ?.toInstant(zone)?.atZone(zone)?.toLocalDateTime()
+                            ?: Instant.ofEpochSecond(modified).atZone(zone).toLocalDateTime()
+                    }
+                    add(
+                        Photo(
+                            id = id,
+                            uri = ContentUris.withAppendedId(COLLECTION_URI, id),
+                            takenAt = takenAt,
+                            sizeBytes = it.getLong(sizeColumn),
+                            dateModified = modified,
+                        ),
+                    )
+                }
+            }
+        }.orEmpty()
+    }
+
+    /**
+     * The places already cached are emitted first, then the rest are geocoded one by one in the order of [photos].
+     * Every result is cached as it arrives, so a collector that is cancelled and restarted loses nothing.
+     */
+    override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = flow {
+        val localeTag = Locale.getDefault().toLanguageTag()
+        val cached = try {
+            locationCache.get(photos.map { it.id })
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // A location is a nice-to-have, so any failure just means there is none
-            Log.e(TAG, "Could not look up the location of photo $photoId", e)
-            null
+            Log.e(TAG, "Could not read the location cache", e)
+            emptyMap()
+        }
+        val unresolved = mutableListOf<Photo>()
+        for (photo in photos) {
+            val entry = cached[photo.id]
+            if (entry != null && entry.dateModified == photo.dateModified && entry.locale == localeTag) {
+                emit(PhotoLocation(photo.id, entry.location))
+            } else {
+                unresolved += photo
+            }
+        }
+        for (photo in unresolved) {
+            // Without the permission the GPS data is out of reach, which says nothing about the photo: not cached
+            if (!canReadCoordinates()) {
+                emit(PhotoLocation(photo.id, null))
+                continue
+            }
+            val coordinates = withContext(ioDispatcher) { coordinatesOf(photo.uri) }
+            val location = if (coordinates == null) {
+                null
+            } else {
+                when (val result = geocoder.getLocation(coordinates.first, coordinates.second)) {
+                    is GeocodeResult.Found -> result.place
+                    GeocodeResult.NoResult -> null
+                    // Not cached, so the next visit asks again
+                    GeocodeResult.Failure -> continue
+                }
+            }
+            cacheLocation(CachedPhotoLocation(photo.id, photo.dateModified, localeTag, location))
+            emit(PhotoLocation(photo.id, location))
         }
     }
+
+    private suspend fun cacheLocation(entry: CachedPhotoLocation) {
+        try {
+            locationCache.putAll(listOf(entry))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The place is still shown this time; it is only looked up again next time
+            Log.e(TAG, "Could not cache the location of photo ${entry.photoId}", e)
+        }
+    }
+
+    private fun canReadCoordinates(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            context.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     /**
      * On API 30+ the user must confirm via the returned [DeleteResult.RequiresConfirmation].
@@ -430,9 +546,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
      */
     private fun coordinatesOf(uri: Uri): Pair<Double, Double>? {
         val coordinates = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val granted = context.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-            if (granted) readExifCoordinates(uri) else null
+            if (canReadCoordinates()) readExifCoordinates(uri) else null
         } else {
             queryLegacyCoordinates(uri)
         }
@@ -498,13 +612,15 @@ internal class PhotoRepositoryImpl @Inject constructor(
 
     private fun Cursor.toPhoto(zone: ZoneId): Photo {
         val id = getLong(getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+        val modifiedColumn = getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
         return Photo(
             id = id,
             uri = ContentUris.withAppendedId(COLLECTION_URI, id),
-            dateTaken = Instant.ofEpochMilli(getLong(getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)))
+            takenAt = Instant.ofEpochMilli(getLong(getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)))
                 .atZone(zone)
-                .toLocalDate(),
+                .toLocalDateTime(),
             sizeBytes = getLong(getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)),
+            dateModified = if (isNull(modifiedColumn)) 0L else getLong(modifiedColumn),
         )
     }
 
@@ -546,7 +662,11 @@ internal class PhotoRepositoryImpl @Inject constructor(
         val PROJECTION: Array<String> = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.SIZE,
         )
+
+        /** Oldest first; the id keeps photos taken in the same second in a stable order. */
+        val DECK_ORDER: Comparator<Photo> = compareBy<Photo> { it.takenAt }.thenBy { it.id }
     }
 }

@@ -1,27 +1,26 @@
 package com.kllxx.memorylane.core.domain.repository
 
-import com.kllxx.memorylane.core.domain.model.PendingDelete
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
 interface SwipeRepository {
-    suspend fun savePendingDelete(pendingDelete: PendingDelete)
-    /** The pending deletes of the session on [date] only. */
-    suspend fun getPendingDeletesByDate(date: LocalDate): List<PendingDelete>
-    suspend fun removePendingDelete(photoId: Long)
+    /** Records [decision] for the photo of the day [date], replacing the one it had. */
+    suspend fun saveDecision(photoId: Long, date: LocalDate, decision: PhotoDecision)
 
-    /** Clears only the pending deletes of the session on [date], keeping other sessions' deletes. */
-    suspend fun clearPendingDeletesByDate(date: LocalDate)
+    /** The decisions of the day [date] only, by photo id. Undecided photos are not in the map. */
+    suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision>
+
+    /** Takes the decision of the photo back, so it is undecided again. */
+    suspend fun removeDecision(photoId: Long)
+
+    /** Sets [decision] on every photo of [photoIds] that has one, e.g. to [PhotoDecision.TRASHED] once they are gone. */
+    suspend fun setDecisions(photoIds: Collection<Long>, decision: PhotoDecision)
+
     suspend fun saveSession(session: SwipeSession)
 
     /** A completed session whose [SwipeSession.completedAt] is [date], or null. */
     suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession?
-
-    /**
-     * Removes pending deletes left behind for dates whose session is already completed, e.g. when
-     * the app was killed after the photos were deleted but before Review cleaned up.
-     */
-    suspend fun cleanupStalePendingDeletes()
     fun getCompletedSessions(): Flow<List<SwipeSession>>
 }

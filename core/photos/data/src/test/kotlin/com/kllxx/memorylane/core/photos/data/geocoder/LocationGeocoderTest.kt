@@ -7,10 +7,10 @@ import io.mockk.mockk
 import java.io.IOException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -29,13 +29,20 @@ class LocationGeocoderTest {
         geocoder = mockk()
     }
 
-    private fun address(locality: String?, thoroughfare: String?) = mockk<Address> {
+    private fun address(
+        locality: String? = null,
+        subAdminArea: String? = null,
+        adminArea: String? = null,
+        country: String? = null,
+    ) = mockk<Address> {
         every { this@mockk.locality } returns locality
-        every { this@mockk.thoroughfare } returns thoroughfare
+        every { this@mockk.subAdminArea } returns subAdminArea
+        every { this@mockk.adminArea } returns adminArea
+        every { this@mockk.countryName } returns country
     }
 
-    private fun TestScopeGeocoder(sdk: Int, scope: kotlinx.coroutines.test.TestScope) =
-        LocationGeocoder({ geocoder }, sdk, StandardTestDispatcher(scope.testScheduler))
+    private fun geocoder(sdk: Int, scope: TestScope, present: Boolean = true) =
+        LocationGeocoder({ geocoder }, sdk, StandardTestDispatcher(scope.testScheduler), { present })
 
     @Suppress("DEPRECATION")
     private fun stubLegacy(result: List<Address>?) {
@@ -51,80 +58,109 @@ class LocationGeocoderTest {
     // --- below API 33 -----------------------------------------------------------------------
 
     @Test
-    fun `legacy formats city and street`() = runTest {
-        stubLegacy(listOf(address("Berlin", "Unter den Linden")))
-        assertEquals("Berlin, Unter den Linden", TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+    fun `legacy formats city and country`() = runTest {
+        stubLegacy(listOf(address(locality = "Berlin", country = "Germany")))
+        assertEquals(GeocodeResult.Found("Berlin, Germany"), geocoder(legacySdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `legacy returns locality only when thoroughfare is null`() = runTest {
-        stubLegacy(listOf(address("Berlin", null)))
-        assertEquals("Berlin", TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+    fun `legacy falls back from the locality to the sub-admin area and then the admin area`() = runTest {
+        stubLegacy(listOf(address(subAdminArea = "Pushkin district", adminArea = "Saint Petersburg", country = "Russia")))
+        assertEquals(
+            GeocodeResult.Found("Pushkin district, Russia"),
+            geocoder(legacySdk, this).getLocation(1.0, 2.0),
+        )
+        stubLegacy(listOf(address(adminArea = "Saint Petersburg", country = "Russia")))
+        assertEquals(
+            GeocodeResult.Found("Saint Petersburg, Russia"),
+            geocoder(legacySdk, this).getLocation(1.0, 2.0),
+        )
     }
 
     @Test
-    fun `legacy returns null when locality is null`() = runTest {
-        stubLegacy(listOf(address(null, "Unter den Linden")))
-        assertNull(TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+    fun `legacy is no result for an address with nothing usable`() = runTest {
+        stubLegacy(listOf(address()))
+        assertEquals(GeocodeResult.NoResult, geocoder(legacySdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `legacy returns null for empty or null address list`() = runTest {
+    fun `legacy is no result for an empty or null address list`() = runTest {
         stubLegacy(emptyList())
-        assertNull(TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.NoResult, geocoder(legacySdk, this).getLocation(1.0, 2.0))
         stubLegacy(null)
-        assertNull(TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.NoResult, geocoder(legacySdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `legacy returns null when the geocoder throws`() = runTest {
+    fun `legacy is a failure when the geocoder throws`() = runTest {
         @Suppress("DEPRECATION")
         every { geocoder.getFromLocation(any(), any(), any()) } throws IOException("no network")
-        assertNull(TestScopeGeocoder(legacySdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.Failure, geocoder(legacySdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `returns null when the geocoder cannot be created`() = runTest {
+    fun `it is a failure when the geocoder cannot be created`() = runTest {
         val failing = LocationGeocoder(
             { throw IllegalStateException("unavailable") },
             legacySdk,
             StandardTestDispatcher(testScheduler),
+            { true },
         )
-        assertNull(failing.getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.Failure, failing.getLocation(1.0, 2.0))
+    }
+
+    @Test
+    fun `it is a failure, and never asks, when the device has no geocoder`() = runTest {
+        // A missing service says nothing about the position, so it must not be remembered as "no place"
+        val result = geocoder(legacySdk, this, present = false).getLocation(1.0, 2.0)
+
+        assertEquals(GeocodeResult.Failure, result)
+        io.mockk.verify(exactly = 0) { geocoder.getFromLocation(any(), any(), any(), any<Geocoder.GeocodeListener>()) }
+    }
+
+    @Test
+    fun `the geocoder is built for every lookup, so the current language is used`() = runTest {
+        var built = 0
+        stubLegacy(listOf(address(locality = "Paris", country = "France")))
+        val counting = LocationGeocoder(
+            { built++; geocoder },
+            legacySdk,
+            StandardTestDispatcher(testScheduler),
+            { true },
+        )
+
+        counting.getLocation(1.0, 2.0)
+        counting.getLocation(1.0, 2.0)
+
+        assertEquals(2, built)
     }
 
     // --- API 33+ ----------------------------------------------------------------------------
 
     @Test
-    fun `async formats city and street`() = runTest {
-        stubAsync(listOf(address("Paris", "Rue de Rivoli")))
-        assertEquals("Paris, Rue de Rivoli", TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+    fun `async formats city and country`() = runTest {
+        stubAsync(listOf(address(locality = "Paris", country = "France")))
+        assertEquals(GeocodeResult.Found("Paris, France"), geocoder(asyncSdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `async returns locality only when thoroughfare is null`() = runTest {
-        stubAsync(listOf(address("Paris", null)))
-        assertEquals("Paris", TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+    fun `async falls back to the admin area`() = runTest {
+        stubAsync(listOf(address(adminArea = "Bavaria", country = "Germany")))
+        assertEquals(GeocodeResult.Found("Bavaria, Germany"), geocoder(asyncSdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `async returns null when locality is null`() = runTest {
-        stubAsync(listOf(address(null, "Rue de Rivoli")))
-        assertNull(TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
-    }
-
-    @Test
-    fun `async returns null for empty result`() = runTest {
+    fun `async is no result for an empty result`() = runTest {
         stubAsync(emptyList())
-        assertNull(TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.NoResult, geocoder(asyncSdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
-    fun `async returns null on listener error`() = runTest {
+    fun `async is a failure on a listener error`() = runTest {
         every { geocoder.getFromLocation(any(), any(), any(), any<Geocoder.GeocodeListener>()) } answers {
             arg<Geocoder.GeocodeListener>(3).onError("boom")
         }
-        assertNull(TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.Failure, geocoder(asyncSdk, this).getLocation(1.0, 2.0))
     }
 
     @Test
@@ -133,22 +169,22 @@ class LocationGeocoderTest {
         every { geocoder.getFromLocation(any(), any(), any(), any<Geocoder.GeocodeListener>()) } answers {
             listener = arg(3)
         }
-        val job = launch { TestScopeGeocoder(asyncSdk, this@runTest).getLocation(1.0, 2.0) }
+        val job = launch { geocoder(asyncSdk, this@runTest).getLocation(1.0, 2.0) }
         runCurrent()
 
         job.cancel()
         runCurrent()
-        listener!!.onGeocode(mutableListOf(address("Paris", null)))
+        listener!!.onGeocode(mutableListOf(address(locality = "Paris", country = "France")))
         listener!!.onError("late")
 
         assertTrue(job.isCancelled)
     }
 
     @Test
-    fun `async returns null when the geocoder throws`() = runTest {
+    fun `async is a failure when the geocoder throws`() = runTest {
         every {
             geocoder.getFromLocation(any(), any(), any(), any<Geocoder.GeocodeListener>())
         } throws IllegalArgumentException("bad coordinates")
-        assertNull(TestScopeGeocoder(asyncSdk, this).getLocation(1.0, 2.0))
+        assertEquals(GeocodeResult.Failure, geocoder(asyncSdk, this).getLocation(1.0, 2.0))
     }
 }
