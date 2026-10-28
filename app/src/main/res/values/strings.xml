@@ -3,4 +3,11 @@
     <string name="nav_calendar">Calendar</string>
     <string name="nav_achievements">Achievements</string>
     <string name="nav_profile">Profile</string>
+    <string name="reminder_title">Photos are waiting</string>
+    <plurals name="reminder_text">
+        <item quantity="one">%d photo from past years today</item>
+        <item quantity="other">%d photos from past years today</item>
+    </plurals>
+    <string name="reminder_channel_name">Daily reminder</string>
+    <string name="reminder_channel_description">A reminder to sort the photos taken on this day in past years</string>
 </resources>

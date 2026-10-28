@@ -38,4 +38,10 @@
         <item quantity="many">Текущий стрик: %d дней</item>
         <item quantity="other">Текущий стрик: %d дня</item>
     </plurals>
+    <plurals name="calendar_today_photos">
+        <item quantity="one">%d фото</item>
+        <item quantity="few">%d фото</item>
+        <item quantity="many">%d фото</item>
+        <item quantity="other">%d фото</item>
+    </plurals>
 </resources>

@@ -5,6 +5,12 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 import com.kllxx.memorylane.core.domain.model.AchievementStats
+import com.kllxx.memorylane.core.domain.streak.Streaks
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
+import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
@@ -29,6 +35,10 @@ class StatsRepositoryImplTest {
     private val directExecutor = Executor { it.run() }
     private lateinit var database: AppDatabase
     private lateinit var repository: StatsRepositoryImpl
+    private val photoRepository = mockk<PhotoRepository>()
+
+    // The photo index, which tells the empty days; null is "not read yet"
+    private val index = MutableStateFlow<OnThisDayIndex?>(null)
 
     @Before
     fun setUp() {
@@ -37,7 +47,8 @@ class StatsRepositoryImplTest {
             .setQueryExecutor(directExecutor)
             .setTransactionExecutor(directExecutor)
             .build()
-        repository = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), clock)
+        every { photoRepository.onThisDayIndex } returns index
+        repository = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), photoRepository, clock)
     }
 
     @After
@@ -81,19 +92,75 @@ class StatsRepositoryImplTest {
         assertEquals(750L, repository.freedBytes.first())
     }
 
+    private suspend fun realDay(date: LocalDate) =
+        database.swipeSessionDao().insert(SwipeSessionEntity(date, true, 0, completedAt = date))
+
     @Test
-    fun `streaks come from the completion days and skip the epoch marker`() = runTest {
-        session(today, dateOffset = 0)
-        session(today.minusDays(1), dateOffset = 1)
-        session(today.minusDays(5), dateOffset = 5)
-        session(today.minusDays(6), dateOffset = 6)
-        session(today.minusDays(7), dateOffset = 7)
-        session(LocalDate.EPOCH, dateOffset = 20)
+    fun `a streak is made of days completed on their own date`() = runTest {
+        realDay(today)
+        realDay(today.minusDays(1))
+        realDay(today.minusDays(5))
+        realDay(today.minusDays(6))
+        realDay(today.minusDays(7))
 
         val stats = repository.stats.first()
 
         assertEquals(2, stats.currentStreak)
         assertEquals(3, stats.bestStreak)
+    }
+
+    @Test
+    fun `a day completed on another date does not count, nor does the epoch marker`() = runTest {
+        // Completed today but for a day of another date: 15 January done today
+        database.swipeSessionDao().insert(SwipeSessionEntity(LocalDate.of(2026, 1, 15), true, 0, completedAt = today))
+        database.swipeSessionDao().insert(SwipeSessionEntity(today.minusDays(1), true, 0, completedAt = LocalDate.EPOCH))
+
+        assertEquals(Streaks.None, repository.streaks.first())
+    }
+
+    @Test
+    fun `an unfinished day does not count`() = runTest {
+        database.swipeSessionDao().insert(SwipeSessionEntity(today, false, 0, completedAt = today))
+
+        assertEquals(Streaks.None, repository.streaks.first())
+    }
+
+    @Test
+    fun `without the photo index no day is known to be empty`() = runTest {
+        realDay(today.minusDays(3))
+
+        assertEquals(Streaks(current = 0, best = 1), repository.streaks.first())
+    }
+
+    @Test
+    fun `days without photos continue a run once the index is there`() = runTest {
+        realDay(today.minusDays(3))
+        index.value = OnThisDayIndex(currentYear = 2026, entries = emptyMap(), photoYears = emptyMap())
+
+        // Three empty days after the real one
+        assertEquals(Streaks(current = 4, best = 4), repository.streaks.first())
+    }
+
+    @Test
+    fun `a day that has photos in its window is not an empty day`() = runTest {
+        realDay(today.minusDays(3))
+        val photoYears = mapOf(java.time.MonthDay.from(today.minusDays(1)) to setOf(2020))
+        index.value = OnThisDayIndex(currentYear = 2026, entries = emptyMap(), photoYears = photoYears)
+
+        // Day 2 ago is empty and continues, yesterday has photos and ends the run, today is empty but cannot start one
+        assertEquals(Streaks(current = 0, best = 2), repository.streaks.first())
+    }
+
+    @Test
+    fun `the streaks follow the photo index when it changes`() = runTest {
+        realDay(today.minusDays(1))
+
+        repository.streaks.test {
+            assertEquals(Streaks(1, 1), awaitItem())
+            index.value = OnThisDayIndex(currentYear = 2026, entries = emptyMap(), photoYears = emptyMap())
+            assertEquals(Streaks(2, 2), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

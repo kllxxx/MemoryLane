@@ -6,7 +6,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
+import com.kllxx.memorylane.core.data.mapper.toDomain
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
+import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import java.time.LocalDate
 
 /** The one write that has to be atomic: a confirmed deletion changes decisions and the session together. */
@@ -48,8 +50,7 @@ abstract class DeletionDao {
                 date = date,
                 completed = true,
                 savedBytes = (existing?.savedBytes ?: 0) + freed,
-                // A day sorted again keeps the day it was first completed
-                completedAt = existing?.completedAt ?: today,
+                completedAt = SessionCompletion.completedAt(existing?.toDomain(), date, today),
                 deletedCount = (existing?.deletedCount ?: 0) + applied.size,
             ),
         )

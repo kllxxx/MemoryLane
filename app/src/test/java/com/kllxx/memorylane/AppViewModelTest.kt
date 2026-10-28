@@ -1,29 +1,24 @@
 package com.kllxx.memorylane
 
 import android.app.Application
-import android.net.Uri
-import com.kllxx.memorylane.core.photos.domain.model.Photo
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
-import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
-import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.navigation.StartDestination
+import com.kllxx.memorylane.reminder.TodayReview
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -45,11 +40,8 @@ class AppViewModelTest {
     private val today = LocalDate.of(2026, 10, 15)
     private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
     private val appSettingsRepository = mockk<AppSettingsRepository>()
-    private val swipeRepository = mockk<SwipeRepository>()
-    private val photo = Photo(1, mockk<Uri>(relaxed = true), LocalDate.of(2024, 10, 15).atStartOfDay(), sizeBytes = 100)
-    private val photoRepository = mockk<PhotoRepository> {
-        every { hasMediaPermission() } returns true
-        coEvery { getPhotosForDate(any()) } returns listOf(photo)
+    private val todayReview = mockk<TodayReview> {
+        coEvery { photosToReview() } returns 4
     }
 
     @Before
@@ -62,18 +54,11 @@ class AppViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun givenState(
-        onboardingCompleted: Boolean,
-        sortedToday: Boolean = false,
-    ) {
-        every { appSettingsRepository.getSettings() } returns
-            flowOf(AppSettings(onboardingCompleted = onboardingCompleted))
-        // A day from the past that was sorted today: only completedAt decides the routing
-        coEvery { swipeRepository.getSessionByCompletedAt(today) } returns
-            if (sortedToday) SwipeSession(today.minusDays(3), completed = true, savedBytes = 0L, completedAt = today) else null
+    private fun givenOnboarding(completed: Boolean) {
+        every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = completed))
     }
 
-    private fun viewModel() = AppViewModel(appSettingsRepository, swipeRepository, photoRepository, clock)
+    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, clock)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
         viewModel().uiState.test {
@@ -85,7 +70,7 @@ class AppViewModelTest {
 
     @Test
     fun `today comes from the injected clock`() = runTest {
-        givenState(onboardingCompleted = true)
+        givenOnboarding(completed = true)
         viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
             assertEquals(today, (awaitItem() as AppUiState.Ready).today)
@@ -97,10 +82,8 @@ class AppViewModelTest {
     fun `not ready until the settings have been emitted`() = runTest {
         val settings = MutableSharedFlow<AppSettings>(replay = 1)
         every { appSettingsRepository.getSettings() } returns settings
-        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
 
-        val viewModel = viewModel()
-        viewModel.uiState.test {
+        viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
             expectNoEvents()
             settings.emit(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
@@ -114,7 +97,6 @@ class AppViewModelTest {
         // Dark is the AppSettings default: it must not show up for a user who stored Light
         every { appSettingsRepository.getSettings() } returns
             flowOf(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
-        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
 
         viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
@@ -127,7 +109,6 @@ class AppViewModelTest {
     fun `a theme change after startup is applied to the ready state`() = runTest {
         val settings = MutableStateFlow(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
         every { appSettingsRepository.getSettings() } returns settings
-        coEvery { swipeRepository.getSessionByCompletedAt(any()) } returns null
 
         viewModel().uiState.test {
             assertEquals(AppUiState.Loading, awaitItem())
@@ -139,85 +120,85 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `onboarding not completed starts at onboarding`
-() = runTest {
-        givenState(onboardingCompleted = false, sortedToday = true)
+    fun `onboarding not completed starts at onboarding`() = runTest {
+        givenOnboarding(completed = false)
         assertResolvesTo(StartDestination.Onboarding)
     }
 
     @Test
-    fun `onboarded with nothing sorted today starts at swipe`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = false)
-        assertResolvesTo(StartDestination.Swipe)
-    }
-
-    @Test
-    fun `onboarded with a day sorted today starts at main`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = true)
+    fun `onboarded always starts at main, whatever today holds`() = runTest {
+        givenOnboarding(completed = true)
         assertResolvesTo(StartDestination.Main)
-        coVerify(exactly = 0) { photoRepository.getPhotosForDate(any()) }
-    }
-
-    @Test
-    fun `no photos today starts at main instead of bouncing off swipe`() = runTest {
-        coEvery { photoRepository.getPhotosForDate(today) } returns emptyList()
-        givenState(onboardingCompleted = true, sortedToday = false)
-        assertResolvesTo(StartDestination.Main)
-    }
-
-    @Test
-    fun `photos today and no completed session starts at swipe`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = false)
-        assertResolvesTo(StartDestination.Swipe)
-        coVerify(exactly = 1) { photoRepository.getPhotosForDate(today) }
-    }
-
-    @Test
-    fun `the start is decided from the day lookup alone, it does not ask for the photo index or a refresh`() = runTest {
-        // The mock is strict: reading the index or refreshing it, which is what waiting for the EXIF pass would
-        // take, fails the lookup and would send the app to Swipe
-        coEvery { photoRepository.getPhotosForDate(today) } returns emptyList()
-        givenState(onboardingCompleted = true, sortedToday = false)
-
-        assertResolvesTo(StartDestination.Main)
-
-        coVerify(exactly = 0) { photoRepository.refreshOnThisDayIndex() }
-        verify(exactly = 0) { photoRepository.onThisDayIndex }
-        coVerify(exactly = 1) { photoRepository.getPhotosForDate(today) }
-    }
-
-    @Test
-    fun `a failed photo lookup starts at swipe, which handles its own errors`() = runTest {
-        coEvery { photoRepository.getPhotosForDate(any()) } throws IllegalStateException("query failed")
-        givenState(onboardingCompleted = true, sortedToday = false)
-        assertResolvesTo(StartDestination.Swipe)
-    }
-
-    @Test
-    fun `routing asks for sessions completed today, not for the date a session is about`() = runTest {
-        givenState(onboardingCompleted = true, sortedToday = false)
-        assertResolvesTo(StartDestination.Swipe)
-        coVerify(exactly = 1) { swipeRepository.getSessionByCompletedAt(today) }
-    }
-
-    @Test
-    fun `missing media permission starts at swipe even when today is completed`() = runTest {
-        every { photoRepository.hasMediaPermission() } returns false
-        givenState(onboardingCompleted = true, sortedToday = true)
-        assertResolvesTo(StartDestination.Swipe)
-    }
-
-    @Test
-    fun `onboarding not completed starts at onboarding even without media permission`() = runTest {
-        every { photoRepository.hasMediaPermission() } returns false
-        givenState(onboardingCompleted = false)
-        assertResolvesTo(StartDestination.Onboarding)
+        // The start does not look at the photos at all: that is Calendar's job
+        coVerify(exactly = 0) { todayReview.photosToReview() }
     }
 
     @Test
     fun `a failure while resolving falls back to onboarding instead of hanging`() = runTest {
-        every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = true))
-        coEvery { swipeRepository.getSessionByCompletedAt(any()) } throws IllegalStateException("db closed")
+        every { appSettingsRepository.getSettings() } throws IllegalStateException("db closed")
         assertResolvesTo(StartDestination.Onboarding)
+    }
+
+    @Test
+    fun `reminder tap with photos to review opens today`() = runTest {
+        givenOnboarding(completed = true)
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            assertEquals(AppEffect.OpenToday(today), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `reminder tap before the start is resolved waits for it, a cold start`() = runTest {
+        val settings = MutableSharedFlow<AppSettings>(replay = 1)
+        every { appSettingsRepository.getSettings() } returns settings
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            expectNoEvents()
+            settings.emit(AppSettings(onboardingCompleted = true))
+            assertEquals(AppEffect.OpenToday(today), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `reminder tap before onboarding is finished goes on with the normal routing`() = runTest {
+        givenOnboarding(completed = false)
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify(exactly = 0) { todayReview.photosToReview() }
+    }
+
+    @Test
+    fun `reminder tap with nothing to review stays on calendar`() = runTest {
+        // No access to the photos, no photos today or a completed day all come back as 0
+        coEvery { todayReview.photosToReview() } returns 0
+        givenOnboarding(completed = true)
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `every reminder tap is routed, a second one too`() = runTest {
+        givenOnboarding(completed = true)
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            assertEquals(AppEffect.OpenToday(today), awaitItem())
+            viewModel.onReminderOpened()
+            assertEquals(AppEffect.OpenToday(today), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

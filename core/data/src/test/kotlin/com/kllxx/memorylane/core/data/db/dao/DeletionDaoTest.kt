@@ -100,14 +100,56 @@ class DeletionDaoTest {
     }
 
     @Test
-    fun `a day sorted again adds to what it freed and keeps the day it was completed`() = runTest {
+    fun `a day sorted again adds to what it freed`() = runTest {
         val first = LocalDate.of(2026, 10, 1)
         dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = first, deletedCount = 5))
         decide(1, "DELETE")
 
         dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
 
-        assertEquals(SwipeSessionEntity(date, true, 1_100, first, 6), dao.getSession(date))
+        val session = dao.getSession(date)!!
+        assertEquals(1_100L, session.savedBytes)
+        assertEquals(6, session.deletedCount)
+    }
+
+    @Test
+    fun `a day completed on its own date keeps that date when it is sorted again later`() = runTest {
+        dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = date, deletedCount = 5))
+        decide(1, "DELETE")
+
+        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+
+        assertEquals(date, dao.getSession(date)!!.completedAt)
+    }
+
+    @Test
+    fun `a day completed on another date is completed on the date of the confirmation`() = runTest {
+        dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = LocalDate.of(2026, 10, 1), deletedCount = 5))
+        decide(1, "DELETE")
+
+        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+
+        assertEquals(today, dao.getSession(date)!!.completedAt)
+    }
+
+    @Test
+    fun `a day swiped on its own date and confirmed the next day is completed the next day`() = runTest {
+        // Saved as not completed when the last photo was swiped, with the date of that day
+        dao.putSession(SwipeSessionEntity(date, completed = false, savedBytes = 0, completedAt = date, deletedCount = 0))
+        decide(1, "DELETE")
+
+        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+
+        assertEquals(today, dao.getSession(date)!!.completedAt)
+    }
+
+    @Test
+    fun `a day confirmed on its own date is completed on its own date`() = runTest {
+        decide(1, "DELETE")
+
+        dao.confirmDeletion(date, sizes, "TRASHED", 5, today = date)
+
+        assertEquals(date, dao.getSession(date)!!.completedAt)
     }
 
     @Test

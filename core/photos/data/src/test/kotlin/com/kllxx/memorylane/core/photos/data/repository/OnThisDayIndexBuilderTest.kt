@@ -117,4 +117,34 @@ class OnThisDayIndexBuilderTest {
 
         assertEquals(1, builder.entries().getValue(MonthDay.of(7, 7)).first)
     }
+
+    // --- the years of each month and day ---
+
+    @Test
+    fun `the years of a month and day are kept, also beyond the look-back window`() {
+        val builder = builder(maxYearsBack = 5)
+        builder.add(1, LocalDate.of(2025, 3, 9))
+        builder.add(2, LocalDate.of(2012, 3, 9))
+        builder.add(3, LocalDate.of(1999, 3, 9))
+
+        // Only 2025 is in the window of the index, but a date of an earlier year has a window of its own
+        assertEquals(1, builder.entries().getValue(MonthDay.of(3, 9)).first)
+        assertEquals(setOf(2025, 2012, 1999), builder.photoYears().getValue(MonthDay.of(3, 9)))
+    }
+
+    @Test
+    fun `photos of the current year are not in the years, no window of a date that has happened has them`() {
+        val builder = builder()
+        builder.add(1, LocalDate.of(2026, 3, 9))
+
+        assertTrue(builder.photoYears().isEmpty())
+    }
+
+    @Test
+    fun `a month and day without photos has no years`() {
+        val builder = builder()
+        builder.add(1, LocalDate.of(2025, 3, 9))
+
+        assertEquals(setOf(MonthDay.of(3, 9)), builder.photoYears().keys)
+    }
 }

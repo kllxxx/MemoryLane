@@ -2,4 +2,13 @@
     <string name="nav_calendar">Календарь</string>
     <string name="nav_achievements">Достижения</string>
     <string name="nav_profile">Профиль</string>
+    <string name="reminder_title">Фото ждут разбора</string>
+    <plurals name="reminder_text">
+        <item quantity="one">Сегодня %d фото из прошлых лет</item>
+        <item quantity="few">Сегодня %d фото из прошлых лет</item>
+        <item quantity="many">Сегодня %d фото из прошлых лет</item>
+        <item quantity="other">Сегодня %d фото из прошлых лет</item>
+    </plurals>
+    <string name="reminder_channel_name">Ежедневное напоминание</string>
+    <string name="reminder_channel_description">Напоминание разобрать фото, снятые в этот день в прошлые годы</string>
 </resources>

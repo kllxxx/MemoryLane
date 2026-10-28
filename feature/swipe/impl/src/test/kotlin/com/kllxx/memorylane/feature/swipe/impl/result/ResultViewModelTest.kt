@@ -5,7 +5,9 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.format.FormattedSize
 import com.kllxx.memorylane.core.domain.format.SizeUnit
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import io.mockk.every
 import io.mockk.mockk
@@ -14,6 +16,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -38,11 +41,14 @@ class ResultViewModelTest {
     private val today = LocalDate.of(2026, 10, 29)
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private val swipeRepository = mockk<SwipeRepository>()
+    private val statsRepository = mockk<StatsRepository>()
+    private val streaks = MutableStateFlow(Streaks.None)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
+        every { statsRepository.streaks } returns streaks
     }
 
     @After
@@ -66,7 +72,7 @@ class ResultViewModelTest {
                 "totalCount" to total,
             ),
         )
-        return ResultViewModel(swipeRepository, clock, handle)
+        return ResultViewModel(swipeRepository, statsRepository, clock, handle)
     }
 
     private fun session(date: LocalDate, completedAt: LocalDate) =
@@ -96,15 +102,9 @@ class ResultViewModelTest {
     }
 
     @Test
-    fun `a day completed today shows the current streak`() = runTest(dispatcher) {
-        every { swipeRepository.getCompletedSessions() } returns flowOf(
-            listOf(
-                session(today, completedAt = today),
-                session(LocalDate.of(2015, 1, 14), completedAt = today.minusDays(1)),
-                session(LocalDate.of(2015, 1, 13), completedAt = today.minusDays(2)),
-                session(LocalDate.of(2015, 1, 1), completedAt = today.minusDays(9)),
-            ),
-        )
+    fun `a day completed today shows the current streak, the one of the stats`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(session(today, completedAt = today)))
+        streaks.value = Streaks(current = 3, best = 5)
         val viewModel = create()
         advanceUntilIdle()
 
@@ -112,14 +112,12 @@ class ResultViewModelTest {
     }
 
     @Test
-    fun `the streak ignores sessions saved before the day of completion was tracked`() = runTest(dispatcher) {
-        every { swipeRepository.getCompletedSessions() } returns flowOf(
-            listOf(session(today, today), session(LocalDate.of(2015, 1, 14), LocalDate.EPOCH)),
-        )
+    fun `a streak of zero is no chip`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(session(today, completedAt = today)))
         val viewModel = create()
         advanceUntilIdle()
 
-        assertEquals(1, viewModel.state.value.streakDays)
+        assertNull(viewModel.state.value.streakDays)
     }
 
     @Test

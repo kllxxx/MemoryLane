@@ -510,24 +510,57 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `a day already completed on an earlier day keeps its result when it is finished again`() = runTest(dispatcher) {
+    fun `a day already completed on its own date keeps that date and its result when it is finished again`() = runTest(dispatcher) {
         every { swipeRepository.getCompletedSessions() } returns
-            flowOf(listOf(SwipeSession(date, true, 300, earlier, deletedCount = 4)))
+            flowOf(listOf(SwipeSession(date, true, 300, completedAt = date, deletedCount = 4)))
         load()
 
         swipe(SwipeDirection.Left, SwipeDirection.Left)
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, earlier, deletedCount = 4)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, date, deletedCount = 4)) }
     }
 
     @Test
-    fun `finishing a completed day with nothing to delete keeps the day it was completed on`() = runTest(dispatcher) {
+    fun `finishing a day completed on its own date with nothing to delete keeps that date`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, date)))
+        load()
+
+        swipe(SwipeDirection.Right, SwipeDirection.Right)
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, date)) }
+    }
+
+    @Test
+    fun `a day completed on another date is completed on the date it is finished, so it can become a real day`() = runTest(dispatcher) {
         every { swipeRepository.getCompletedSessions() } returns flowOf(listOf(SwipeSession(date, true, 300, earlier)))
         load()
 
         swipe(SwipeDirection.Right, SwipeDirection.Right)
 
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, earlier)) }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 300, today)) }
+    }
+
+    @Test
+    fun `a day finished on its own date is completed on its own date`() = runTest(dispatcher) {
+        val onItsOwnDate = Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+        viewModel = SwipeViewModel(
+            photoRepository, swipeRepository, statsRepository, appSettingsRepository, onItsOwnDate,
+            SavedStateHandle(mapOf("date" to date.toString())),
+        )
+        advanceUntilIdle()
+
+        swipe(SwipeDirection.Right, SwipeDirection.Right)
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, date)) }
+    }
+
+    @Test
+    fun `a day finished on another date than its own is completed on that date`() = runTest(dispatcher) {
+        load()
+
+        swipe(SwipeDirection.Right, SwipeDirection.Right)
+
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
 
     @Test

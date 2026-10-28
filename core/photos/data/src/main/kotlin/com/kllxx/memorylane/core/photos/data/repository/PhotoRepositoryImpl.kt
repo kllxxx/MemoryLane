@@ -154,6 +154,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
                     cover = DayCover(cover.id, ContentUris.withAppendedId(COLLECTION_URI, cover.id), cover.takenOn),
                 )
             },
+            photoYears = builder.photoYears().mapValues { it.value.toSet() },
         )
     }
 

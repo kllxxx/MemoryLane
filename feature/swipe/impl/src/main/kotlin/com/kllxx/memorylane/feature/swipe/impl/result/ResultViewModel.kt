@@ -5,8 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.domain.streak.StreakCalculator
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ResultViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
+    private val statsRepository: StatsRepository,
     private val clock: Clock,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -47,8 +48,8 @@ class ResultViewModel @Inject constructor(
     }
 
     /**
-     * The chip is for the visit that completed today's day today. It shows the current streak, from the same dates
-     * the Calendar uses, so the two always agree.
+     * The chip is for the visit that completed today's day today, a real day. It shows the current streak, which is the
+     * one every screen shows: it comes from the [StatsRepository].
      */
     private fun loadStreak() {
         val date = _state.value.date
@@ -58,8 +59,8 @@ class ResultViewModel @Inject constructor(
             try {
                 val sessions = swipeRepository.getCompletedSessions().first()
                 if (sessions.none { it.date == date && it.completedAt == today }) return@launch
-                val doneOn = sessions.map { it.completedAt }.filter { it != LocalDate.EPOCH }
-                _state.update { it.copy(streakDays = StreakCalculator.currentStreak(doneOn, today)) }
+                val current = statsRepository.streaks.first().current
+                _state.update { it.copy(streakDays = current.takeIf { days -> days > 0 }) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

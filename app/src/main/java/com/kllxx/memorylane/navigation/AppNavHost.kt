@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -16,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.AppEffect
 import com.kllxx.memorylane.R
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
@@ -33,6 +35,7 @@ import com.kllxx.memorylane.feature.swipe.impl.result.ResultScreen
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
 import java.time.LocalDate
 import kotlin.reflect.KClass
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 private data class BottomNavItem(
@@ -61,9 +64,17 @@ private val bottomNavItems = listOf(
 @Composable
 fun AppNavHost(
     startDestination: StartDestination,
-    today: LocalDate,
+    appEffects: Flow<AppEffect>,
     navController: NavHostController = rememberNavController(),
 ) {
+    LaunchedEffect(navController, appEffects) {
+        appEffects.collect { effect ->
+            when (effect) {
+                is AppEffect.OpenToday -> navController.openToday(effect.date)
+            }
+        }
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     // Bottom bar only on the tab screens; hidden during Onboarding and Swipe.
@@ -76,7 +87,7 @@ fun AppNavHost(
 
     AppNavShell(
         navController = navController,
-        startDestination = startDestination.toRoute(today),
+        startDestination = startDestination.toRoute(),
         showBottomBar = showBottomBar,
         bottomBar = {
             BottomNavBar(
@@ -109,7 +120,7 @@ fun AppNavHost(
                         // A replay: back to the Profile tab it was started from
                         navController.popBackStack()
                     } else {
-                        navController.navigate(SwipeRoute(today.toString())) {
+                        navController.navigate(CalendarRoute) {
                             popUpTo<OnboardingRoute> { inclusive = true }
                         }
                     }
@@ -171,25 +182,29 @@ fun AppNavHost(
 }
 
 /**
- * Leaves Swipe/Review for Calendar without ever stacking a second Calendar. When Calendar is already
- * on the back stack everything above it is popped; when it is not (Swipe was the start destination)
- * Swipe is replaced instead.
+ * Leaves Swipe/Review for Calendar without ever stacking a second Calendar: Calendar is always the
+ * root below them, so everything above it is popped.
  */
 private fun NavHostController.navigateToCalendar() {
-    val calendarOnBackStack = runCatching { getBackStackEntry<CalendarRoute>() }.isSuccess
     navigate(CalendarRoute) {
-        if (calendarOnBackStack) {
-            popUpTo<CalendarRoute> { inclusive = false }
-        } else {
-            popUpTo<SwipeRoute> { inclusive = true }
-        }
+        popUpTo<CalendarRoute> { inclusive = false }
         launchSingleTop = true
     }
 }
 
-private fun StartDestination.toRoute(today: LocalDate): Any = when (this) {
+/**
+ * Opens the deck of [date] from outside (the reminder). Calendar stays below it, a second tap does not stack a
+ * second deck, and any other screen above Calendar is replaced; Back goes to Calendar.
+ */
+internal fun NavHostController.openToday(date: LocalDate) {
+    navigate(SwipeRoute(date.toString())) {
+        popUpTo<CalendarRoute> { inclusive = false }
+        launchSingleTop = true
+    }
+}
+
+private fun StartDestination.toRoute(): Any = when (this) {
     StartDestination.Onboarding -> OnboardingRoute()
-    StartDestination.Swipe -> SwipeRoute(today.toString())
     StartDestination.Main -> CalendarRoute
 }
 

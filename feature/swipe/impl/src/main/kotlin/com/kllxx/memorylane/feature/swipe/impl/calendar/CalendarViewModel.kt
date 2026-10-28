@@ -3,16 +3,20 @@ package com.kllxx.memorylane.feature.swipe.impl.calendar
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.domain.model.DayCompletion
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.domain.streak.StreakCalculator
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
+import java.time.MonthDay
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +34,7 @@ data class ScrollAnchor(val index: Int, val offset: Int)
 class CalendarViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
+    private val statsRepository: StatsRepository,
     private val clock: Clock,
 ) : ViewModel() {
 
@@ -59,12 +64,17 @@ class CalendarViewModel @Inject constructor(
     /** The list position of the current month, for scrolling back to it. */
     val currentMonthIndex: Int = scrollAnchor.index
 
+    // What the banner is worked out from: the photo index, and today's photos and decisions
+    private var latestIndex: OnThisDayIndex? = null
+    private var todayJob: Job? = null
+
     init {
         CalendarPerf.onViewModelCreated()
         // The real permission state decides whether to load, so a revoked permission never leaves a blank screen
         _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(photoRepository.hasMediaPermission())) }
         observePhotoIndex()
         observeSortedDays()
+        observeStreak()
     }
 
     fun onIntent(intent: CalendarIntent) {
@@ -75,6 +85,8 @@ class CalendarViewModel @Inject constructor(
                 // The permission may have been revoked while the app was away
                 val granted = photoRepository.hasMediaPermission()
                 _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
+                // Photos may have been decided in a day that was open meanwhile
+                refreshTodayBanner()
                 if (granted) refresh()
             }
             CalendarIntent.LoadDays -> if (_state.value.hasPermission) refresh()
@@ -97,6 +109,8 @@ class CalendarViewModel @Inject constructor(
     private fun observePhotoIndex() {
         viewModelScope.launch {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
+                latestIndex = index
+                refreshTodayBanner()
                 val months = yearGrid.withMemories(index, today)
                 onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
                 CalendarPerf.onIndexShown(
@@ -112,14 +126,9 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 swipeRepository.getCompletedSessions().collect { sessions ->
-                    // Streaks follow the day the work was done; sessions saved before that was tracked carry the epoch marker
-                    val doneOn = sessions.map { it.completedAt }.filter { it != LocalDate.EPOCH }
-                    onEvent(
-                        CalendarEvent.StatsLoaded(
-                            sortedDates = sessions.map { it.date }.toSet(),
-                            currentStreak = StreakCalculator.currentStreak(doneOn, LocalDate.now(clock)),
-                        ),
-                    )
+                    onEvent(CalendarEvent.SortedDatesLoaded(sessions.map { it.date }.toSet()))
+                    // A day may have just been completed, which takes today's banner away
+                    refreshTodayBanner()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -127,6 +136,48 @@ class CalendarViewModel @Inject constructor(
                 Log.e(TAG, "Could not load sorted days", e)
             }
         }
+    }
+
+    /** The streak is the same for every screen: it comes from the [StatsRepository]. */
+    private fun observeStreak() {
+        viewModelScope.launch {
+            try {
+                statsRepository.streaks.collect { onEvent(CalendarEvent.StreakLoaded(it.current)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not load the streak", e)
+            }
+        }
+    }
+
+    /**
+     * The banner of today: there when today has photos in the index and is not completed, which is when every photo of
+     * today has a decision and none is only marked for deletion (a day is done once the deletion is confirmed). It is
+     * worked out again whenever the index, the completed days or the screen change.
+     */
+    private fun refreshTodayBanner() {
+        todayJob?.cancel()
+        todayJob = viewModelScope.launch {
+            val banner = try {
+                loadTodayBanner()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Without the photos of today there is nothing to point at
+                Log.e(TAG, "Could not work out the banner of today", e)
+                null
+            }
+            onEvent(CalendarEvent.TodayBannerChanged(banner))
+        }
+    }
+
+    private suspend fun loadTodayBanner(): TodayBanner? {
+        val count = latestIndex?.entries?.get(MonthDay.from(today))?.count ?: return null
+        if (!photoRepository.hasMediaPermission()) return null
+        val photos = photoRepository.getPhotosForDate(today)
+        val decisions = swipeRepository.getDecisionsByDate(today)
+        return if (DayCompletion.isCompleted(photos.map { it.id }, decisions)) null else TodayBanner(count)
     }
 
     /** One gallery query; the result arrives through [observePhotoIndex]. */

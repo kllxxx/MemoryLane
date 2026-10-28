@@ -17,10 +17,9 @@ object CalendarReducer {
             months = event.months,
             phase = if (event.isEmpty) CalendarPhase.Empty else CalendarPhase.Content,
         )
-        is CalendarEvent.StatsLoaded -> state.copy(
-            sortedDates = event.sortedDates.toImmutableSet(),
-            currentStreak = event.currentStreak,
-        )
+        is CalendarEvent.SortedDatesLoaded -> state.copy(sortedDates = event.sortedDates.toImmutableSet())
+        is CalendarEvent.StreakLoaded -> state.copy(currentStreak = event.currentStreak)
+        is CalendarEvent.TodayBannerChanged -> state.copy(todayBanner = event.banner)
         CalendarEvent.LoadSucceeded -> state.copy(error = null)
         // The grid does not depend on the photos, so it is shown anyway, with the banner on top
         CalendarEvent.LoadFailed -> state.copy(error = CalendarError.LoadFailed, phase = CalendarPhase.Content)

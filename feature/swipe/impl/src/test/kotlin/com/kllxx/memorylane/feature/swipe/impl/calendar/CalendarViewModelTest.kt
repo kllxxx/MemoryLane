@@ -2,7 +2,10 @@ package com.kllxx.memorylane.feature.swipe.impl.calendar
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DayCover
@@ -12,22 +15,26 @@ import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.MonthDay
 import java.time.YearMonth
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -67,7 +74,13 @@ private class FakePhotoRepository : PhotoRepository {
         _index.value = next
     }
 
-    override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = error("not used by the calendar")
+    var todayPhotos: List<Photo> = emptyList()
+    var todayFailure: Exception? = null
+
+    override suspend fun getPhotosForDate(date: LocalDate): List<Photo> {
+        todayFailure?.let { throw it }
+        return todayPhotos
+    }
     override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = emptyList()
     override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = emptyFlow()
     override suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long> = emptyMap()
@@ -84,18 +97,28 @@ class CalendarViewModelTest {
     private val uri = mockk<Uri>(relaxed = true)
     private lateinit var repository: FakePhotoRepository
     private lateinit var swipeRepository: SwipeRepository
+    private lateinit var statsRepository: StatsRepository
     private lateinit var viewModel: CalendarViewModel
+
+    // What the completed days and the stored decisions of today are; a test changes them and emits the sessions again
+    private val sessions = MutableSharedFlow<List<SwipeSession>>(replay = 1)
+    private val streaks = MutableStateFlow(Streaks.None)
+    private var decisions = emptyMap<Long, PhotoDecision>()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         repository = FakePhotoRepository()
         swipeRepository = mockk()
-        every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
+        statsRepository = mockk()
+        sessions.tryEmit(emptyList())
+        every { swipeRepository.getCompletedSessions() } returns sessions
+        coEvery { swipeRepository.getDecisionsByDate(any()) } answers { decisions }
+        every { statsRepository.streaks } returns streaks
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, clock)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, clock)
 
     @After
     fun tearDown() {
@@ -395,14 +418,16 @@ class CalendarViewModelTest {
     }
 
     @Test
-    fun `completed sessions give the sorted dates and the streak`() = runTest(dispatcher) {
-        val sessions = listOf(
-            SwipeSession(LocalDate.of(2026, 3, 3), true, 0, completedAt = LocalDate.of(2026, 10, 15)),
-            SwipeSession(LocalDate.of(2026, 5, 9), true, 0, completedAt = LocalDate.of(2026, 10, 14)),
-            // Saved before completedAt was tracked: counts as sorted but not for the streak
-            SwipeSession(LocalDate.of(2026, 7, 1), true, 0, completedAt = LocalDate.EPOCH),
+    fun `completed sessions give the sorted dates, the streak is the one of the stats`() = runTest(dispatcher) {
+        sessions.tryEmit(
+            listOf(
+                SwipeSession(LocalDate.of(2026, 3, 3), true, 0, completedAt = LocalDate.of(2026, 10, 15)),
+                SwipeSession(LocalDate.of(2026, 5, 9), true, 0, completedAt = LocalDate.of(2026, 10, 14)),
+                // Saved before completedAt was tracked: still a sorted day
+                SwipeSession(LocalDate.of(2026, 7, 1), true, 0, completedAt = LocalDate.EPOCH),
+            ),
         )
-        every { swipeRepository.getCompletedSessions() } returns flowOf(sessions)
+        streaks.value = Streaks(current = 2, best = 5)
 
         viewModel = createViewModel()
         advanceUntilIdle()
@@ -410,6 +435,17 @@ class CalendarViewModelTest {
         val state = viewModel.state.value
         assertEquals(setOf(LocalDate.of(2026, 3, 3), LocalDate.of(2026, 5, 9), LocalDate.of(2026, 7, 1)), state.sortedDates)
         assertEquals(2, state.currentStreak)
+    }
+
+    @Test
+    fun `the streak follows the stats`() = runTest(dispatcher) {
+        advanceUntilIdle()
+        assertEquals(0, viewModel.state.value.currentStreak)
+
+        streaks.value = Streaks(current = 4, best = 4)
+        advanceUntilIdle()
+
+        assertEquals(4, viewModel.state.value.currentStreak)
     }
 
     @Test
@@ -421,5 +457,187 @@ class CalendarViewModelTest {
 
         assertTrue(viewModel.state.value.sortedDates.isEmpty())
         assertEquals(0, viewModel.state.value.currentStreak)
+    }
+
+    @Test
+    fun `a failing streak leaves the calendar as it is`() = runTest(dispatcher) {
+        every { statsRepository.streaks } returns flow { throw IllegalStateException("db") }
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(0, viewModel.state.value.currentStreak)
+    }
+
+    // --- the banner of today ---
+
+    private fun photo(id: Long) = Photo(id, uri, LocalDateTime.of(2020, 10, 15, 9, id.toInt()), sizeBytes = 1)
+
+    private val todayDay = MonthDay.from(today)
+
+    /** Today has [count] photos in the index and in the library, and they are [decided] by the stored decisions. */
+    private fun givenToday(count: Int, decided: Map<Long, PhotoDecision> = emptyMap(), indexCount: Int = count) {
+        repository.todayPhotos = (1L..count).map(::photo)
+        repository.next = indexWith(todayDay to indexCount)
+        decisions = decided
+    }
+
+    private fun TestScope.enter() {
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+    }
+
+    private val banner get() = viewModel.state.value.todayBanner
+
+    @Test
+    fun `today with photos that are not decided has the banner, with the count of the index`() = runTest(dispatcher) {
+        givenToday(count = 3)
+
+        enter()
+
+        assertEquals(TodayBanner(3), banner)
+    }
+
+    @Test
+    fun `there is no banner before the photos are known`() = runTest(dispatcher) {
+        advanceUntilIdle()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `today without photos has no banner`() = runTest(dispatcher) {
+        repository.next = indexWith(MonthDay.of(3, 9) to 2)
+
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `there is no banner without access to the photos`() = runTest(dispatcher) {
+        givenToday(count = 3)
+        repository.permission = false
+
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `a day that is completed has no banner`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP))
+
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `trashed and deleted photos are decided`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.TRASHED, 2L to PhotoDecision.DELETED))
+
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `a photo that is only marked for deletion keeps the banner, the day is done once the deletion is confirmed`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE))
+
+        enter()
+
+        assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `one photo without a decision keeps the banner`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP))
+
+        enter()
+
+        assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `the banner hides as soon as the day is completed`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP))
+        enter()
+        assertEquals(TodayBanner(2), banner)
+
+        decisions = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
+        sessions.tryEmit(listOf(SwipeSession(today, true, 0, completedAt = today)))
+        advanceUntilIdle()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `new photos make the day incomplete again and the banner comes back`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP))
+        enter()
+        assertNull(banner)
+
+        // A third photo shows up in the library and in the next index
+        repository.todayPhotos = (1L..3L).map(::photo)
+        repository.next = indexWith(todayDay to 3)
+        enter()
+
+        assertEquals(TodayBanner(3), banner)
+    }
+
+    @Test
+    fun `returning from a day with more decisions hides the banner`() = runTest(dispatcher) {
+        givenToday(count = 2)
+        enter()
+        assertEquals(TodayBanner(2), banner)
+
+        decisions = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `the count is the one of the tile of today, not of the library query`() = runTest(dispatcher) {
+        // The photos that are dated from their files are in the index before the library query lists them all
+        givenToday(count = 2, indexCount = 5)
+
+        enter()
+
+        assertEquals(TodayBanner(5), banner)
+    }
+
+    @Test
+    fun `a day whose photos cannot be listed yet is not completed`() = runTest(dispatcher) {
+        repository.next = indexWith(todayDay to 2)
+        repository.todayPhotos = emptyList()
+
+        enter()
+
+        assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `a failure to read the photos of today leaves no banner`() = runTest(dispatcher) {
+        givenToday(count = 2)
+        repository.todayFailure = IllegalStateException("query failed")
+
+        enter()
+
+        assertNull(banner)
+    }
+
+    @Test
+    fun `a tap on the banner opens the day of today`() = runTest(dispatcher) {
+        givenToday(count = 2)
+        enter()
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.OpenDay(viewModel.state.value.today))
+
+            assertEquals(CalendarEffect.NavigateToSwipe(today), awaitItem())
+        }
     }
 }

@@ -83,4 +83,9 @@
     </plurals>
     <string name="result_done">Готово</string>
     <string name="result_celebration">Праздник</string>
+    <string name="calendar_today_title">Сегодняшние фото</string>
+    <plurals name="calendar_today_photos">
+        <item quantity="one">%d фото</item>
+        <item quantity="other">%d фото</item>
+    </plurals>
 </resources>

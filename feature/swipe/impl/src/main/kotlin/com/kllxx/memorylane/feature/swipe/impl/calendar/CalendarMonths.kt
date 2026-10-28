@@ -62,3 +62,13 @@ fun ImmutableList<CalendarMonth>.withMemories(index: OnThisDayIndex?, today: Loc
         }.toImmutableList()
         if (rows == month.rows) month else month.copy(rows = rows)
     }.toImmutableList()
+
+/**
+ * The list of the calendar has the banner of today as its first item while it is shown, which moves everything else one
+ * place down. A scroll position is kept as it would be without the banner, so it does not change when the banner comes
+ * and goes, and these two turn it into a position of the list that is there now, and back. The banner itself is at -1.
+ */
+fun listIndexWithBanner(positionWithoutBanner: Int, bannerShown: Boolean): Int =
+    (positionWithoutBanner + if (bannerShown) 1 else 0).coerceAtLeast(0)
+
+fun positionWithoutBanner(listIndex: Int, bannerShown: Boolean): Int = listIndex - if (bannerShown) 1 else 0

@@ -19,6 +19,10 @@ enum class CalendarPhase {
     Content,
 }
 
+/** Today has photos from earlier years and is not completed yet: [count] is how many, as the calendar tile has it. */
+@Immutable
+data class TodayBanner(val count: Int)
+
 @Immutable
 data class CalendarState(
     /** Every month of the current year. Built from dates only, so it exists before the photos are known. */
@@ -28,6 +32,8 @@ data class CalendarState(
     /** On This Day dates the user has finished sorting. */
     val sortedDates: ImmutableSet<LocalDate> = persistentSetOf(),
     val currentStreak: Int = 0,
+    /** Null when today has no photos or is completed; the first item of the list while it is there. */
+    val todayBanner: TodayBanner? = null,
     val hasPermission: Boolean = false,
     val error: CalendarError? = null,
 )

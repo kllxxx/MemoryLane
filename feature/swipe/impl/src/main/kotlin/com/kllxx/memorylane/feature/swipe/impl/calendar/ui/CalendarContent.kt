@@ -42,6 +42,7 @@ import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarPerf
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarPhase
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarState
 import com.kllxx.memorylane.feature.swipe.impl.calendar.DayItem
+import com.kllxx.memorylane.feature.swipe.impl.calendar.TodayBanner
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -50,6 +51,7 @@ import java.util.Locale
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 
+private const val TODAY_BANNER_KEY = "today-banner"
 private const val WEEKDAY_HEADER_KEY = "weekdays"
 private const val MONTH_KEY_PREFIX = "month-"
 private const val ROW_KEY_PREFIX = "row-"
@@ -78,6 +80,7 @@ internal fun CalendarContent(
                 MonthList(
                     months = state.months,
                     today = state.today,
+                    todayBanner = state.todayBanner,
                     sortedDates = state.sortedDates,
                     listState = listState,
                     onIntent = onIntent,
@@ -101,6 +104,7 @@ private fun CalendarEmpty(modifier: Modifier = Modifier) {
 private fun MonthList(
     months: ImmutableList<CalendarMonth>,
     today: LocalDate,
+    todayBanner: TodayBanner?,
     sortedDates: ImmutableSet<LocalDate>,
     listState: LazyListState,
     onIntent: (CalendarIntent) -> Unit,
@@ -118,6 +122,12 @@ private fun MonthList(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
+        // The first item, above the weekday header; its key keeps the position of the list when it comes and goes
+        if (todayBanner != null) {
+            item(key = TODAY_BANNER_KEY) {
+                TodayBannerCard(date = today, count = todayBanner.count, onClick = { onOpenDay(today) })
+            }
+        }
         stickyHeader(key = WEEKDAY_HEADER_KEY) { WeekdayHeader(weekdays) }
         months.forEach { month ->
             item(key = MONTH_KEY_PREFIX + month.yearMonth) { MonthSeparator(month.yearMonth, locale) }
@@ -254,4 +264,4 @@ private fun LogCalendarPerf() {
 private fun rowKey(row: List<DayItem?>): String = ROW_KEY_PREFIX + row.first { it != null }!!.date
 
 @Composable
-private fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
+internal fun currentLocale(): Locale = LocalConfiguration.current.locales[0]

@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
@@ -250,8 +251,8 @@ class SwipeViewModel @Inject constructor(
                         completed = !hasDeletes || existing?.completed == true,
                         savedBytes = existing?.savedBytes ?: 0,
                         deletedCount = existing?.deletedCount ?: 0,
-                        // A day that was already completed keeps the day it was completed on
-                        completedAt = existing?.completedAt ?: LocalDate.now(clock),
+                        // The date the day is really completed on; a day that was completed on its own date keeps it
+                        completedAt = SessionCompletion.completedAt(existing, state.date, LocalDate.now(clock)),
                     ),
                 )
             } catch (e: CancellationException) {

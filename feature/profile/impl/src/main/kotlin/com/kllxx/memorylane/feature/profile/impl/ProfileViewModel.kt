@@ -7,11 +7,9 @@ import com.kllxx.memorylane.core.domain.model.AppInfo
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
-import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.domain.streak.StreakCalculator
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.Clock
-import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -29,10 +27,9 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
-    private val swipeRepository: SwipeRepository,
+    private val statsRepository: StatsRepository,
     private val notificationStatusProvider: NotificationStatusProvider,
     appInfo: AppInfo,
-    private val clock: Clock,
 ) : ViewModel() {
 
     private val versionName = appInfo.versionName
@@ -152,12 +149,9 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /** Same source as the Calendar chip; sessions saved before the day was tracked carry the epoch marker. */
-    private fun currentStreak(): Flow<Int> = swipeRepository.getCompletedSessions()
-        .map { sessions ->
-            val doneOn = sessions.map { it.completedAt }.filter { it != LocalDate.EPOCH }
-            StreakCalculator.currentStreak(doneOn, LocalDate.now(clock))
-        }
+    /** The same streak as the Calendar chip, the Итоги chip and Achievements: they all read it from [StatsRepository]. */
+    private fun currentStreak(): Flow<Int> = statsRepository.streaks
+        .map { it.current }
         .catch { e ->
             // The streak is a nice-to-have: a failure must not keep the whole screen on Loading
             Log.e(TAG, "Could not load the streak", e)

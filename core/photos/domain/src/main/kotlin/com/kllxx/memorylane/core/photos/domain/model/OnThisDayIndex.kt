@@ -24,9 +24,31 @@ data class DayMemories(
 data class OnThisDayIndex(
     val currentYear: Int,
     val entries: Map<MonthDay, DayMemories>,
+    /**
+     * Every year before [currentYear], without a lower limit, in which a photo was taken on a month/day. [entries] only
+     * has the look-back window of the current year; this is what answers "does that date have photos in its own window"
+     * for a date of another year.
+     */
+    val photoYears: Map<MonthDay, Set<Int>> = emptyMap(),
 ) {
     /** Photos in the index, i.e. photos that can show up as a memory in the calendar. */
     val totalPhotos: Int get() = entries.values.sumOf { it.count }
 
     val isEmpty: Boolean get() = entries.isEmpty()
+
+    /**
+     * Whether [date] has photos in its own window: its month/day in the [maxYearsBack] years before the year of [date].
+     * Only photos from years before [currentYear] are known, which is every year that can be in the window of a date
+     * that has happened.
+     */
+    fun hasPhotosFor(date: LocalDate, maxYearsBack: Int = DEFAULT_YEARS_BACK): Boolean {
+        val years = photoYears[MonthDay.from(date)] ?: return false
+        val window = (date.year - maxYearsBack)..(date.year - 1)
+        return years.any { it in window }
+    }
+
+    companion object {
+        /** The look-back of the app: the 30 years before a date. */
+        const val DEFAULT_YEARS_BACK = 30
+    }
 }

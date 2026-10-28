@@ -70,11 +70,24 @@ class CalendarReducerTest {
     }
 
     @Test
-    fun `StatsLoaded sets sorted dates and streak`() {
-        val result = reduce(initial, CalendarEvent.StatsLoaded(setOf(d1), currentStreak = 3))
+    fun `SortedDatesLoaded sets the sorted dates`() {
+        assertEquals(setOf(d1), reduce(initial, CalendarEvent.SortedDatesLoaded(setOf(d1))).sortedDates)
+    }
 
-        assertEquals(setOf(d1), result.sortedDates)
+    @Test
+    fun `StreakLoaded sets the streak and leaves the sorted dates`() {
+        val result = reduce(reduce(initial, CalendarEvent.SortedDatesLoaded(setOf(d1))), CalendarEvent.StreakLoaded(3))
+
         assertEquals(3, result.currentStreak)
+        assertEquals(setOf(d1), result.sortedDates)
+    }
+
+    @Test
+    fun `the banner is set and taken away`() {
+        val shown = reduce(initial, CalendarEvent.TodayBannerChanged(TodayBanner(count = 4)))
+
+        assertEquals(TodayBanner(4), shown.todayBanner)
+        assertEquals(null, reduce(shown, CalendarEvent.TodayBannerChanged(null)).todayBanner)
     }
 
     @Test

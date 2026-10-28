@@ -4,11 +4,11 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppInfo
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
-import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
-import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.repository.StatsRepository
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -40,13 +40,11 @@ import org.robolectric.RobolectricTestRunner
 class ProfileViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
-    private val today = LocalDate.of(2026, 10, 15)
-    private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
     private lateinit var repository: AppSettingsRepository
-    private lateinit var swipeRepository: SwipeRepository
+    private lateinit var statsRepository: StatsRepository
     private lateinit var notificationStatus: NotificationStatusProvider
     private lateinit var settings: MutableStateFlow<AppSettings>
-    private lateinit var sessions: MutableStateFlow<List<SwipeSession>>
+    private lateinit var streaks: MutableStateFlow<Streaks>
     private lateinit var viewModel: ProfileViewModel
 
     private val content: ProfileState.Content get() = viewModel.state.value as ProfileState.Content
@@ -55,14 +53,14 @@ class ProfileViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         settings = MutableStateFlow(AppSettings())
-        sessions = MutableStateFlow(emptyList())
+        streaks = MutableStateFlow(Streaks.None)
         repository = mockk(relaxUnitFun = true)
-        swipeRepository = mockk()
+        statsRepository = mockk()
         notificationStatus = mockk()
         every { notificationStatus.areNotificationsEnabled() } returns true
         every { repository.getSettings() } returns settings
-        every { swipeRepository.getCompletedSessions() } returns sessions
-        viewModel = ProfileViewModel(repository, swipeRepository, notificationStatus, AppInfo(VERSION), clock)
+        every { statsRepository.streaks } returns streaks
+        viewModel = ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION))
         dispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -70,9 +68,6 @@ class ProfileViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
-
-    private fun session(completedAt: LocalDate) =
-        SwipeSession(date = completedAt, completed = true, savedBytes = 0, completedAt = completedAt)
 
     /** Notifications are off for the user, and the system state is [enabled] with the given request option. */
     private fun TestScope.givenUserOff(systemEnabled: Boolean, canRequest: Boolean) {
@@ -92,7 +87,7 @@ class ProfileViewModelTest {
             reminderTime = LocalTime.of(7, 45),
             notificationPermissionRequested = true,
         )
-        sessions.value = listOf(session(today), session(today.minusDays(1)), session(today.minusDays(2)))
+        streaks.value = Streaks(current = 3, best = 3)
         advanceUntilIdle()
 
         assertEquals(
@@ -110,14 +105,6 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun `streak ignores sessions without a tracked completion day`() = runTest(dispatcher) {
-        sessions.value = listOf(session(today), session(LocalDate.EPOCH))
-        advanceUntilIdle()
-
-        assertEquals(1, content.currentStreak)
-    }
-
-    @Test
     fun `a stored change reaches the state`() = runTest(dispatcher) {
         settings.value = AppSettings(themeMode = ThemeMode.System)
         advanceUntilIdle()
@@ -127,13 +114,13 @@ class ProfileViewModelTest {
 
     @Test
     fun `streak below the goal is not reached and above it is`() = runTest(dispatcher) {
-        sessions.value = (0L until 5).map { session(today.minusDays(it)) }
+        streaks.value = Streaks(current = 5, best = 5)
         settings.value = AppSettings(streakGoal = StreakGoal.D7)
         advanceUntilIdle()
         assertFalse(content.streakProgress.goalReached)
         assertEquals(2, content.streakProgress.daysLeft)
 
-        sessions.value = (0L until 8).map { session(today.minusDays(it)) }
+        streaks.value = Streaks(current = 8, best = 8)
         advanceUntilIdle()
         assertTrue(content.streakProgress.goalReached)
         assertEquals(1f, content.streakProgress.progress, 0f)
@@ -371,21 +358,21 @@ class ProfileViewModelTest {
 
     // --- Loading -------------------------------------------------------------------------------
 
-    private fun newViewModel(sessionFlow: kotlinx.coroutines.flow.Flow<List<SwipeSession>> = sessions): ProfileViewModel {
-        every { swipeRepository.getCompletedSessions() } returns sessionFlow
-        return ProfileViewModel(repository, swipeRepository, notificationStatus, AppInfo(VERSION), clock)
+    private fun newViewModel(streakFlow: kotlinx.coroutines.flow.Flow<Streaks> = streaks): ProfileViewModel {
+        every { statsRepository.streaks } returns streakFlow
+        return ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION))
     }
 
     @Test
     fun `the state is loading until both the settings and the streak have arrived`() = runTest(dispatcher) {
-        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<List<SwipeSession>>()
+        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<Streaks>()
         val vm = newViewModel(pendingSessions)
         advanceUntilIdle()
 
         // Settings are there, the streak is not
         assertEquals(ProfileState.Loading, vm.state.value)
 
-        pendingSessions.emit(listOf(session(today)))
+        pendingSessions.emit(Streaks(current = 1, best = 1))
         advanceUntilIdle()
 
         assertEquals(1, (vm.state.value as ProfileState.Content).currentStreak)
@@ -459,13 +446,13 @@ class ProfileViewModelTest {
 
     @Test
     fun `a resume check while loading is remembered for the first content`() = runTest(dispatcher) {
-        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<List<SwipeSession>>()
+        val pendingSessions = kotlinx.coroutines.flow.MutableSharedFlow<Streaks>()
         every { notificationStatus.areNotificationsEnabled() } returns false
         settings.value = AppSettings(notificationsEnabled = false)
         val vm = newViewModel(pendingSessions)
         advanceUntilIdle()
         vm.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = true))
-        pendingSessions.emit(emptyList())
+        pendingSessions.emit(Streaks.None)
         advanceUntilIdle()
 
         vm.effects.test {

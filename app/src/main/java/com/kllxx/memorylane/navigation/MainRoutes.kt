@@ -6,4 +6,5 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object CalendarRoute
 
-enum class StartDestination { Onboarding, Swipe, Main }
+/** The app opens on Onboarding until it is done, and on Calendar after that: never on a day. */
+enum class StartDestination { Onboarding, Main }

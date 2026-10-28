@@ -22,6 +22,7 @@ internal class OnThisDayIndexBuilder(
 ) {
     private val counts = HashMap<MonthDay, Int>()
     private val covers = HashMap<MonthDay, Cover>()
+    private val years = HashMap<MonthDay, MutableSet<Int>>()
 
     class Cover(val id: Long, val takenAtMillis: Long, val takenOn: LocalDate)
 
@@ -31,6 +32,8 @@ internal class OnThisDayIndexBuilder(
 
     fun add(image: IndexedImage) {
         val date = Instant.ofEpochMilli(image.takenAtMillis).atZone(zone).toLocalDate()
+        // The years are kept beyond the window: a date of an earlier year has a window of its own
+        if (date.year < currentYear) years.getOrPut(MonthDay.from(date)) { HashSet() } += date.year
         if (date.year !in (currentYear - maxYearsBack)..(currentYear - 1)) return
 
         val key = MonthDay.from(date)
@@ -43,6 +46,9 @@ internal class OnThisDayIndexBuilder(
             covers[key] = Cover(image.id, image.takenAtMillis, date)
         }
     }
+
+    /** Every year before the current one in which a photo was taken on each month/day, whatever the look-back. */
+    fun photoYears(): Map<MonthDay, Set<Int>> = years
 
     /** The collected month/days as (count, cover); the caller turns the cover into a Uri. */
     fun entries(): Map<MonthDay, Pair<Int, Cover>> = counts.mapValues { (key, count) -> count to covers.getValue(key) }
