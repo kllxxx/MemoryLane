@@ -33,10 +33,33 @@ class PhotoDateFormatterTest {
             "июля", "августа", "сентября", "октября", "ноября", "декабря",
         )
         expected.forEachIndexed { index, month ->
-            assertTrue(
-                month,
-                formatTakenAt(LocalDateTime.of(2016, index + 1, 7, 10, 0), ru).startsWith("7 $month 2016"),
+            assertEquals(
+                "7 $month 2016, 10:00",
+                formatTakenAt(LocalDateTime.of(2016, index + 1, 7, 10, 0), ru),
             )
+        }
+    }
+
+    @Test
+    fun `no Russian month is in the nominative`() {
+        val nominative = listOf(
+            "январь", "февраль", "март", "апрель", "май", "июнь",
+            "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+        )
+        (1..12).forEach { month ->
+            val text = formatTakenAt(LocalDateTime.of(2016, month, 7, 10, 0), ru)
+            nominative.forEach { name -> assertTrue("$text has $name", !text.split(' ').contains(name)) }
+        }
+    }
+
+    @Test
+    fun `the Russian month does not depend on the default locale`() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
+            assertEquals("8 января 2016, 00:07", formatTakenAt(LocalDateTime.of(2016, 1, 8, 0, 7), ru))
+        } finally {
+            Locale.setDefault(previous)
         }
     }
 
