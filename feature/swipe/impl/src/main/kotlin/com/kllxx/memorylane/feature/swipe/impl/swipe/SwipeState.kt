@@ -13,6 +13,11 @@ data class DeckPhoto(
     val decision: PhotoDecision?,
     /** When the photo was taken, as shown on the card, e.g. «7 января 2016, 21:15». */
     val takenAtText: String,
+    /**
+     * The width over the height of the photo as it is shown (orientation applied), or null when MediaStore does not
+     * know its size. The card takes this shape, so the photo is never cropped.
+     */
+    val aspectRatio: Float? = null,
 ) {
     val id: Long get() = photo.id
 }

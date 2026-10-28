@@ -403,7 +403,15 @@ class PhotoIndexRefreshTest {
         val repository = repository(StandardTestDispatcher(testScheduler))
         FakeMediaProvider.rows = listOf(
             row(1, millis(LocalDate.of(2024, 10, 15)), extra = mapOf(MediaStore.Images.Media.SIZE to 10L)),
-            row(2, null, name = "photo.jpg", extra = mapOf(MediaStore.Images.Media.SIZE to 20L)),
+            row(
+                2, null, name = "photo.jpg",
+                extra = mapOf(
+                    MediaStore.Images.Media.SIZE to 20L,
+                    MediaStore.Images.Media.WIDTH to 3_000,
+                    MediaStore.Images.Media.HEIGHT to 4_000,
+                    MediaStore.Images.Media.ORIENTATION to 90,
+                ),
+            ),
             row(3, null, name = "no date.jpg", extra = mapOf(MediaStore.Images.Media.SIZE to 30L)),
         )
         reader.tags[2] = exifOriginal("2016:10:15 09:00:00")
@@ -413,6 +421,8 @@ class PhotoIndexRefreshTest {
         val photos = repository.getPhotosForDate(today)
 
         assertEquals(listOf(2L, 1L), photos.map { it.id })
+        // The photo dated from its EXIF has its shape too
+        assertEquals(listOf(3_000, 4_000, 90), photos.first().let { listOf(it.width, it.height, it.orientation) })
         assertEquals(LocalDate.of(2016, 10, 15), photos.first().dateTaken)
         assertEquals(LocalDateTime.of(2016, 10, 15, 9, 0), photos.first().takenAt)
         assertEquals(100L, photos.first().dateModified)

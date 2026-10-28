@@ -395,6 +395,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
                                 takenAt = takenAt,
                                 sizeBytes = it.getLong(sizeColumn),
                                 dateModified = modified,
+                                width = it.intOrZero(MediaStore.Images.Media.WIDTH),
+                                height = it.intOrZero(MediaStore.Images.Media.HEIGHT),
+                                orientation = it.intOrZero(MediaStore.Images.Media.ORIENTATION),
                             ),
                         )
                     }
@@ -455,6 +458,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
                             takenAt = takenAt,
                             sizeBytes = it.getLong(sizeColumn),
                             dateModified = modified,
+                            width = it.intOrZero(MediaStore.Images.Media.WIDTH),
+                            height = it.intOrZero(MediaStore.Images.Media.HEIGHT),
+                            orientation = it.intOrZero(MediaStore.Images.Media.ORIENTATION),
                         ),
                     )
                 }
@@ -610,6 +616,12 @@ internal class PhotoRepositoryImpl @Inject constructor(
         }
     }
 
+    /** The int in [column], or 0 when the column or the value is missing: MediaStore does not know every size. */
+    private fun Cursor.intOrZero(column: String): Int {
+        val index = getColumnIndex(column)
+        return if (index < 0 || isNull(index)) 0 else getInt(index)
+    }
+
     private fun Cursor.toPhoto(zone: ZoneId): Photo {
         val id = getLong(getColumnIndexOrThrow(MediaStore.Images.Media._ID))
         val modifiedColumn = getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
@@ -621,6 +633,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
                 .toLocalDateTime(),
             sizeBytes = getLong(getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)),
             dateModified = if (isNull(modifiedColumn)) 0L else getLong(modifiedColumn),
+            width = intOrZero(MediaStore.Images.Media.WIDTH),
+            height = intOrZero(MediaStore.Images.Media.HEIGHT),
+            orientation = intOrZero(MediaStore.Images.Media.ORIENTATION),
         )
     }
 
@@ -636,12 +651,15 @@ internal class PhotoRepositoryImpl @Inject constructor(
             MediaStore.Images.Media.DISPLAY_NAME,
         )
 
-        // What checking a cached date against the file needs
+        // What checking a cached date against the file needs, and what a photo of the deck is made of
         val CACHE_PROJECTION = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.SIZE,
             MediaStore.Images.Media.DATE_TAKEN,
             MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+            MediaStore.Images.Media.ORIENTATION,
         )
 
         /** How many undated photos get their raw EXIF tags logged. */
@@ -664,6 +682,10 @@ internal class PhotoRepositoryImpl @Inject constructor(
             MediaStore.Images.Media.DATE_TAKEN,
             MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.SIZE,
+            // The shape of the photo, for the card that shows it
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+            MediaStore.Images.Media.ORIENTATION,
         )
 
         /** Oldest first; the id keeps photos taken in the same second in a stable order. */

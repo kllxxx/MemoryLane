@@ -3,6 +3,7 @@ package com.kllxx.memorylane.core.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 
 /**
@@ -20,10 +21,12 @@ fun MemoryLaneTheme(
         ThemeMode.Dark -> true
     }
 
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        typography = MemoryLaneTypography,
-        shapes = MemoryLaneMaterialShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalSemanticColors provides DefaultSemanticColors) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+            typography = MemoryLaneTypography,
+            shapes = MemoryLaneMaterialShapes,
+            content = content,
+        )
+    }
 }

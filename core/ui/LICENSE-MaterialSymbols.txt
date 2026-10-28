@@ -1,4 +1,4 @@
-Material Symbols (bottom navigation icons: res/drawable/ic_nav_*.xml)
+Material Symbols (bottom navigation icons: res/drawable/ic_nav_*.xml; swipe screen icons: ic_undo, ic_share, ic_open_in_new, ic_touch_app, ic_close, ic_check, ic_delete, ic_location_on)
 Copyright Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");

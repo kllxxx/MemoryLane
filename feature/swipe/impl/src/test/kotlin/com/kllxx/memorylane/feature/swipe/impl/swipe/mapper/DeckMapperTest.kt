@@ -37,6 +37,18 @@ class DeckMapperTest {
     }
 
     @Test
+    fun `the deck photo has the aspect ratio of its photo with the orientation applied`() {
+        val turned = photo.copy(width = 4_000, height = 3_000, orientation = 90)
+
+        assertEquals(3f / 4f, turned.toDeckPhoto(null, Locale.US).aspectRatio!!, 0.0001f)
+    }
+
+    @Test
+    fun `a photo of unknown size has no aspect ratio`() {
+        assertNull(photo.toDeckPhoto(null, Locale.US).aspectRatio)
+    }
+
+    @Test
     fun `the place of the photo is kept`() {
         assertEquals("Светлогорск, Россия", photo.toDeckPhoto(null, Locale.US).photo.location)
     }

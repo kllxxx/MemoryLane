@@ -202,6 +202,55 @@ class PhotoRepositoryImplTest {
     }
 
     @Test
+    fun `a photo carries the size and the orientation MediaStore stores`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(
+            datedRow(7, date.minusYears(1).atTime(10, 30)) + mapOf(
+                MediaStore.Images.Media.WIDTH to 4_000,
+                MediaStore.Images.Media.HEIGHT to 3_000,
+                MediaStore.Images.Media.ORIENTATION to 90,
+            ),
+        )
+
+        val photo = repository.getPhotosForDate(date).single()
+
+        assertEquals(4_000, photo.width)
+        assertEquals(3_000, photo.height)
+        assertEquals(90, photo.orientation)
+    }
+
+    @Test
+    fun `a photo MediaStore has no size for reads as 0, never as an error`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(
+            datedRow(7, date.minusYears(1).atTime(10, 30)) + mapOf(
+                MediaStore.Images.Media.WIDTH to null,
+                MediaStore.Images.Media.HEIGHT to null,
+                MediaStore.Images.Media.ORIENTATION to null,
+            ),
+        )
+
+        val photo = repository.getPhotosForDate(date).single()
+
+        assertEquals(0, photo.width)
+        assertEquals(0, photo.height)
+        assertEquals(0, photo.orientation)
+    }
+
+    @Test
+    fun `the photo query asks for the size and the orientation`() = runTest {
+        grantMedia()
+        repository.refreshOnThisDayIndex()
+
+        repository.getPhotosForDate(date)
+
+        val projection = FakeMediaProvider.lastProjection.orEmpty()
+        assertTrue(MediaStore.Images.Media.WIDTH in projection)
+        assertTrue(MediaStore.Images.Media.HEIGHT in projection)
+        assertTrue(MediaStore.Images.Media.ORIENTATION in projection)
+    }
+
+    @Test
     fun `the query asks for this day in earlier years only`() = runTest {
         grantMedia()
         // With the index loaded, the only query left is the one of the day
@@ -550,6 +599,37 @@ class PhotoRepositoryImplTest {
 
         assertEquals(resolved, photos.getValue(5).takenAt)
         assertEquals(date.minusYears(1).atTime(8, 0), photos.getValue(6).takenAt)
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `a trashed photo carries its size and orientation`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        FakeMediaProvider.rows = listOf(
+            trashedRow(5, date.minusYears(1).atTime(10, 0)) + mapOf(
+                MediaStore.Images.Media.WIDTH to 1_920,
+                MediaStore.Images.Media.HEIGHT to 1_080,
+                MediaStore.Images.Media.ORIENTATION to 270,
+            ),
+        )
+
+        val photo = repository.getTrashedPhotos(listOf(5L)).single()
+
+        assertEquals(1_920, photo.width)
+        assertEquals(1_080, photo.height)
+        assertEquals(270, photo.orientation)
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `a trashed photo a size is missing for reads as 0`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        FakeMediaProvider.rows = listOf(trashedRow(5, date.minusYears(1).atTime(10, 0)))
+
+        val photo = repository.getTrashedPhotos(listOf(5L)).single()
+
+        assertEquals(0, photo.width)
+        assertEquals(0, photo.height)
     }
 
     @Test
