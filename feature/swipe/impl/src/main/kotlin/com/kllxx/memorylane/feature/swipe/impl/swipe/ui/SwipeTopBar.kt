@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -31,12 +33,14 @@ import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.swipe.impl.R
 
-private val DateHeight = 25.dp
-private val LocationHeight = 18.dp
+// The line heights of the date and of the place, in sp: they grow with the font size, so the text is never clipped,
+// and they are the same for every photo, so the card below never jumps
+private val DateLineHeight = 25.sp
+private val LocationLineHeight = 18.sp
 
 /**
- * The date and the place of the photo on top, and the close button. The height is fixed, so the card below never
- * jumps between photos: a photo without a place leaves its row empty.
+ * The date and the place of the photo on top, and the close button. The height is the same for every photo (at least
+ * 64dp, more for a large font), so the card below never jumps: a photo without a place leaves its row empty.
  */
 @Composable
 internal fun SwipeTopBar(
@@ -48,19 +52,23 @@ internal fun SwipeTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(SwipeLayout.TopBarHeight)
-            .padding(horizontal = SwipeLayout.Gutter),
+            .heightIn(min = SwipeLayout.TopBarHeight)
+            .padding(horizontal = SwipeLayout.TopBarGutter),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.weight(1f).padding(top = 6.dp)) {
-            Box(modifier = Modifier.height(DateHeight), contentAlignment = Alignment.CenterStart) {
+        val density = LocalDensity.current
+        val dateHeight = with(density) { DateLineHeight.toDp() }
+        val locationHeight = with(density) { LocationLineHeight.toDp() }
+        Column(modifier = Modifier.weight(1f).padding(top = 4.dp, bottom = 4.dp)) {
+            Box(modifier = Modifier.height(dateHeight), contentAlignment = Alignment.CenterStart) {
                 if (!dateText.isNullOrEmpty()) {
                     Text(
                         text = dateText,
                         modifier = Modifier.testTag(SwipeTags.TOP_BAR_DATE),
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp,
+                        lineHeight = DateLineHeight,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -68,7 +76,7 @@ internal fun SwipeTopBar(
                 }
             }
             Spacer(Modifier.height(3.dp))
-            Row(modifier = Modifier.height(LocationHeight), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.height(locationHeight), verticalAlignment = Alignment.CenterVertically) {
                 if (!location.isNullOrEmpty()) {
                     Icon(
                         painter = painterResource(UiR.drawable.ic_location_on),
@@ -82,6 +90,7 @@ internal fun SwipeTopBar(
                         modifier = Modifier.testTag(SwipeTags.TOP_BAR_LOCATION),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
+                        lineHeight = LocationLineHeight,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -91,7 +100,7 @@ internal fun SwipeTopBar(
         }
         Box(
             modifier = Modifier
-                .padding(top = 10.dp)
+                .padding(top = 8.dp)
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -111,21 +120,27 @@ internal fun SwipeTopBar(
 
 /** Sizes of the Swipe screen that more than one composable depends on. */
 internal object SwipeLayout {
-    val Gutter = 20.dp
-    val TopBarHeight = 64.dp
-    val TopBarGap = 4.dp
+    val TopBarGutter = 16.dp
+    val TopBarHeight = 56.dp
+    val TopBarGap = 2.dp
 
-    /** The gap between the photo area and the bottom panel, and the panel's margin from the screen edges. */
-    val PanelGap = 12.dp
-    val PanelMargin = 12.dp
-    val PanelRadius = 24.dp
+    /** The card of the quick actions: its margin from the screen edges and the bottom, and the gap under the strip. */
+    val ActionsCardMargin = 12.dp
+    val ActionsCardRadius = 20.dp
+    val StripGap = 8.dp
+
+    /** The space on each side of the cards in the photo area: a 3:4 photo is 344dp wide on a 360dp screen. */
+    val CardInset = 8.dp
 
     /**
-     * The space around the cards in the photo area: the gutter on each side and above, and the same below plus the
-     * panel gap (the gap belongs to the area, so the ✕ and ✓ that hang over a tall card stay inside it and can be tapped).
+     * The space above and below the cards in the photo area. The gap above the strip belongs to the area. In buttons
+     * mode the room below is half of a ✕ / ✓ circle instead, so the circles that hang over the bottom edge of a tall
+     * card stay inside the area and can be tapped.
      */
-    val CardAreaTop = 20.dp
-    val CardAreaBottom = 20.dp + PanelGap
+    val CardAreaTop = 4.dp
+    val CardAreaBottom = StripGap
+
+    fun cardAreaBottom(buttonsMode: Boolean) = if (buttonsMode) DecisionButton / 2 else CardAreaBottom
 
     val CardRadius = 20.dp
     val DecisionButton = 60.dp

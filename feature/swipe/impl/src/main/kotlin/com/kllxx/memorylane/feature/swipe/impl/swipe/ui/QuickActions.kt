@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,13 +26,48 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.swipe.impl.R
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.limitedFontSp
 
 private const val DISABLED_ALPHA = 0.38f
+
+/**
+ * The card at the bottom of the screen that holds the [QuickActions]. The caller places it: 12dp from the screen edges
+ * and 12dp above the gesture area. Nothing in it is clipped, so the labels are never cut at the corners.
+ */
+@Composable
+internal fun QuickActionsCard(
+    canUndo: Boolean,
+    buttonsMode: Boolean,
+    onUndo: () -> Unit,
+    onShare: () -> Unit,
+    onOpenInGallery: () -> Unit,
+    onToggleButtons: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(SwipeLayout.ActionsCardRadius)
+    QuickActions(
+        canUndo = canUndo,
+        buttonsMode = buttonsMode,
+        onUndo = onUndo,
+        onShare = onShare,
+        onOpenInGallery = onOpenInGallery,
+        onToggleButtons = onToggleButtons,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(SwipeTags.ACTIONS_CARD)
+            .background(colors.surfaceVariant, shape)
+            .border(width = 1.dp, color = colors.outlineVariant, shape = shape)
+            .padding(vertical = 10.dp),
+    )
+}
 
 /**
  * Undo, share, open in the gallery, and the switch of buttons mode, in four equal columns. Undo is disabled while
@@ -109,9 +145,10 @@ private fun QuickAction(
     }
     Box(modifier = modifier, contentAlignment = Alignment.TopCenter) {
         Column(
+            // No clip here: the column is as wide as the label, so a rounded clip cut the corners of the text
             modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
                 .then(press)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
                 .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .testTag(tag)
                 .clearAndSetSemantics { contentDescription = description },
@@ -133,10 +170,14 @@ private fun QuickAction(
             }
             Text(
                 text = label,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = 4.dp).testTag(SwipeTags.actionLabel(tag)),
                 color = colors.onSurfaceVariant,
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
+                fontSize = limitedFontSp(11f, LocalDensity.current.fontScale).sp,
+                // Taller than Nunito needs (1.36 em) and scaled with the font, so the line box never cuts the text
+                lineHeight = limitedFontSp(16f, LocalDensity.current.fontScale).sp,
+                // One line; softWrap = false would make Compose clip the label to a box narrower than its paragraph
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold,
             )
         }

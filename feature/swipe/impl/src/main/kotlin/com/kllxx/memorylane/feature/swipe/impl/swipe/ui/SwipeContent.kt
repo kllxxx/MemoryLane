@@ -41,7 +41,7 @@ fun SwipeContent(
             onClose = { onIntent(SwipeIntent.Close) },
         )
         Spacer(Modifier.height(SwipeLayout.TopBarGap))
-        // The photo area: what is between the top bar and the bottom panel. The gap above the panel is part of it.
+        // The photo area: what is between the top bar and the strip. The gap above the strip is part of it.
         Box(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentAlignment = Alignment.Center,
@@ -55,10 +55,14 @@ fun SwipeContent(
                 state.deck.isNotEmpty() && !state.isFinished -> PhotoCardStack(state, onIntent, Modifier.fillMaxSize())
             }
         }
-        BottomPanel(
+        // The strip floats right under the photo area, without a background
+        PhotoStrip(
             strip = strip,
             currentDeckIndex = state.currentIndex,
             onJump = { onIntent(SwipeIntent.JumpTo(it)) },
+        )
+        Spacer(Modifier.height(SwipeLayout.StripGap))
+        QuickActionsCard(
             canUndo = state.canUndo,
             buttonsMode = state.buttonsMode,
             onUndo = { onIntent(SwipeIntent.Undo) },
@@ -66,9 +70,9 @@ fun SwipeContent(
             onOpenInGallery = { onIntent(SwipeIntent.OpenInGallery) },
             onToggleButtons = { onIntent(SwipeIntent.ToggleButtonsMode) },
             modifier = Modifier.padding(
-                start = SwipeLayout.PanelMargin,
-                end = SwipeLayout.PanelMargin,
-                bottom = SwipeLayout.PanelMargin,
+                start = SwipeLayout.ActionsCardMargin,
+                end = SwipeLayout.ActionsCardMargin,
+                bottom = SwipeLayout.ActionsCardMargin,
             ),
         )
     }

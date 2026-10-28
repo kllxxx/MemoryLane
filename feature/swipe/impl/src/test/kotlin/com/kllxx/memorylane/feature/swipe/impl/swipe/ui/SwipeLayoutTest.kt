@@ -44,13 +44,13 @@ class SwipeLayoutTest {
     private val DpRect.centerX get() = (left.value + right.value) / 2f
     private val DpRect.centerY get() = (top.value + bottom.value) / 2f
 
-    /** The card area: the stack container less the gutter on each side and above, and the panel gap's room below. */
+    /** The card area: the stack container less the inset on each side and the room above and below. */
     private fun cardArea(): DpRect {
         val container = bounds(SwipeTags.CARD)
         return DpRect(
-            left = container.left + SwipeLayout.Gutter,
+            left = container.left + SwipeLayout.CardInset,
             top = container.top + SwipeLayout.CardAreaTop,
-            right = container.right - SwipeLayout.Gutter,
+            right = container.right - SwipeLayout.CardInset,
             bottom = container.bottom - SwipeLayout.CardAreaBottom,
         )
     }
@@ -204,46 +204,74 @@ class SwipeLayoutTest {
         assertTrue(delete.bottom.value <= container.bottom.value + tolerance)
     }
 
-    // --- the bottom panel ---
+    // --- the photo is as large as possible ---
 
     @Test
-    fun `the panel is 12dp from the screen edges and from the bottom`() {
+    fun `a 3 by 4 portrait photo is 344dp wide on a 360dp screen`() {
         show(swipeState(count = 2, aspectRatio = portrait))
 
-        val panel = bounds(SwipeTags.PANEL)
+        val card = bounds(SwipeTags.cardPhoto(1))
 
-        assertEquals(12f, panel.left.value, tolerance)
-        assertEquals(360f - 12f, panel.right.value, tolerance)
-        assertEquals(800f - 12f, panel.bottom.value, tolerance)
+        assertEquals(344f, card.width.value, tolerance)
+        assertEquals(344f / portrait, card.height.value, tolerance)
     }
 
     @Test
-    fun `the panel is 144dp high, as in the design`() {
+    fun `the top bar is 56dp high`() {
+        show(swipeState(count = 2, aspectRatio = portrait, location = "Светлогорск, Россия"))
+
+        val container = bounds(SwipeTags.CARD)
+
+        // 2dp above and below the 56dp top bar
+        assertEquals(2f + 56f + 2f, container.top.value, tolerance)
+    }
+
+    // --- the actions card ---
+
+    @Test
+    fun `the actions card is 12dp from the screen edges and from the bottom`() {
         show(swipeState(count = 2, aspectRatio = portrait))
 
-        assertEquals(144f, bounds(SwipeTags.PANEL).height.value, tolerance)
+        val card = bounds(SwipeTags.ACTIONS_CARD)
+
+        assertEquals(12f, card.left.value, tolerance)
+        assertEquals(360f - 12f, card.right.value, tolerance)
+        assertEquals(800f - 12f, card.bottom.value, tolerance)
     }
 
     @Test
-    fun `the strip and the actions are inside the panel`() {
+    fun `the actions card holds only the four actions`() {
         show(swipeState(count = 3, aspectRatio = portrait))
 
-        val panel = bounds(SwipeTags.PANEL)
-        listOf(SwipeTags.STRIP, SwipeTags.ACTION_UNDO, SwipeTags.ACTION_SHARE, SwipeTags.ACTION_GALLERY, SwipeTags.ACTION_BUTTONS)
+        val card = bounds(SwipeTags.ACTIONS_CARD)
+        listOf(SwipeTags.ACTION_UNDO, SwipeTags.ACTION_SHARE, SwipeTags.ACTION_GALLERY, SwipeTags.ACTION_BUTTONS)
             .forEach { tag ->
                 val node = bounds(tag)
-                assertTrue("$tag inside left", node.left.value >= panel.left.value - tolerance)
-                assertTrue("$tag inside right", node.right.value <= panel.right.value + tolerance)
-                assertTrue("$tag inside top", node.top.value >= panel.top.value - tolerance)
-                assertTrue("$tag inside bottom", node.bottom.value <= panel.bottom.value + tolerance)
+                assertTrue("$tag inside left", node.left.value >= card.left.value - tolerance)
+                assertTrue("$tag inside right", node.right.value <= card.right.value + tolerance)
+                assertTrue("$tag inside top", node.top.value >= card.top.value - tolerance)
+                assertTrue("$tag inside bottom", node.bottom.value <= card.bottom.value + tolerance)
             }
     }
 
     @Test
-    fun `the strip is above the actions`() {
+    fun `the strip floats outside the actions card, 8dp above it`() {
         show(swipeState(count = 3, aspectRatio = portrait))
 
-        assertTrue(bounds(SwipeTags.STRIP).bottom.value <= bounds(SwipeTags.ACTION_UNDO).top.value + tolerance)
+        val strip = bounds(SwipeTags.STRIP)
+        val card = bounds(SwipeTags.ACTIONS_CARD)
+
+        assertEquals(card.top.value - 8f, strip.bottom.value, tolerance)
+        assertEquals(0f, strip.left.value, tolerance)
+        assertEquals(360f, strip.right.value, tolerance)
+    }
+
+    @Test
+    fun `the strip is right under the photo area`() {
+        show(swipeState(count = 3, aspectRatio = portrait))
+
+        // The card area ends 8dp above the strip
+        assertEquals(bounds(SwipeTags.STRIP).top.value, bounds(SwipeTags.CARD).bottom.value, tolerance)
     }
 
     @Test
@@ -254,14 +282,22 @@ class SwipeLayoutTest {
             .map { bounds(it).centerX }
         val steps = centers.zipWithNext { a, b -> b - a }
 
+        // The card is 336dp wide and the row has 8dp on each side, so the columns are 80dp apart
         steps.forEach { assertEquals(80f, it, tolerance) }
     }
 
     @Test
-    fun `the card area ends above the panel`() {
+    fun `the card area ends above the strip`() {
         show(swipeState(count = 2, aspectRatio = 1f / 3f))
 
-        assertTrue(bounds(SwipeTags.cardPhoto(1)).bottom.value <= bounds(SwipeTags.PANEL).top.value)
+        assertTrue(bounds(SwipeTags.cardPhoto(1)).bottom.value <= bounds(SwipeTags.STRIP).top.value)
+    }
+
+    @Test
+    fun `in buttons mode the circles of a tall card stay above the strip`() {
+        show(swipeState(count = 2, aspectRatio = 1f / 3f, buttonsMode = true))
+
+        assertTrue(bounds(SwipeTags.BUTTON_DELETE).bottom.value <= bounds(SwipeTags.STRIP).top.value + tolerance)
     }
 
     // --- the strip ---

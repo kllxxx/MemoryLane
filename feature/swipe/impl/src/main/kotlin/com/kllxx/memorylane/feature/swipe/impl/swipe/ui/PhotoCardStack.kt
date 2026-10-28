@@ -57,8 +57,8 @@ private const val ASPECT_TOLERANCE = 0.01f
  * ever follows it (see [planMove]). A swipe, whether by gesture, by the buttons or by an accessibility action,
  * becomes one `Swipe` intent through [SwipeGate]; the stack then already shows the next card.
  *
- * Every card has the shape of its photo and is centred in the card area: the container minus the gutter on each
- * side and above, and the room under it that the bottom panel's gap takes (see [SwipeLayout]).
+ * Every card has the shape of its photo and is centred in the card area: the container minus the inset on each
+ * side, and the room above and below it (see [SwipeLayout]).
  */
 @Composable
 internal fun PhotoCardStack(
@@ -150,8 +150,9 @@ internal fun PhotoCardStack(
                 )
             },
     ) {
-        val areaWidth = (maxWidth - SwipeLayout.Gutter * 2).coerceAtLeast(0.dp)
-        val areaHeight = (maxHeight - SwipeLayout.CardAreaTop - SwipeLayout.CardAreaBottom).coerceAtLeast(0.dp)
+        val areaBottom = SwipeLayout.cardAreaBottom(state.buttonsMode)
+        val areaWidth = (maxWidth - SwipeLayout.CardInset * 2).coerceAtLeast(0.dp)
+        val areaHeight = (maxHeight - SwipeLayout.CardAreaTop - areaBottom).coerceAtLeast(0.dp)
 
         fun cardSizeOf(item: DeckPhoto): CardSize =
             fitInside(areaWidth.value, areaHeight.value, item.aspectRatio ?: decodedAspects[item.id] ?: PROVISIONAL_ASPECT_RATIO)
@@ -171,10 +172,10 @@ internal fun PhotoCardStack(
         CompositionLocalProvider(LocalComposeWindow provides window) {
             Box(
                 Modifier.padding(
-                    start = SwipeLayout.Gutter,
-                    end = SwipeLayout.Gutter,
+                    start = SwipeLayout.CardInset,
+                    end = SwipeLayout.CardInset,
                     top = SwipeLayout.CardAreaTop,
-                    bottom = SwipeLayout.CardAreaBottom,
+                    bottom = areaBottom,
                 ),
             ) {
                 LazyCardStack(
@@ -206,7 +207,7 @@ internal fun PhotoCardStack(
                     onKeep = { swipeBy(SwipeDirection.Right) },
                     // The circles are centred on the bottom edge of the card, wherever that is
                     modifier = Modifier.offset(
-                        x = SwipeLayout.Gutter + (areaWidth - size.width.dp) / 2,
+                        x = SwipeLayout.CardInset + (areaWidth - size.width.dp) / 2,
                         y = SwipeLayout.CardAreaTop + (areaHeight + size.height.dp) / 2 - SwipeLayout.DecisionButton / 2,
                     ),
                 )
