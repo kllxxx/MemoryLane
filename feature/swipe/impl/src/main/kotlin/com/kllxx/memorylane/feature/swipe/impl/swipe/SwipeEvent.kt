@@ -17,4 +17,7 @@ internal sealed interface SwipeEvent {
     data class LocationLoaded(val photoId: Long, val location: String?) : SwipeEvent
 
     data class ButtonsModeChanged(val enabled: Boolean) : SwipeEvent
+
+    /** The decisions of the day as stored now, by photo id. */
+    data class DecisionsReloaded(val decisions: Map<Long, com.kllxx.memorylane.core.domain.model.PhotoDecision>) : SwipeEvent
 }

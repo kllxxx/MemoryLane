@@ -125,4 +125,27 @@ class PhotoDateFormatterTest {
         assertTrue(text, text.contains("2016"))
         assertTrue(text, !text.contains(":"))
     }
+
+    // --- the day and the month ---
+
+    @Test
+    fun `the day and the month are in the genitive for every Russian month`() {
+        val expected = listOf(
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        )
+        expected.forEachIndexed { index, month ->
+            assertEquals("28 $month", formatDayMonth(java.time.LocalDate.of(2026, index + 1, 28), ru))
+        }
+    }
+
+    @Test
+    fun `the day has no leading zero`() {
+        assertEquals("5 марта", formatDayMonth(java.time.LocalDate.of(2026, 3, 5), ru))
+    }
+
+    @Test
+    fun `another language has its own month name`() {
+        assertEquals("28 October", formatDayMonth(java.time.LocalDate.of(2026, 10, 28), Locale.UK))
+    }
 }

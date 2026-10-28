@@ -1,11 +1,13 @@
 package com.kllxx.memorylane.core.data.repository
 
+import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
 import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
 import com.kllxx.memorylane.core.data.mapper.toDecisionOrNull
 import com.kllxx.memorylane.core.data.mapper.toDomain
 import com.kllxx.memorylane.core.data.mapper.toEntity
+import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
@@ -18,6 +20,7 @@ import javax.inject.Inject
 internal class SwipeRepositoryImpl @Inject constructor(
     private val photoDecisionDao: PhotoDecisionDao,
     private val swipeSessionDao: SwipeSessionDao,
+    private val deletionDao: DeletionDao,
     private val clock: Clock,
 ) : SwipeRepository {
 
@@ -42,6 +45,9 @@ internal class SwipeRepositoryImpl @Inject constructor(
         val now = clock.millis()
         photoIds.chunked(SQL_VARIABLE_LIMIT).forEach { photoDecisionDao.updateDecisions(it, decision.name, now) }
     }
+
+    override suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome =
+        deletionDao.confirmDeletion(date, bytesById, decision.name, clock.millis(), LocalDate.now(clock))
 
     override suspend fun saveSession(session: SwipeSession) =
         swipeSessionDao.insert(session.toEntity())

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.mapper
 
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
@@ -22,9 +23,15 @@ private fun ruDate(): DateTimeFormatterBuilder = DateTimeFormatterBuilder()
     .appendText(ChronoField.MONTH_OF_YEAR, RU_MONTHS.withIndex().associate { (index, name) -> (index + 1L) to name })
     .appendPattern(" yyyy")
 
+private fun ruDayMonth(): DateTimeFormatterBuilder = DateTimeFormatterBuilder()
+    .appendValue(ChronoField.DAY_OF_MONTH)
+    .appendLiteral(' ')
+    .appendText(ChronoField.MONTH_OF_YEAR, RU_MONTHS.withIndex().associate { (index, name) -> (index + 1L) to name })
+
 private val RU_LOCALE = Locale.forLanguageTag("ru")
 private val RU_DATE_TIME: DateTimeFormatter = ruDate().appendPattern(", HH:mm").toFormatter(RU_LOCALE)
 private val RU_DATE: DateTimeFormatter = ruDate().toFormatter(RU_LOCALE)
+private val RU_DAY_MONTH: DateTimeFormatter = ruDayMonth().toFormatter(RU_LOCALE)
 
 /**
  * «7 января 2016, 21:15»: the full date with the 24-hour clock in Russian; any other language uses its own long
@@ -38,4 +45,10 @@ fun formatTakenAt(takenAt: LocalDateTime, locale: Locale, hasTime: Boolean = tru
         else -> DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(locale)
     }
     return formatter.format(takenAt)
+}
+
+/** «28 октября»: the day and the month in the genitive in Russian, the locale's own day and month otherwise. */
+fun formatDayMonth(date: LocalDate, locale: Locale): String {
+    val formatter = if (locale.language == "ru") RU_DAY_MONTH else DateTimeFormatter.ofPattern("d MMMM", locale)
+    return formatter.format(date)
 }

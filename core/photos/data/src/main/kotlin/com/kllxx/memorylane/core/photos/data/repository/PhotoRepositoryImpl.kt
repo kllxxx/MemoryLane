@@ -534,22 +534,42 @@ internal class PhotoRepositoryImpl @Inject constructor(
             context.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * On API 30+ the user must confirm via the returned [DeleteResult.RequiresConfirmation].
-     * Below 30 photos are deleted directly; a [SecurityException] is thrown for photos
-     * the app does not own.
+     * On API 30+ the photos are moved to the system trash and the user confirms via the returned
+     * [DeleteResult.RequiresConfirmation]. Below 30 there is no trash: photos are deleted for good, directly; a
+     * [SecurityException] is thrown for photos the app may not delete.
      */
     override suspend fun deletePhotos(photoIds: List<Long>): DeleteResult =
         withContext(ioDispatcher) {
             if (photoIds.isEmpty()) return@withContext DeleteResult.Deleted
             val uris = photoIds.map { ContentUris.withAppendedId(COLLECTION_URI, it) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val request = MediaStore.createDeleteRequest(resolver, uris)
+                val request = MediaStore.createTrashRequest(resolver, uris, true)
                 DeleteResult.RequiresConfirmation(request.intentSender)
             } else {
                 uris.forEach { resolver.delete(it, null, null) }
                 DeleteResult.Deleted
             }
         }
+
+    override suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long> = withContext(ioDispatcher) {
+        if (photoIds.isEmpty()) return@withContext emptyMap()
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        val sizes = HashMap<Long, Long>()
+        photoIds.distinct().chunked(SQL_VARIABLE_LIMIT).forEach { ids ->
+            val selection = "${MediaStore.Images.Media._ID} IN (${ids.joinToString(",") { "?" }})"
+            val args = ids.map { it.toString() }.toTypedArray()
+            resolver.query(COLLECTION_URI, SIZE_PROJECTION, selection, args, null)?.use {
+                val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+                while (it.moveToNext()) {
+                    val id = it.getLong(idColumn)
+                    // The ids are the key: a query answering with other rows must not add photos
+                    if (id in ids) sizes[id] = if (it.isNull(sizeColumn)) 0L else it.getLong(sizeColumn)
+                }
+            }
+        }
+        sizes
+    }
 
     /**
      * API 29+ redacts GPS data in MediaStore, so it is read from the original file's EXIF (needs
@@ -658,6 +678,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
             MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.DISPLAY_NAME,
         )
+
+        val SIZE_PROJECTION = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.SIZE)
 
         // What checking a cached date against the file needs, and what a photo of the deck is made of
         val CACHE_PROJECTION = arrayOf(

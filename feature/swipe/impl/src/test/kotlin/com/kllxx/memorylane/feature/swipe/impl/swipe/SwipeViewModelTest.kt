@@ -464,7 +464,7 @@ class SwipeViewModelTest {
         viewModel.effects.test {
             swipe(SwipeDirection.Right, SwipeDirection.Right)
             assertTrue(state.isFinished)
-            assertEquals(SwipeEffect.NavigateToResult(date, nothingDeleted = true), awaitItem())
+            assertEquals(SwipeEffect.NavigateToResult(date, keptCount = 2, totalCount = 2), awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
@@ -838,4 +838,24 @@ class SwipeViewModelTest {
         assertTrue(locationRequests.isEmpty())
     }
 
+
+    // --- back from «Перед удалением» ---
+
+    @Test
+    fun `back on the deck reads the decisions again and shows the last photo`() = runTest(dispatcher) {
+        load()
+        swipe(SwipeDirection.Left, SwipeDirection.Left)
+        assertTrue(state.isFinished)
+        // In the review the first photo was unmarked
+        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+            mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
+
+        viewModel.onIntent(SwipeIntent.ReturnedToDeck)
+        advanceUntilIdle()
+
+        assertFalse(state.isFinished)
+        assertEquals(1, state.currentIndex)
+        assertEquals(listOf(PhotoDecision.KEEP, PhotoDecision.DELETE), decisions())
+        assertFalse(state.canUndo)
+    }
 }

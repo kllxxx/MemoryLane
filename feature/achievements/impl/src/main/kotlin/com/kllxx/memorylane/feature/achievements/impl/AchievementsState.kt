@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
+import com.kllxx.memorylane.core.domain.format.FormattedSize
+
 sealed interface AchievementsState {
     data object Loading : AchievementsState
 
@@ -15,8 +17,3 @@ sealed interface AchievementsState {
         val deletedPhotos: String,
     ) : AchievementsState
 }
-
-enum class SizeUnit { MB, GB }
-
-/** The number and its unit are shown as separate texts. */
-data class FormattedSize(val value: String, val unit: SizeUnit)

@@ -10,3 +10,6 @@
 
 # Module build outputs
 build/
+
+# Kotlin compiler session cache
+.kotlin/

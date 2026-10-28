@@ -13,6 +13,7 @@ import com.kllxx.memorylane.core.data.db.MIGRATION_3_4
 import com.kllxx.memorylane.core.data.db.MIGRATION_4_5
 import com.kllxx.memorylane.core.data.db.MIGRATION_5_6
 import com.kllxx.memorylane.core.data.db.MIGRATION_6_7
+import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDateCacheDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoLocationCacheDao
@@ -61,6 +62,9 @@ internal object DataProvidesModule {
 
     @Provides
     fun provideSwipeSessionDao(db: AppDatabase): SwipeSessionDao = db.swipeSessionDao()
+
+    @Provides
+    fun provideDeletionDao(db: AppDatabase): DeletionDao = db.deletionDao()
 
     @Provides
     fun provideReviewedPhotoDao(db: AppDatabase): ReviewedPhotoDao = db.reviewedPhotoDao()

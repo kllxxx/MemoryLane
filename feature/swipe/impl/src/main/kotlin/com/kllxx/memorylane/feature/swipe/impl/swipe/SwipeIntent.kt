@@ -15,4 +15,10 @@ sealed interface SwipeIntent {
     data object Share : SwipeIntent
     data object OpenInGallery : SwipeIntent
     data object Close : SwipeIntent
+
+    /**
+     * The screen is back on top after the day was completed and Перед удалением was left with Back: the decisions are
+     * read again, because the marks may have changed there, and the deck goes back to the last photo.
+     */
+    data object ReturnedToDeck : SwipeIntent
 }

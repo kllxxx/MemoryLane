@@ -82,6 +82,7 @@ class SwipeViewModel @Inject constructor(
             SwipeIntent.OpenInGallery ->
                 before.currentPhoto?.let { _effects.trySend(SwipeEffect.OpenInGallery(it.photo.uri)) }
             SwipeIntent.Close -> _effects.trySend(SwipeEffect.NavigateToCalendar)
+            SwipeIntent.ReturnedToDeck -> reloadDecisions()
         }
     }
 
@@ -151,6 +152,10 @@ class SwipeViewModel @Inject constructor(
             }
             restartLocationLookup()
         }
+    }
+
+    private fun reloadDecisions() = launchLogged("Could not read the decisions of $date again") {
+        onEvent(SwipeEvent.DecisionsReloaded(swipeRepository.getDecisionsByDate(date)))
     }
 
     private fun isLive(decision: PhotoDecision) = decision != PhotoDecision.TRASHED && decision != PhotoDecision.DELETED
@@ -258,7 +263,11 @@ class SwipeViewModel @Inject constructor(
                 if (hasDeletes) {
                     SwipeEffect.NavigateToBeforeDelete(state.date, totalPhotosCount = state.deck.size)
                 } else {
-                    SwipeEffect.NavigateToResult(state.date, nothingDeleted = true)
+                    SwipeEffect.NavigateToResult(
+                        state.date,
+                        keptCount = state.deck.count { it.decision == PhotoDecision.KEEP },
+                        totalCount = state.deck.size + state.trashed.size,
+                    )
                 },
             )
         }

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.domain.repository
 
+import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,14 @@ interface SwipeRepository {
 
     /** Takes the decision of the photo back, so it is undecided again. */
     suspend fun removeDecision(photoId: Long)
+
+    /**
+     * Confirms the deletion of the photos of [bytesById] (photo id to size in bytes) that are still marked DELETE on [date]:
+     * they become [decision] (TRASHED or DELETED), and their count and bytes are added to the session of [date], which
+     * is completed. All in one transaction. Photos not marked DELETE any more are ignored, so confirming the same photos
+     * twice counts them once and returns zero the second time.
+     */
+    suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome
 
     /** Sets [decision] on every photo of [photoIds] that has one, e.g. to [PhotoDecision.TRASHED] once they are gone. */
     suspend fun setDecisions(photoIds: Collection<Long>, decision: PhotoDecision)

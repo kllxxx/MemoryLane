@@ -14,6 +14,7 @@ import android.provider.MediaStore
 import com.kllxx.memorylane.core.photos.data.geocoder.GeocodeResult
 import com.kllxx.memorylane.core.photos.data.geocoder.LocationGeocoder
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoLocation
 import com.kllxx.memorylane.core.photos.domain.model.DateSource
@@ -89,11 +90,24 @@ class FakeMediaProvider : ContentProvider() {
 
     override fun getType(uri: Uri): String? = null
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
-    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?) = 0
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int {
+        deleted += uri
+        return 1
+    }
+
+    // MediaStore.createTrashRequest asks the provider for a PendingIntent under the key "result"
+    override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        calls += method
+        val intent = android.app.PendingIntent.getActivity(context, 0, android.content.Intent(), android.app.PendingIntent.FLAG_IMMUTABLE)
+        return Bundle().apply { putParcelable("result", intent) }
+    }
+
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<String>?) = 0
 
     companion object {
         var rows: List<Map<String, Any?>> = emptyList()
+        val deleted = mutableListOf<Uri>()
+        val calls = mutableListOf<String>()
         var lastQueryArgs: Bundle? = null
         var queries = 0
         var lastSelectionArgs: List<String>? = null
@@ -102,6 +116,8 @@ class FakeMediaProvider : ContentProvider() {
 
         fun reset() {
             rows = emptyList()
+            deleted.clear()
+            calls.clear()
             lastQueryArgs = null
             queries = 0
             lastSelectionArgs = null
@@ -669,5 +685,76 @@ class PhotoRepositoryImplTest {
         // DATE_TAKEN at midnight and the modification time are real times
         assertEquals(true, photos.getValue(7).hasTime)
         assertEquals(true, photos.getValue(8).hasTime)
+    }
+
+    // --- deleting ---
+
+    @Test
+    @Config(sdk = [30])
+    fun `on API 30 and above the photos go to the trash after a confirmation, nothing is deleted yet`() = runTest {
+        val result = repository.deletePhotos(listOf(1L, 2L))
+
+        assertTrue(result is DeleteResult.RequiresConfirmation)
+        assertEquals(listOf("create_trash_request"), FakeMediaProvider.calls)
+        assertTrue(FakeMediaProvider.deleted.isEmpty())
+    }
+
+    @Test
+    @Config(sdk = [29])
+    fun `below API 30 the photos are deleted at once, one by one, and there is no request`() = runTest {
+        val result = repository.deletePhotos(listOf(1L, 2L))
+
+        assertEquals(DeleteResult.Deleted, result)
+        assertEquals(
+            listOf(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI.buildUpon().appendPath("1").build(),
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI.buildUpon().appendPath("2").build(),
+            ),
+            FakeMediaProvider.deleted,
+        )
+        assertTrue(FakeMediaProvider.calls.isEmpty())
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `deleting nothing asks for nothing`() = runTest {
+        assertEquals(DeleteResult.Deleted, repository.deletePhotos(emptyList()))
+        assertTrue(FakeMediaProvider.calls.isEmpty())
+    }
+
+    @Test
+    fun `getPhotoSizes reads the size of every asked photo that exists`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(
+            mapOf(MediaStore.Images.Media._ID to 1L, MediaStore.Images.Media.SIZE to 100L),
+            mapOf(MediaStore.Images.Media._ID to 2L, MediaStore.Images.Media.SIZE to 250L),
+            mapOf(MediaStore.Images.Media._ID to 3L, MediaStore.Images.Media.SIZE to 999L),
+        )
+
+        assertEquals(mapOf(1L to 100L, 2L to 250L), repository.getPhotoSizes(listOf(1L, 2L, 9L)))
+        assertEquals(listOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.SIZE), FakeMediaProvider.lastProjection)
+    }
+
+    @Test
+    fun `getPhotoSizes of a photo without a size is 0, and of no photos asks nothing`() = runTest {
+        grantMedia()
+        FakeMediaProvider.rows = listOf(mapOf(MediaStore.Images.Media._ID to 1L, MediaStore.Images.Media.SIZE to null))
+
+        assertEquals(mapOf(1L to 0L), repository.getPhotoSizes(listOf(1L)))
+        val queries = FakeMediaProvider.queries
+        assertEquals(emptyMap<Long, Long>(), repository.getPhotoSizes(emptyList()))
+        assertEquals(queries, FakeMediaProvider.queries)
+    }
+
+    @Test
+    fun `getPhotoSizes throws PermissionDeniedException without permission and never queries`() = runTest {
+        denyMedia()
+
+        try {
+            repository.getPhotoSizes(listOf(1L))
+            fail("expected PermissionDeniedException")
+        } catch (e: PermissionDeniedException) {
+            assertEquals(0, FakeMediaProvider.queries)
+        }
     }
 }

@@ -9,16 +9,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeEffect
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntentFactory
+import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntent
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeViewModel
 import com.kllxx.memorylane.feature.swipe.impl.swipe.ui.SwipeContent
 import java.time.LocalDate
 
 @Composable
 fun SwipeScreen(
-    onNavigateToReview: (date: LocalDate, totalPhotosCount: Int) -> Unit,
+    onNavigateToBeforeDelete: (date: LocalDate) -> Unit,
+    onNavigateToResult: (date: LocalDate, keptCount: Int, totalCount: Int) -> Unit,
     onNavigateToCalendar: () -> Unit,
     viewModel: SwipeViewModel = hiltViewModel(),
 ) {
@@ -28,9 +32,8 @@ fun SwipeScreen(
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is SwipeEffect.NavigateToBeforeDelete -> onNavigateToReview(effect.date, effect.totalPhotosCount)
-                // The result screen comes with the delete flow; until then Calendar is where the day ends
-                is SwipeEffect.NavigateToResult -> onNavigateToCalendar()
+                is SwipeEffect.NavigateToBeforeDelete -> onNavigateToBeforeDelete(effect.date)
+                is SwipeEffect.NavigateToResult -> onNavigateToResult(effect.date, effect.keptCount, effect.totalCount)
                 SwipeEffect.NavigateToCalendar -> onNavigateToCalendar()
                 // Calendar asks for the permission, so the user is not left on an empty screen
                 SwipeEffect.PermissionRequired -> onNavigateToCalendar()
@@ -40,6 +43,12 @@ fun SwipeScreen(
                 is SwipeEffect.OpenInGallery -> context.launchOrToast(SwipeIntentFactory.view(effect.uri))
             }
         }
+    }
+
+    // Back from «Перед удалением» leaves this screen finished: the deck comes back on its last photo, with the marks as they
+    // are now. The first resume is the screen opening, not a return.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (state.isFinished) viewModel.onIntent(SwipeIntent.ReturnedToDeck)
     }
 
     SwipeContent(state = state, onIntent = viewModel::onIntent)

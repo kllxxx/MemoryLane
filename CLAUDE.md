@@ -94,7 +94,7 @@ Each prefix has its own independent counter:
 - chore, test, docs — no ticket number
 
 Current counters (update as you go):
-- feat: last used MMLN-24
+- feat: last used MMLN-25
 - fix: last used MMLN-17
 - refactor: last used MMLN-06
 

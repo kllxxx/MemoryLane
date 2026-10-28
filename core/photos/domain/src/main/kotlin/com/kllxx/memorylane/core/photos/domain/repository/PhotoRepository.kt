@@ -50,5 +50,18 @@ interface PhotoRepository {
      */
     fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation>
 
+    /**
+     * The size in bytes of each of [photoIds] that is in the library, read now. Photos that are gone are missing.
+     * Read this before a deletion is requested: afterwards the trashed photos are no longer in a normal query.
+     *
+     * @throws com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+     * if the media permission is not granted.
+     */
+    suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long>
+
+    /**
+     * Starts the deletion of [photoIds]. On API 30+ they go to the system trash after the user confirms the returned
+     * [DeleteResult.RequiresConfirmation]. Below 30 there is no trash: they are deleted for good, at once.
+     */
     suspend fun deletePhotos(photoIds: List<Long>): DeleteResult
 }

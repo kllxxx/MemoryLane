@@ -2,6 +2,7 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import com.haroncode.lazycardstack.swiper.SwipeDirection
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentList
 
@@ -16,6 +17,7 @@ object SwipeReducer {
         SwipeIntent.Share,
         SwipeIntent.OpenInGallery,
         SwipeIntent.Close,
+        SwipeIntent.ReturnedToDeck,
         -> state
     }
 
@@ -32,6 +34,7 @@ object SwipeReducer {
                 )
             }
         is SwipeEvent.ButtonsModeChanged -> state.copy(buttonsMode = event.enabled)
+        is SwipeEvent.DecisionsReloaded -> reloadDecisions(state, event)
     }
 
     private fun load(state: SwipeState, event: SwipeEvent.PhotosLoaded): SwipeState {
@@ -50,6 +53,23 @@ object SwipeReducer {
             undoStack = undo.toImmutableList(),
             isLoading = false,
             isFinished = deck.isEmpty(),
+        )
+    }
+
+    private fun reloadDecisions(state: SwipeState, event: SwipeEvent.DecisionsReloaded): SwipeState {
+        if (state.deck.isEmpty()) return state
+        return state.copy(
+            deck = state.deck
+                .map { photo ->
+                    // A photo that was trashed is gone from the deck on the next visit; here it simply has no live decision
+                    val decision = event.decisions[photo.id]?.takeIf { it != PhotoDecision.TRASHED && it != PhotoDecision.DELETED }
+                    photo.copy(decision = decision)
+                }
+                .toImmutableList(),
+            currentIndex = state.deck.lastIndex,
+            // The marks may have changed elsewhere, so what this visit did can no longer be taken back reliably
+            undoStack = persistentListOf(),
+            isFinished = false,
         )
     }
 

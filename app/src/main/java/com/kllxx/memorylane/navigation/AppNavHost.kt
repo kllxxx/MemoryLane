@@ -24,10 +24,12 @@ import com.kllxx.memorylane.feature.onboarding.api.OnboardingRoute
 import com.kllxx.memorylane.feature.onboarding.impl.OnboardingScreen
 import com.kllxx.memorylane.feature.profile.api.ProfileRoute
 import com.kllxx.memorylane.feature.profile.impl.ProfileScreen
-import com.kllxx.memorylane.feature.swipe.api.ReviewRoute
+import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
+import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
-import com.kllxx.memorylane.feature.swipe.impl.review.ReviewScreen
+import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteScreen
+import com.kllxx.memorylane.feature.swipe.impl.result.ResultScreen
 import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
 import java.time.LocalDate
 import kotlin.reflect.KClass
@@ -117,17 +119,32 @@ fun AppNavHost(
         composable<SwipeRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 SwipeScreen(
-                    onNavigateToReview = { date, totalPhotosCount ->
-                        navController.navigate(ReviewRoute(date.toString(), totalPhotosCount)) {
-                            popUpTo<SwipeRoute> { inclusive = true }
+                    // Swipe stays on the back stack: Back from «Перед удалением» returns to the deck
+                    onNavigateToBeforeDelete = { date -> navController.navigate(BeforeDeleteRoute(date.toString())) },
+                    onNavigateToResult = { date, keptCount, totalCount ->
+                        navController.navigate(ResultRoute(date.toString(), 0, 0L, keptCount, totalCount))
+                    },
+                    onNavigateToCalendar = { navController.navigateToCalendar() },
+                )
+            }
+        }
+        composable<BeforeDeleteRoute> {
+            Box(Modifier.fillMaxSize().fullScreenInsets()) {
+                BeforeDeleteScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToResult = { date, deletedCount, freedBytes, keptCount, totalCount ->
+                        navController.navigate(ResultRoute(date.toString(), deletedCount, freedBytes, keptCount, totalCount)) {
+                            popUpTo<BeforeDeleteRoute> { inclusive = true }
                         }
                     },
                     onNavigateToCalendar = { navController.navigateToCalendar() },
                 )
             }
         }
-        composable<ReviewRoute> {
-            Box(Modifier.fillMaxSize().fullScreenInsets()) { ReviewScreen() }
+        composable<ResultRoute> {
+            Box(Modifier.fillMaxSize().fullScreenInsets()) {
+                ResultScreen(onNavigateToCalendar = { navController.navigateToCalendar() })
+            }
         }
         composable<CalendarRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {

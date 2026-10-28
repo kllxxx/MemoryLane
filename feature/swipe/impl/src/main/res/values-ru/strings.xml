@@ -8,4 +8,34 @@
     </plurals>
     <string name="calendar_empty_title">Пока нет фото</string>
     <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
+    <plurals name="before_delete_description">
+        <item quantity="one">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="few">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="many">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="other">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+    </plurals>
+    <plurals name="before_delete_button">
+        <item quantity="one">Удалить %1$d фото · %2$s %3$s</item>
+        <item quantity="few">Удалить %1$d фото · %2$s %3$s</item>
+        <item quantity="many">Удалить %1$d фото · %2$s %3$s</item>
+        <item quantity="other">Удалить %1$d фото · %2$s %3$s</item>
+    </plurals>
+    <plurals name="before_delete_dialog_title">
+        <item quantity="one">Удалить %d фото безвозвратно?</item>
+        <item quantity="few">Удалить %d фото безвозвратно?</item>
+        <item quantity="many">Удалить %d фото безвозвратно?</item>
+        <item quantity="other">Удалить %d фото безвозвратно?</item>
+    </plurals>
+    <plurals name="result_caption_photos">
+        <item quantity="one">%d фото</item>
+        <item quantity="few">%d фото</item>
+        <item quantity="many">%d фото</item>
+        <item quantity="other">%d фото</item>
+    </plurals>
+    <plurals name="result_streak">
+        <item quantity="one">Текущий стрик: %d день</item>
+        <item quantity="few">Текущий стрик: %d дня</item>
+        <item quantity="many">Текущий стрик: %d дней</item>
+        <item quantity="other">Текущий стрик: %d дня</item>
+    </plurals>
 </resources>

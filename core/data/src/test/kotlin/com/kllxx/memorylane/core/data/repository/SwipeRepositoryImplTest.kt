@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.data.repository
 
+import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
 import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
@@ -23,9 +24,10 @@ class SwipeRepositoryImplTest {
 
     private val photoDecisionDao = mockk<PhotoDecisionDao>()
     private val swipeSessionDao = mockk<SwipeSessionDao>()
+    private val deletionDao = mockk<DeletionDao>()
     private val now = Instant.parse("2026-10-28T12:00:00Z")
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
-    private val repository = SwipeRepositoryImpl(photoDecisionDao, swipeSessionDao, clock)
+    private val repository = SwipeRepositoryImpl(photoDecisionDao, swipeSessionDao, deletionDao, clock)
     private val date = LocalDate.of(2026, 10, 15)
 
     @Test
@@ -105,5 +107,17 @@ class SwipeRepositoryImplTest {
         coEvery { swipeSessionDao.getCompletedOn(day) } returns null
 
         assertNull(repository.getSessionByCompletedAt(day))
+    }
+
+    @Test
+    fun `confirmDeletion hands the photos, the decision name and the time to the transaction`() = runTest {
+        val bytes = mapOf(7L to 100L, 8L to 200L)
+        coEvery {
+            deletionDao.confirmDeletion(date, bytes, "TRASHED", now.toEpochMilli(), LocalDate.of(2026, 10, 28))
+        } returns com.kllxx.memorylane.core.domain.model.DeletionOutcome(2, 300)
+
+        val outcome = repository.confirmDeletion(date, bytes, PhotoDecision.TRASHED)
+
+        assertEquals(com.kllxx.memorylane.core.domain.model.DeletionOutcome(2, 300), outcome)
     }
 }

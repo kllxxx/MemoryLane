@@ -41,4 +41,46 @@
     <string name="swipe_state_trashed">в корзине</string>
     <string name="swipe_share_chooser">Поделиться фото</string>
     <string name="swipe_no_app">Нет приложения, чтобы открыть фото</string>
+    <string name="before_delete_title">Перед удалением</string>
+    <string name="before_delete_back">Назад</string>
+    <plurals name="before_delete_description">
+        <item quantity="one">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="other">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+    </plurals>
+    <string name="before_delete_description_none">Ничего не отмечено. Нажми на фото, чтобы отметить его снова.</string>
+    <plurals name="before_delete_button">
+        <item quantity="one">Удалить %1$d фото · %2$s %3$s</item>
+        <item quantity="other">Удалить %1$d фото · %2$s %3$s</item>
+    </plurals>
+    <string name="before_delete_done">Готово</string>
+    <string name="before_delete_cell_marked">Фото %1$d, отмечено на удаление</string>
+    <string name="before_delete_cell_unmarked">Фото %1$d, оставлено</string>
+    <string name="before_delete_loading">Загрузка фото</string>
+    <plurals name="before_delete_dialog_title">
+        <item quantity="one">Удалить %d фото безвозвратно?</item>
+        <item quantity="other">Удалить %d фото безвозвратно?</item>
+    </plurals>
+    <string name="before_delete_dialog_message">На этой версии Android нет корзины: фото нельзя будет вернуть.</string>
+    <string name="before_delete_dialog_confirm">Удалить</string>
+    <string name="before_delete_dialog_dismiss">Отмена</string>
+    <string name="before_delete_error">Не удалось удалить фото</string>
+    <string name="before_delete_permission_denied">Без доступа к хранилищу фото не удалить</string>
+    <string name="result_overline_freed">ОСВОБОЖДЕНО</string>
+    <string name="result_overline_sorted">ДЕНЬ РАЗОБРАН</string>
+    <string name="result_all_kept">Все фото оставлены</string>
+    <string name="result_unit_mb">МБ</string>
+    <string name="result_unit_gb">ГБ</string>
+    <string name="result_caption">%1$s · %2$s</string>
+    <plurals name="result_caption_photos">
+        <item quantity="one">%d фото</item>
+        <item quantity="other">%d фото</item>
+    </plurals>
+    <string name="result_deleted_label">удалено</string>
+    <string name="result_kept_label">оставлено</string>
+    <plurals name="result_streak">
+        <item quantity="one">Текущий стрик: %d день</item>
+        <item quantity="other">Текущий стрик: %d дня</item>
+    </plurals>
+    <string name="result_done">Готово</string>
+    <string name="result_celebration">Праздник</string>
 </resources>

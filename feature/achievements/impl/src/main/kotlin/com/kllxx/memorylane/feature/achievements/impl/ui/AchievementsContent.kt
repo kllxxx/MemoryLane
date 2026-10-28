@@ -46,9 +46,9 @@ import com.kllxx.memorylane.core.ui.component.SectionHeader
 import com.kllxx.memorylane.core.ui.component.SettingsRow
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsIntent
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsState
-import com.kllxx.memorylane.feature.achievements.impl.FormattedSize
+import com.kllxx.memorylane.core.domain.format.FormattedSize
 import com.kllxx.memorylane.feature.achievements.impl.R
-import com.kllxx.memorylane.feature.achievements.impl.SizeUnit
+import com.kllxx.memorylane.core.domain.format.SizeUnit
 
 internal const val CURRENT_STREAK_TAG = "current-streak"
 internal const val BEST_STREAK_TAG = "best-streak"

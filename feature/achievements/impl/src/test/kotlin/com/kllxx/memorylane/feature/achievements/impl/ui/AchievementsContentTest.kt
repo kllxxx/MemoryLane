@@ -13,8 +13,8 @@ import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsIntent
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsState
-import com.kllxx.memorylane.feature.achievements.impl.FormattedSize
-import com.kllxx.memorylane.feature.achievements.impl.SizeUnit
+import com.kllxx.memorylane.core.domain.format.FormattedSize
+import com.kllxx.memorylane.core.domain.format.SizeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

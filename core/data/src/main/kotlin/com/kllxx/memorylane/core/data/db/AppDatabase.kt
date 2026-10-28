@@ -3,6 +3,7 @@ package com.kllxx.memorylane.core.data.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDateCacheDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoLocationCacheDao
@@ -29,6 +30,7 @@ import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 abstract class AppDatabase : RoomDatabase() {
     abstract fun photoDecisionDao(): PhotoDecisionDao
     abstract fun swipeSessionDao(): SwipeSessionDao
+    abstract fun deletionDao(): DeletionDao
     abstract fun reviewedPhotoDao(): ReviewedPhotoDao
     abstract fun photoDateCacheDao(): PhotoDateCacheDao
     abstract fun photoLocationCacheDao(): PhotoLocationCacheDao

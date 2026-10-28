@@ -15,8 +15,11 @@ sealed interface SwipeEffect {
      */
     data class NavigateToBeforeDelete(val date: LocalDate, val totalPhotosCount: Int) : SwipeEffect
 
-    /** Every photo of the day has a decision. With [nothingDeleted] none is marked, so there is nothing to delete. */
-    data class NavigateToResult(val date: LocalDate, val nothingDeleted: Boolean = true) : SwipeEffect
+    /**
+     * Every photo of the day has a decision and none is marked for deletion, so there is nothing to delete: «Итоги»
+     * for the day, with [keptCount] kept photos out of [totalCount].
+     */
+    data class NavigateToResult(val date: LocalDate, val keptCount: Int, val totalCount: Int) : SwipeEffect
 
     /** The screen builds the chooser for [uri] (`ACTION_SEND`). */
     data class ShareImage(val uri: Uri) : SwipeEffect

@@ -70,6 +70,7 @@ private class FakePhotoRepository : PhotoRepository {
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> = error("not used by the calendar")
     override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = emptyList()
     override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = emptyFlow()
+    override suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long> = emptyMap()
     override suspend fun deletePhotos(photoIds: List<Long>): DeleteResult = DeleteResult.Deleted
 }
 
