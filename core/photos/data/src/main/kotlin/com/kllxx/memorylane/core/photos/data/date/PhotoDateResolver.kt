@@ -32,8 +32,8 @@ internal class PhotoDateResolver(
     }
 
     private fun fromFileName(photo: UndatedPhoto): ResolvedDate? =
-        FileNameDateParser.parse(photo.name)
-            ?.let { ResolvedDate(it, offset = null, source = DateSource.FILENAME) }
+        FileNameDateParser.parseDetailed(photo.name)
+            ?.let { ResolvedDate(it.dateTime, offset = null, source = DateSource.FILENAME, hasTime = it.hasTime) }
             ?.takeIf(::isPlausible)
 
     private fun isPlausible(date: ResolvedDate): Boolean {

@@ -64,3 +64,20 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
     }
 }
+
+/**
+ * Adds `has_time` to the date cache: false for a date that came from a file name without a time. Every row is true
+ * first, then the rows a file name gave at exactly 12:00:00 are set to false, because the file-name parser stores a
+ * name without a time as noon (43200 seconds into the day) and nothing else writes that time for a file name that
+ * has no real one. A real `IMG_20160107_120000.jpg` is cached the same way and loses its time until the file changes.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE photo_date_cache ADD COLUMN has_time INTEGER NOT NULL DEFAULT 1")
+        db.execSQL(
+            "UPDATE photo_date_cache SET has_time = 0 " +
+                "WHERE source = 'FILENAME' AND taken_local_epoch_second IS NOT NULL " +
+                "AND taken_local_epoch_second % 86400 = 43200",
+        )
+    }
+}

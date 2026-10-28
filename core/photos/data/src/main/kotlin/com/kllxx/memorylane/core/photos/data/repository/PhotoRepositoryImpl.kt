@@ -363,11 +363,13 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private suspend fun photosFromCache(date: LocalDate, zone: ZoneId): List<Photo> {
         val monthDay = MonthDay.from(date)
         val years = (date.year - PhotosConstants.MAX_YEARS_BACK)..(date.year - 1)
-        val onThisDay = HashMap<Long, Pair<LocalDateTime, Long>>()
+        val onThisDay = HashMap<Long, CachedDay>()
         for (entry in dateCache.getAllDated()) {
             val takenAt = ResolvedDate.fromCached(entry)?.toInstant(zone)?.atZone(zone)?.toLocalDateTime() ?: continue
             val day = takenAt.toLocalDate()
-            if (day.year in years && MonthDay.from(day) == monthDay) onThisDay[entry.id] = takenAt to entry.dateModified
+            if (day.year in years && MonthDay.from(day) == monthDay) {
+                onThisDay[entry.id] = CachedDay(takenAt, entry.hasTime, entry.dateModified)
+            }
         }
         if (onThisDay.isEmpty()) return emptyList()
 
@@ -383,16 +385,17 @@ internal class PhotoRepositoryImpl @Inject constructor(
                     while (it.moveToNext()) {
                         val id = it.getLong(idColumn)
                         // The cached id is the key: a query answering with other rows must not add photos
-                        val (takenAt, cachedModified) = onThisDay[id] ?: continue
+                        val cachedDay = onThisDay[id] ?: continue
                         // MediaStore has a date for it now, or the file changed: the cache entry no longer applies
                         val hasDateTaken = !it.isNull(takenColumn) && it.getLong(takenColumn) > 0
                         val modified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn)
-                        if (hasDateTaken || modified != cachedModified) continue
+                        if (hasDateTaken || modified != cachedDay.dateModified) continue
                         add(
                             Photo(
                                 id = id,
                                 uri = ContentUris.withAppendedId(COLLECTION_URI, id),
-                                takenAt = takenAt,
+                                takenAt = cachedDay.takenAt,
+                                hasTime = cachedDay.hasTime,
                                 sizeBytes = it.getLong(sizeColumn),
                                 dateModified = modified,
                                 width = it.intOrZero(MediaStore.Images.Media.WIDTH),
@@ -445,10 +448,10 @@ internal class PhotoRepositoryImpl @Inject constructor(
                     if (id !in ids) continue
                     val taken = if (it.isNull(takenColumn)) 0L else it.getLong(takenColumn)
                     val modified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn)
+                    val cached = if (taken > 0) null else cachedDates[id]?.let(ResolvedDate::fromCached)
                     val takenAt = when {
                         taken > 0 -> Instant.ofEpochMilli(taken).atZone(zone).toLocalDateTime()
-                        else -> cachedDates[id]?.let(ResolvedDate::fromCached)
-                            ?.toInstant(zone)?.atZone(zone)?.toLocalDateTime()
+                        else -> cached?.toInstant(zone)?.atZone(zone)?.toLocalDateTime()
                             ?: Instant.ofEpochSecond(modified).atZone(zone).toLocalDateTime()
                     }
                     add(
@@ -456,6 +459,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
                             id = id,
                             uri = ContentUris.withAppendedId(COLLECTION_URI, id),
                             takenAt = takenAt,
+                            // MediaStore and the file's modification time always have a time; only a date from a file name may not
+                            hasTime = cached?.hasTime ?: true,
                             sizeBytes = it.getLong(sizeColumn),
                             dateModified = modified,
                             width = it.intOrZero(MediaStore.Images.Media.WIDTH),
@@ -639,6 +644,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
         )
     }
 
+
+    /** A cached date that falls on the day being asked for, with what the photo needs from it. */
+    private class CachedDay(val takenAt: LocalDateTime, val hasTime: Boolean, val dateModified: Long)
 
     private companion object {
         const val TAG = "PhotoRepositoryImpl"

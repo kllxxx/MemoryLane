@@ -658,4 +658,57 @@ class PhotoIndexRefreshTest {
         assertFalse(FakeMediaProvider.lastProjection.orEmpty().contains(MediaStore.Images.Media.MIME_TYPE))
         assertTrue(lines.isEmpty())
     }
+
+    // --- whether the date of a photo has a time ---
+
+    @Test
+    fun `a photo dated by a file name without a time has no time, in the index and in the deck`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, name = "IMG-20161015-WA0001.jpg"))
+
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        val photo = repository.getPhotosForDate(today).single()
+
+        assertEquals(LocalDate.of(2016, 10, 15), photo.dateTaken)
+        assertFalse(photo.hasTime)
+    }
+
+    @Test
+    fun `a photo dated by a file name with a time keeps it`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, name = "IMG_20161015_101500.jpg"))
+
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        val photo = repository.getPhotosForDate(today).single()
+
+        assertEquals(LocalDateTime.of(2016, 10, 15, 10, 15, 0), photo.takenAt)
+        assertTrue(photo.hasTime)
+    }
+
+    @Test
+    fun `a photo dated by EXIF keeps its time, also a real midnight`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"))
+        reader.tags[2] = exifOriginal("2016:10:15 00:00:00")
+
+        repository.refreshOnThisDayIndex()
+        advanceUntilIdle()
+        val photo = repository.getPhotosForDate(today).single()
+
+        assertEquals(LocalDateTime.of(2016, 10, 15, 0, 0, 0), photo.takenAt)
+        assertTrue(photo.hasTime)
+    }
+
+    @Test
+    fun `a photo with DATE_TAKEN has a time, also at midnight`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(1, LocalDate.of(2024, 10, 15).atStartOfDay(zone).toInstant().toEpochMilli()))
+
+        val photo = repository.getPhotosForDate(today).single()
+
+        assertEquals(LocalDateTime.of(2024, 10, 15, 0, 0), photo.takenAt)
+        assertTrue(photo.hasTime)
+    }
 }

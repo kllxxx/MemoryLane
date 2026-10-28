@@ -52,4 +52,18 @@ class DeckMapperTest {
     fun `the place of the photo is kept`() {
         assertEquals("Светлогорск, Россия", photo.toDeckPhoto(null, Locale.US).photo.location)
     }
+
+    @Test
+    fun `a photo that has only a day shows just the date`() {
+        val dateOnly = photo.copy(takenAt = LocalDateTime.of(2016, 1, 7, 12, 0), hasTime = false)
+
+        assertEquals("7 января 2016", dateOnly.toDeckPhoto(null, Locale.forLanguageTag("ru-RU")).takenAtText)
+    }
+
+    @Test
+    fun `a photo with a real midnight shows the time`() {
+        val midnight = photo.copy(takenAt = LocalDateTime.of(2016, 1, 8, 0, 0))
+
+        assertEquals("8 января 2016, 00:00", midnight.toDeckPhoto(null, Locale.forLanguageTag("ru-RU")).takenAtText)
+    }
 }

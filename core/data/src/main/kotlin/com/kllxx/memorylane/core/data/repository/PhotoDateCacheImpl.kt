@@ -41,6 +41,7 @@ internal fun CachedPhotoDate.toEntity() = PhotoDateCacheEntity(
     takenLocalEpochSecond = takenLocalEpochSecond,
     offsetSeconds = offsetSeconds,
     source = source.name,
+    hasTime = hasTime,
 )
 
 internal fun PhotoDateCacheEntity.toDomain() = CachedPhotoDate(
@@ -50,4 +51,5 @@ internal fun PhotoDateCacheEntity.toDomain() = CachedPhotoDate(
     offsetSeconds = offsetSeconds,
     // A value written by a newer version of the app reads as undated and is simply resolved again
     source = DateSource.entries.firstOrNull { it.name == source } ?: DateSource.UNDATED,
+    hasTime = hasTime,
 )

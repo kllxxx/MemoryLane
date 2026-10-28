@@ -8,6 +8,6 @@ import java.util.Locale
 fun Photo.toDeckPhoto(decision: PhotoDecision?, locale: Locale) = DeckPhoto(
     photo = this,
     decision = decision,
-    takenAtText = formatTakenAt(takenAt, locale),
+    takenAtText = formatTakenAt(takenAt, locale, hasTime),
     aspectRatio = displayAspectRatio(),
 )

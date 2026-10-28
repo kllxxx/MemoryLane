@@ -22,7 +22,7 @@ import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
         PhotoDateCacheEntity::class,
         PhotoLocationCacheEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

@@ -158,4 +158,60 @@ class PhotoDateResolverTest {
     fun `an undated cache entry has no date`() {
         assertNull(ResolvedDate.fromCached(ResolvedDate.undatedToCached(photo())))
     }
+
+    // --- whether the date has a time ---
+
+    @Test
+    fun `an EXIF date has a time`() {
+        reader.tags[1] = ExifDateTags(dateTimeOriginal = "2016:01:07 10:15:00")
+
+        assertEquals(true, resolver.resolve(photo())!!.hasTime)
+    }
+
+    @Test
+    fun `a real midnight in EXIF has a time`() {
+        reader.tags[1] = ExifDateTags(dateTimeOriginal = "2016:01:08 00:00:00")
+
+        val resolved = resolver.resolve(photo())!!
+
+        assertEquals(LocalDateTime.of(2016, 1, 8, 0, 0, 0), resolved.dateTime)
+        assertEquals(true, resolved.hasTime)
+    }
+
+    @Test
+    fun `a file name with a time has a time`() {
+        val resolved = resolver.resolve(photo("IMG_20160107_101500.jpg"))!!
+
+        assertEquals(DateSource.FILENAME, resolved.source)
+        assertEquals(true, resolved.hasTime)
+    }
+
+    @Test
+    fun `a file name with a date only has no time`() {
+        val resolved = resolver.resolve(photo("IMG-20160107-WA0001.jpg"))!!
+
+        assertEquals(DateSource.FILENAME, resolved.source)
+        assertEquals(LocalDate.of(2016, 1, 7), resolved.dateTime.toLocalDate())
+        assertEquals(false, resolved.hasTime)
+    }
+
+    @Test
+    fun `EXIF wins over a file name without a time and the date has its time`() {
+        reader.tags[1] = ExifDateTags(dateTimeOriginal = "2016:01:07 10:15:00")
+
+        val resolved = resolver.resolve(photo("IMG-20160107-WA0001.jpg"))!!
+
+        assertEquals(DateSource.EXIF, resolved.source)
+        assertEquals(true, resolved.hasTime)
+    }
+
+    @Test
+    fun `the flag survives the cache round trip`() {
+        val noTime = resolver.resolve(photo("IMG-20160107-WA0001.jpg"))!!
+        val withTime = resolver.resolve(photo("IMG_20160107_101500.jpg"))!!
+
+        assertEquals(false, ResolvedDate.fromCached(noTime.toCached(photo()))!!.hasTime)
+        assertEquals(true, ResolvedDate.fromCached(withTime.toCached(photo()))!!.hasTime)
+        assertEquals(false, noTime.toCached(photo()).hasTime)
+    }
 }

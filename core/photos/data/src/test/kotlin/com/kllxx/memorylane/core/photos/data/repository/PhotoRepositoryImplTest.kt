@@ -640,4 +640,34 @@ class PhotoRepositoryImplTest {
 
         assertEquals(listOf(5L), repository.getTrashedPhotos(listOf(5L, 6L)).map { it.id })
     }
+
+    @Test
+    @Config(sdk = [30])
+    fun `a trashed photo dated by a file name without a time has no time, any other has one`() = runTest {
+        shadowOf(application).grantPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
+        fun cached(id: Long, hasTime: Boolean) = CachedPhotoDate(
+            id = id,
+            dateModified = 100,
+            takenLocalEpochSecond = LocalDateTime.of(2015, 6, 1, 12, 0).toEpochSecond(ZoneOffset.UTC),
+            offsetSeconds = null,
+            source = DateSource.FILENAME,
+            hasTime = hasTime,
+        )
+        dateCache.entries[5] = cached(5, hasTime = false)
+        dateCache.entries[6] = cached(6, hasTime = true)
+        FakeMediaProvider.rows = listOf(
+            trashedRow(5, taken = null),
+            trashedRow(6, taken = null),
+            trashedRow(7, taken = date.minusYears(1).atStartOfDay()),
+            trashedRow(8, taken = null, modified = date.minusYears(1).atStartOfDay(zone).toEpochSecond()),
+        )
+
+        val photos = repository.getTrashedPhotos(listOf(5L, 6L, 7L, 8L)).associateBy { it.id }
+
+        assertEquals(false, photos.getValue(5).hasTime)
+        assertEquals(true, photos.getValue(6).hasTime)
+        // DATE_TAKEN at midnight and the modification time are real times
+        assertEquals(true, photos.getValue(7).hasTime)
+        assertEquals(true, photos.getValue(8).hasTime)
+    }
 }

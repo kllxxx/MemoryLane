@@ -19,6 +19,9 @@ enum class DateSource {
  * The date is the wall-clock time of the photo, [takenLocalEpochSecond] counted as if it were UTC, plus the
  * [offsetSeconds] from UTC when the file says so. Without an offset the device time zone applies when the date is used,
  * the same as for `DATE_TAKEN`. Both are null for [DateSource.UNDATED].
+ *
+ * [hasTime] is false when the source had only a day (a file name like `20160107.jpg`), so the time of day in
+ * [takenLocalEpochSecond] is a placeholder that must not be shown.
  */
 data class CachedPhotoDate(
     val id: Long,
@@ -26,4 +29,5 @@ data class CachedPhotoDate(
     val takenLocalEpochSecond: Long?,
     val offsetSeconds: Int?,
     val source: DateSource,
+    val hasTime: Boolean = true,
 )

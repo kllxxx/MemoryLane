@@ -75,4 +75,35 @@ class FileNameDateParserTest {
         assertEquals(LocalDateTime.of(2016, 2, 29, 10, 0, 0), parse("IMG_20160229_100000.jpg"))
         assertNull(parse("IMG_20150229_100000.jpg"))
     }
+
+    // --- whether the name has a time ---
+
+    @Test
+    fun `a name with a time has a time`() {
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 10, 15, 0), hasTime = true), FileNameDateParser.parseDetailed("IMG_20160107_101500.jpg"))
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 10, 15, 0), hasTime = true), FileNameDateParser.parseDetailed("Screenshot_2016-01-07-10-15-00_app.png"))
+    }
+
+    @Test
+    fun `a name with a date only has no time, and its noon is a placeholder`() {
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 12, 0, 0), hasTime = false), FileNameDateParser.parseDetailed("IMG-20160107-WA0001.jpg"))
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 12, 0, 0), hasTime = false), FileNameDateParser.parseDetailed("IMG_20160107.jpg"))
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 12, 0, 0), hasTime = false), FileNameDateParser.parseDetailed("Screenshot_2016-01-07.png"))
+    }
+
+    @Test
+    fun `a name with a real noon has a time`() {
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 12, 0, 0), hasTime = true), FileNameDateParser.parseDetailed("IMG_20160107_120000.jpg"))
+    }
+
+    @Test
+    fun `a name with a real midnight has a time`() {
+        assertEquals(FileNameDate(LocalDateTime.of(2016, 1, 7, 0, 0, 0), hasTime = true), FileNameDateParser.parseDetailed("IMG_20160107_000000.jpg"))
+    }
+
+    @Test
+    fun `a name without a date has neither`() {
+        assertNull(FileNameDateParser.parseDetailed("holiday.jpg"))
+        assertNull(FileNameDateParser.parseDetailed(null))
+    }
 }

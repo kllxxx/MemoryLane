@@ -18,12 +18,14 @@ internal data class UndatedPhoto(
 
 /**
  * The date found for an [UndatedPhoto]: the wall-clock [dateTime] and, when the file says so, its [offset] from UTC.
- * Without an offset the device zone decides, the same as for `DATE_TAKEN`.
+ * Without an offset the device zone decides, the same as for `DATE_TAKEN`. [hasTime] is false when the source had only
+ * a day, so the time of [dateTime] is a placeholder; EXIF dates always have a time.
  */
 internal data class ResolvedDate(
     val dateTime: LocalDateTime,
     val offset: ZoneOffset?,
     val source: DateSource,
+    val hasTime: Boolean = true,
 ) {
     fun toInstant(zone: ZoneId): Instant =
         if (offset != null) dateTime.toInstant(offset) else dateTime.atZone(zone).toInstant()
@@ -37,6 +39,7 @@ internal data class ResolvedDate(
         takenLocalEpochSecond = dateTime.toEpochSecond(ZoneOffset.UTC),
         offsetSeconds = offset?.totalSeconds,
         source = source,
+        hasTime = hasTime,
     )
 
     companion object {
@@ -56,6 +59,7 @@ internal data class ResolvedDate(
                 dateTime = LocalDateTime.ofEpochSecond(seconds, 0, ZoneOffset.UTC),
                 offset = cached.offsetSeconds?.let(ZoneOffset::ofTotalSeconds),
                 source = cached.source,
+                hasTime = cached.hasTime,
             )
         }
     }

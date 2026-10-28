@@ -89,4 +89,15 @@ class PhotoDateCacheDaoTest {
 
         assertEquals(listOf(2L), dao.allIds())
     }
+
+    @Test
+    fun `the has-time flag is stored, and a row without it has a time`() = runTest {
+        dao.upsertAll(listOf(entity(1).copy(hasTime = false), entity(2), entity(3).copy(hasTime = true)))
+
+        val found = dao.getByIds(listOf(1, 2, 3)).associateBy { it.id }
+
+        assertEquals(false, found.getValue(1).hasTime)
+        assertEquals(true, found.getValue(2).hasTime)
+        assertEquals(true, found.getValue(3).hasTime)
+    }
 }

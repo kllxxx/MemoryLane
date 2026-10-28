@@ -23,16 +23,19 @@ internal object FileNameDateParser {
     /** A name without a time gives noon, so that the day does not change with the time zone. */
     private val noon = LocalTime.NOON
 
-    fun parse(name: String?): LocalDateTime? {
+    fun parse(name: String?): LocalDateTime? = parseDetailed(name)?.dateTime
+
+    /** Like [parse], and says whether the name had a time; without one the time of [FileNameDate.dateTime] is noon. */
+    fun parseDetailed(name: String?): FileNameDate? {
         val match = pattern.find(name?.trim().orEmpty()) ?: return null
         val (prefix, year, month, day, hour, minute, second) = match.destructured
         if (prefix.isEmpty() && hour.isEmpty()) return null
         return try {
             val date = LocalDateTime.of(year.toInt(), month.toInt(), day.toInt(), 0, 0)
             if (hour.isEmpty()) {
-                date.with(noon)
+                FileNameDate(date.with(noon), hasTime = false)
             } else {
-                date.withHour(hour.toInt()).withMinute(minute.toInt()).withSecond(second.toInt())
+                FileNameDate(date.withHour(hour.toInt()).withMinute(minute.toInt()).withSecond(second.toInt()), hasTime = true)
             }
         } catch (e: DateTimeException) {
             // Month 13, day 32 and the like: a number that only looks like a date
@@ -40,3 +43,6 @@ internal object FileNameDateParser {
         }
     }
 }
+
+/** The date in a file name. Without a time in the name, [hasTime] is false and the time of [dateTime] is noon. */
+internal data class FileNameDate(val dateTime: LocalDateTime, val hasTime: Boolean)

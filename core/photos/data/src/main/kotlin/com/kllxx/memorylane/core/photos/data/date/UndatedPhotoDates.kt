@@ -26,7 +26,7 @@ internal class CacheLookup(
     /** True when reading the files gave a stale photo another date than the one the index was built with. */
     fun changedBy(resolution: MissResolution): Boolean = stale.any { (id, old) ->
         val new = resolution.dates[id]
-        new?.dateTime != old?.dateTime || new?.offset != old?.offset
+        new?.dateTime != old?.dateTime || new?.offset != old?.offset || new?.hasTime != old?.hasTime
     }
 }
 

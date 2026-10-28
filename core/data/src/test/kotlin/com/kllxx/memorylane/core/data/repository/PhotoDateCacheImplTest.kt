@@ -110,4 +110,24 @@ class PhotoDateCacheImplTest {
 
         assertEquals(PhotoDateCacheEntity(1, 100, 1_452_161_700, null, "FILENAME"), entity)
     }
+
+    @Test
+    fun `the has-time flag survives a round trip, false and true`() = runTest {
+        val dateOnly = entry(1, DateSource.FILENAME).copy(hasTime = false)
+        val withTime = entry(2, DateSource.FILENAME).copy(hasTime = true)
+
+        cache.putAll(listOf(dateOnly, withTime))
+
+        val read = cache.get(listOf(1, 2))
+        assertEquals(false, read.getValue(1).hasTime)
+        assertEquals(true, read.getValue(2).hasTime)
+        assertEquals(listOf(dateOnly, withTime), cache.getAllDated().sortedBy { it.id })
+    }
+
+    @Test
+    fun `an entry written without the flag has a time`() = runTest {
+        cache.putAll(listOf(entry(1)))
+
+        assertEquals(true, cache.get(listOf(1)).getValue(1).hasTime)
+    }
 }

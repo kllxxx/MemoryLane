@@ -84,4 +84,45 @@ class PhotoDateFormatterTest {
         assertTrue(text, text.contains("January"))
         assertTrue(text, text.contains("21:15"))
     }
+
+    // --- a photo that has only a day ---
+
+    @Test
+    fun `Russian without a time is the date alone`() {
+        assertEquals("7 января 2016", formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), ru, hasTime = false))
+    }
+
+    @Test
+    fun `every Russian month without a time is in the genitive`() {
+        val expected = listOf(
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        )
+        expected.forEachIndexed { index, month ->
+            assertEquals("7 $month 2016", formatTakenAt(LocalDateTime.of(2016, index + 1, 7, 12, 0), ru, hasTime = false))
+        }
+    }
+
+    @Test
+    fun `without a time the placeholder time is never shown`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), ru, hasTime = false)
+
+        assertTrue(text, !text.contains(":"))
+        assertTrue(text, !text.contains("12"))
+    }
+
+    @Test
+    fun `a real midnight is shown when the photo has a time`() {
+        assertEquals("8 января 2016, 00:00", formatTakenAt(LocalDateTime.of(2016, 1, 8, 0, 0), ru, hasTime = true))
+        assertEquals("8 января 2016, 00:00", formatTakenAt(LocalDateTime.of(2016, 1, 8, 0, 0), ru))
+    }
+
+    @Test
+    fun `another language without a time is its long date alone`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), Locale.US, hasTime = false)
+
+        assertTrue(text, text.contains("January"))
+        assertTrue(text, text.contains("2016"))
+        assertTrue(text, !text.contains(":"))
+    }
 }
