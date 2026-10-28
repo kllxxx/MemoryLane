@@ -25,13 +25,16 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,48 +46,67 @@ import com.kllxx.memorylane.core.ui.component.PhotoFit
 import com.kllxx.memorylane.core.ui.theme.semanticColors
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.swipe.DeckPhoto
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.BEHIND_PEEK
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.BEHIND_SCALE
-import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.behindCenterShift
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.CardSize
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.LIBRARY_REST_SCALE
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.behindProgress
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.behindShift
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.behindSize
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.dragOverlay
-
-// The library scales the card behind from this size up to full size as the top card is dragged away
-private const val LIBRARY_REST_SCALE = 0.8f
 
 // The card behind is a little see-through until it becomes the top card
 private const val BEHIND_ALPHA = 0.9f
 
 /**
- * One card of the stack. The library gives it the whole card area; the card itself has the photo's own shape,
- * [cardWidth] by [cardHeight], is centred in the area and shows the whole photo with a soft shadow. The top card also
- * shows the tint and the badge of the side it is dragged to; the card behind peeks out below it.
+ * One card of the stack. The library gives it the whole card area, and the card itself is centred in it.
+ *
+ * The top card has the shape of its photo, [own], and shows all of it with a soft shadow, the tint and the badge of the
+ * side it is dragged to. The card behind is only a hint of the deck: at rest it is the size and shape of the top card
+ * (from [topCard]) times [BEHIND_SCALE], a thin edge above it, with the photo cropped to that; as the top card is dragged away it
+ * grows to [own] in proportion to the drag, so that when the swipe is done it already is the top card.
+ *
+ * Which of the two this card is, and how far along the drag is, are read in the layout and layer phases, from the
+ * stack's own state: the composition lags a frame behind a swipe, an undo or a jump, and a card that is sized from a
+ * stale [isTop] would flash at the wrong size. [isTop] only chooses how the photo is fitted and whether the drag overlay
+ * is drawn, which cannot show at the wrong moment.
  */
 @Composable
 internal fun SwipeCard(
     item: DeckPhoto,
+    index: Int,
     isTop: Boolean,
     stack: LazyCardStackState,
-    cardWidth: Dp,
-    cardHeight: Dp,
+    own: CardSize,
+    topCard: () -> CardSize,
     onImageSize: (IntSize) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(SwipeLayout.CardRadius)
+    val density = LocalDensity.current
     var widthPx by remember { mutableFloatStateOf(0f) }
+    // The photo is decoded for the card's own size, whatever size the card has now: the same request as the preload and
+    // as the card on top, so nothing is requested again while the card grows or when it becomes the top card
+    val decodeSize = with(density) { IntSize(own.width.dp.roundToPx(), own.height.dp.roundToPx()) }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .then(
-                if (isTop) {
-                    Modifier
-                } else {
-                    Modifier.graphicsLayer { placeBehind(stack.scale, behindCenterShift(cardHeight.value)) }
-                },
-            ),
+            .graphicsLayer { if (stack.visibleItemIndex != index) placeBehind(stack.scale, topCard()) },
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .size(width = cardWidth, height = cardHeight)
+                .layout { measurable, constraints ->
+                    val size = if (stack.visibleItemIndex == index) {
+                        own
+                    } else {
+                        behindSize(topCard(), own, behindProgress(stack.scale))
+                    }
+                    val width = size.width.dp.roundToPx().coerceIn(0, constraints.maxWidth)
+                    val height = size.height.dp.roundToPx().coerceIn(0, constraints.maxHeight)
+                    val placeable = measurable.measure(Constraints.fixed(width, height))
+                    layout(width, height) { placeable.place(0, 0) }
+                }
                 .testTag(SwipeTags.cardPhoto(item.id))
                 .shadow(elevation = 8.dp, shape = shape)
                 .clip(shape)
@@ -95,6 +117,9 @@ internal fun SwipeCard(
                 uri = item.photo.uri,
                 modifier = Modifier.fillMaxSize(),
                 onImageSize = onImageSize,
+                // The top card shows the whole photo; the card behind is a hint and is cropped to the shape it has
+                contentScale = if (isTop) ContentScale.Fit else ContentScale.Crop,
+                decodeSize = decodeSize,
             )
             if (isTop) DragOverlayLayer(stack = stack, cardWidthPx = { widthPx })
         }
@@ -102,19 +127,18 @@ internal fun SwipeCard(
 }
 
 /**
- * Gives the card behind the look of the design instead of the library's own scaling, which goes from
- * [LIBRARY_REST_SCALE] to 1 around the centre and would hide the card completely: [BEHIND_SCALE] at rest (1 once the
- * top card is gone), with its top edge a little below the top card's, and a little see-through. The library has
- * already scaled and moved this layer by its own factor, so that factor is divided out to land on screen as wanted.
- * [centerShiftDp] is how far the centre moves down at rest, in dp.
+ * Puts the card behind where the design wants it, instead of the library's own scaling, which goes from
+ * [LIBRARY_REST_SCALE] to 1 around the centre and would hide the card completely. The size of the card is its layout
+ * size, so the scale the library has applied to this layer is only divided out. At rest the card is [BEHIND_PEEK] above
+ * the top card; the shift goes to 0 and the card to full opacity as the card takes the place of the top card.
+ * [BEHIND_ALPHA] is how see-through it is until then.
  */
-private fun GraphicsLayerScope.placeBehind(libraryScale: Float, centerShiftDp: Float) {
-    val progress = ((libraryScale - LIBRARY_REST_SCALE) / (1f - LIBRARY_REST_SCALE)).coerceIn(0f, 1f)
+private fun GraphicsLayerScope.placeBehind(libraryScale: Float, top: CardSize) {
+    val progress = behindProgress(libraryScale)
     val library = libraryScale.coerceAtLeast(LIBRARY_REST_SCALE)
-    val wanted = lerp(BEHIND_SCALE, 1f, progress)
-    scaleX = wanted / library
-    scaleY = wanted / library
-    translationY = lerp(centerShiftDp.dp.toPx(), 0f, progress) / library
+    scaleX = 1f / library
+    scaleY = 1f / library
+    translationY = -behindShift(top, progress).dp.toPx() / library
     alpha = lerp(BEHIND_ALPHA, 1f, progress)
 }
 

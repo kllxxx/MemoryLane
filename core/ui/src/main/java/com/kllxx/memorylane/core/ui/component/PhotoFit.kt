@@ -26,6 +26,10 @@ import coil3.size.Size
  *
  * [onImageSize] reports the size of the decoded image once it is loaded, which is how a caller that does not know the
  * photo's size from elsewhere finds its aspect ratio.
+ *
+ * A view whose size changes (a card that grows as the card on top is dragged away) gives [decodeSize], the size to decode
+ * for: the request then no longer follows the view, so the photo is not requested again at every step. A view that
+ * should show only a part of the photo gives [ContentScale.Crop] as [contentScale]; the request is the same either way.
  */
 @Composable
 fun PhotoFit(
@@ -33,17 +37,20 @@ fun PhotoFit(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
     onImageSize: ((IntSize) -> Unit)? = null,
+    contentScale: ContentScale = ContentScale.Fit,
+    decodeSize: IntSize? = null,
 ) {
     val context = LocalContext.current
     val latestOnImageSize by rememberUpdatedState(onImageSize)
     var cell by remember { mutableStateOf(IntSize.Zero) }
     Box(modifier.onSizeChanged { cell = it }) {
         // The view has no size before its first layout pass; the request waits for it
-        if (cell == IntSize.Zero) return@Box
-        val request = remember(uri, cell) {
+        val size = decodeSize ?: cell
+        if (size == IntSize.Zero) return@Box
+        val request = remember(uri, size) {
             ImageRequest.Builder(context)
                 .data(uri)
-                .size(Size(cell.width, cell.height))
+                .size(Size(size.width, size.height))
                 .scale(Scale.FIT)
                 .listener(onSuccess = { _, result ->
                     latestOnImageSize?.invoke(IntSize(result.image.width, result.image.height))
@@ -54,7 +61,7 @@ fun PhotoFit(
             model = request,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit,
+            contentScale = contentScale,
         )
     }
 }

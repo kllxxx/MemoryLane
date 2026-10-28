@@ -95,7 +95,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-25
-- fix: last used MMLN-17
+- fix: last used MMLN-18
 - refactor: last used MMLN-06
 
 **Commit format (Conventional Commits):**

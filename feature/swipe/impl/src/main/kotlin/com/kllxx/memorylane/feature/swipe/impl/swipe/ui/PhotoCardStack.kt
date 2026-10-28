@@ -187,13 +187,13 @@ internal fun PhotoCardStack(
                 ) {
                     items(count = state.deck.size, key = { state.deck[it].id }) { index ->
                         val item = state.deck[index]
-                        val size = cardSizeOf(item)
                         SwipeCard(
                             item = item,
+                            index = index,
                             isTop = index == stack.visibleItemIndex,
                             stack = stack,
-                            cardWidth = size.width.dp,
-                            cardHeight = size.height.dp,
+                            own = cardSizeOf(item),
+                            topCard = { cardSizeOf(state.deck[stack.visibleItemIndex.coerceIn(0, state.deck.lastIndex)]) },
                             onImageSize = { decoded -> if (item.aspectRatio == null) reportImageSize(item, decoded) },
                         )
                     }

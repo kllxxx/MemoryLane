@@ -91,20 +91,83 @@ class CardSizeMapperTest {
         assertEquals(CardSize.Zero, fitInside(320f, 460f, Float.NaN))
     }
 
+    // --- the card behind ---
+
+    private val landscapeTop = CardSize(344f, 258f)
+    private val portraitOwn = CardSize(344f, 459f)
+
     @Test
-    fun `the card behind has its top edge 14 below the top card, as in the design`() {
-        // Portrait card of 427 high: scaled to 0.94 about its centre the top edge is 12.81 lower, so 1.19 is left to add
-        assertEquals(1.19f, behindCenterShift(427f), 0.001f)
-        // Landscape card of 240 high: 7.2 from the scaling, 6.8 to add
-        assertEquals(6.8f, behindCenterShift(240f), 0.001f)
+    fun `the drag progress follows the scale the library gives the card behind`() {
+        assertEquals(0f, behindProgress(0.8f), 0f)
+        assertEquals(0.5f, behindProgress(0.9f), 0.0001f)
+        assertEquals(1f, behindProgress(1f), 0f)
     }
 
     @Test
-    fun `the top edge of the card behind is always 14 lower, whatever the card height`() {
-        listOf(100f, 240f, 427f, 460f).forEach { height ->
-            val shrunkTop = (height - height * BEHIND_SCALE) / 2f
-            assertEquals("height $height", 14f, shrunkTop + behindCenterShift(height), 0.001f)
+    fun `the progress stays between 0 and 1 whatever the library reports`() {
+        assertEquals(0f, behindProgress(0f), 0f)
+        assertEquals(0f, behindProgress(-1f), 0f)
+        assertEquals(1f, behindProgress(1.4f), 0f)
+    }
+
+    @Test
+    fun `at rest the card behind is the top card times 0_94, whatever its own shape`() {
+        val size = behindSize(landscapeTop, portraitOwn, 0f)
+
+        assertEquals(landscapeTop.width * BEHIND_SCALE, size.width, 0.001f)
+        assertEquals(landscapeTop.height * BEHIND_SCALE, size.height, 0.001f)
+    }
+
+    @Test
+    fun `once the top card is dragged away the card behind has its own size`() {
+        assertEquals(portraitOwn, behindSize(landscapeTop, portraitOwn, 1f))
+    }
+
+    @Test
+    fun `half way the card behind is half way between the two sizes`() {
+        val size = behindSize(landscapeTop, portraitOwn, 0.5f)
+
+        assertEquals((landscapeTop.width * BEHIND_SCALE + portraitOwn.width) / 2f, size.width, 0.001f)
+        assertEquals((landscapeTop.height * BEHIND_SCALE + portraitOwn.height) / 2f, size.height, 0.001f)
+    }
+
+    @Test
+    fun `the size of the card behind grows steadily with the drag`() {
+        val sizes = (0..10).map { behindSize(landscapeTop, portraitOwn, it / 10f) }
+
+        sizes.zipWithNext { a, b ->
+            assertTrue(b.height >= a.height)
+            assertTrue(b.width >= a.width)
         }
+    }
+
+    @Test
+    fun `a progress outside 0 and 1 does not take the card outside its two sizes`() {
+        assertEquals(behindSize(landscapeTop, portraitOwn, 0f), behindSize(landscapeTop, portraitOwn, -3f))
+        assertEquals(portraitOwn, behindSize(landscapeTop, portraitOwn, 3f))
+    }
+
+    @Test
+    fun `at rest the top edge of the card behind is 10 above the top card, whatever the card height`() {
+        listOf(100f, 240f, 258f, 427f, 459f, 490f).forEach { height ->
+            val top = CardSize(300f, height)
+            // Scaled about its centre the card is shorter by 0.06 of its height, so its top edge is 0.03 lower; then the shift
+            val topEdge = -height * BEHIND_SCALE / 2f - behindShift(top, 0f)
+            assertEquals("height $height", -height / 2f - BEHIND_PEEK, topEdge, 0.001f)
+        }
+    }
+
+    @Test
+    fun `the card behind peeks above a tall top card too`() {
+        // A shift of 10 alone would leave the edge below a tall card: 0.03 of 490 is 14.7
+        assertTrue(behindShift(CardSize(300f, 490f), 0f) > 14.7f)
+    }
+
+    @Test
+    fun `the shift goes to 0 as the card takes the place of the top card`() {
+        assertEquals(0f, behindShift(landscapeTop, 1f), 0f)
+        assertTrue(behindShift(landscapeTop, 0.5f) < behindShift(landscapeTop, 0f))
+        assertTrue(behindShift(landscapeTop, 0.5f) > 0f)
     }
 
     @Test
