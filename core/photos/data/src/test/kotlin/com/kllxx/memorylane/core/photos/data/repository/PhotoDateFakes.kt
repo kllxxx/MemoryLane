@@ -4,6 +4,7 @@ import com.kllxx.memorylane.core.photos.data.date.ExifDateReader
 import com.kllxx.memorylane.core.photos.data.date.ExifDateTags
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoLocation
+import com.kllxx.memorylane.core.photos.domain.model.DateSource
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoDateCache
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoLocationCache
 import java.io.FileNotFoundException
@@ -40,6 +41,15 @@ internal class FakePhotoDateCache : PhotoDateCache {
 
     override suspend fun retainOnly(ids: Set<Long>) {
         entries.keys.retainAll(ids)
+    }
+
+    /** The newest chain version the undated entries were forgotten for. */
+    var forgottenFor = 0
+
+    override suspend fun forgetUndatedBefore(chainVersion: Int) {
+        if (forgottenFor >= chainVersion) return
+        entries.values.removeAll { it.source == DateSource.UNDATED }
+        forgottenFor = chainVersion
     }
 }
 

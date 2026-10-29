@@ -36,6 +36,8 @@ internal class MissResolution(
     val read: Int,
 ) {
     val fromExif: Int get() = dates.values.count { it.source == DateSource.EXIF }
+    val fromGps: Int get() = dates.values.count { it.source == DateSource.GPS }
+    val fromXmp: Int get() = dates.values.count { it.source == DateSource.XMP }
     val fromFileName: Int get() = dates.values.count { it.source == DateSource.FILENAME }
     val stillUndated: Int get() = read - dates.size
 }
@@ -55,6 +57,7 @@ internal class UndatedPhotoDates(
 
     /** What the cache knows. Entries of photos that are no longer undated (deleted, or dated by MediaStore now) are dropped. */
     suspend fun lookup(photos: List<UndatedPhoto>): CacheLookup {
+        cache.forgetUndatedBefore(PhotoDateResolver.DATE_CHAIN_VERSION)
         val cached = cache.get(photos.map { it.id })
         val dates = HashMap<Long, ResolvedDate>()
         val misses = ArrayList<UndatedPhoto>()

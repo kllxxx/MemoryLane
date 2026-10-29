@@ -123,6 +123,53 @@ class UndatedPhotoDatesTest {
     }
 
     @Test
+    fun `the counts include GPS and XMP`() = runTest {
+        reader.tags[1] = ExifDateTags(gpsDate = "2016:01:07", gpsTime = "10/1,15/1,0/1")
+        reader.tags[2] = ExifDateTags(xmp = """xmp:CreateDate="2016-01-07T10:15:00"""")
+
+        val result = dates.resolveMisses(listOf(photo(1), photo(2)))
+
+        assertEquals(1, result.fromGps)
+        assertEquals(1, result.fromXmp)
+        assertEquals(0, result.fromExif)
+        assertEquals(DateSource.GPS, cache.entries.getValue(1).source)
+        assertEquals(DateSource.XMP, cache.entries.getValue(2).source)
+    }
+
+    @Test
+    fun `photos cached as undated are read again once for a new chain version, dated ones are not`() = runTest {
+        cache.entries[1] = ResolvedDate.undatedToCached(photo(1))
+        cache.entries[2] = ResolvedDate(LocalDateTime.of(2016, 1, 7, 10, 15, 0), null, DateSource.EXIF).toCached(photo(2))
+        reader.tags[1] = ExifDateTags(gpsDate = "2016:01:07", gpsTime = "10/1,15/1,0/1")
+
+        val lookup = dates.lookup(listOf(photo(1), photo(2)))
+
+        assertEquals(listOf(1L), lookup.misses.map { it.id })
+        assertEquals(setOf(2L), lookup.dates.keys)
+        assertEquals(PhotoDateResolver.DATE_CHAIN_VERSION, cache.forgottenFor)
+
+        dates.resolveMisses(lookup.misses)
+        reader.reads.clear()
+        val again = dates.lookup(listOf(photo(1), photo(2)))
+
+        assertTrue(again.misses.isEmpty())
+        assertEquals(setOf(1L, 2L), again.dates.keys)
+        assertTrue(reader.reads.isEmpty())
+    }
+
+    @Test
+    fun `a photo that is still undated stays cached as undated after the reset ran`() = runTest {
+        cache.entries[1] = ResolvedDate.undatedToCached(photo(1))
+        resolveAll(listOf(photo(1, name = "photo.jpg")))
+        reader.reads.clear()
+
+        val lookup = dates.lookup(listOf(photo(1, name = "photo.jpg")))
+
+        assertTrue(lookup.misses.isEmpty())
+        assertTrue(reader.reads.isEmpty())
+    }
+
+    @Test
     fun `no photos means nothing is read and the cache is emptied`() = runTest {
         resolveAll(listOf(photo(1)))
 

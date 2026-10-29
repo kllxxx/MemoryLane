@@ -15,4 +15,10 @@ interface PhotoDateCache {
 
     /** Removes every entry whose id is not in [ids], i.e. photos that were deleted or got a date of their own. */
     suspend fun retainOnly(ids: Set<Long>)
+
+    /**
+     * Forgets the photos found to have no date, once for each [chainVersion] of the date chain: a newer chain may know
+     * a source the older one did not. Entries with a date are kept. Does nothing when this version already ran.
+     */
+    suspend fun forgetUndatedBefore(chainVersion: Int)
 }

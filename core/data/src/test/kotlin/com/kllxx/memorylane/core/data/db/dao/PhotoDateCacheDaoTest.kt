@@ -91,6 +91,31 @@ class PhotoDateCacheDaoTest {
     }
 
     @Test
+    fun `rows are deleted by source`() = runTest {
+        dao.upsertAll(
+            listOf(
+                entity(1, seconds = null, offset = null, source = "UNDATED"),
+                entity(2),
+                entity(3, source = "GPS"),
+                entity(4, seconds = null, offset = null, source = "UNDATED"),
+            ),
+        )
+
+        dao.deleteBySource("UNDATED")
+
+        assertEquals(listOf(2L, 3L), dao.allIds().sorted())
+    }
+
+    @Test
+    fun `deleting a source nobody has changes nothing`() = runTest {
+        dao.upsertAll(listOf(entity(1)))
+
+        dao.deleteBySource("XMP")
+
+        assertEquals(listOf(1L), dao.allIds())
+    }
+
+    @Test
     fun `the has-time flag is stored, and a row without it has a time`() = runTest {
         dao.upsertAll(listOf(entity(1).copy(hasTime = false), entity(2), entity(3).copy(hasTime = true)))
 

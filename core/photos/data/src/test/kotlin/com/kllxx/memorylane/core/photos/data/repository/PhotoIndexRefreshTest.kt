@@ -636,7 +636,7 @@ class PhotoIndexRefreshTest {
         repository.refreshOnThisDayIndex()
         advanceUntilIdle()
         val first = lines.single { it.contains("dates: undated=") }
-        assertTrue(first, first.contains("undated=2 phase1CacheHits=0 misses=2 stale=0 exif=0 fileName=1 stillUndated=1"))
+        assertTrue(first, first.contains("undated=2 phase1CacheHits=0 misses=2 stale=0 exif=0 gps=0 xmp=0 fileName=1 stillUndated=1"))
         lines.clear()
 
         repository.refreshOnThisDayIndex()

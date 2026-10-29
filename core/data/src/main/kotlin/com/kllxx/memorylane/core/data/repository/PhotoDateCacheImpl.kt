@@ -1,14 +1,20 @@
 package com.kllxx.memorylane.core.data.repository
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import com.kllxx.memorylane.core.data.db.dao.PhotoDateCacheDao
 import com.kllxx.memorylane.core.data.db.entity.PhotoDateCacheEntity
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
 import com.kllxx.memorylane.core.photos.domain.model.DateSource
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoDateCache
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class PhotoDateCacheImpl @Inject constructor(
     private val dao: PhotoDateCacheDao,
+    private val settings: DataStore<Preferences>,
 ) : PhotoDateCache {
 
     override suspend fun get(ids: Collection<Long>): Map<Long, CachedPhotoDate> =
@@ -28,7 +34,15 @@ class PhotoDateCacheImpl @Inject constructor(
             .forEach { dao.deleteByIds(it) }
     }
 
+    override suspend fun forgetUndatedBefore(chainVersion: Int) {
+        if ((settings.data.first()[DATE_CHAIN_VERSION] ?: 0) >= chainVersion) return
+        dao.deleteBySource(DateSource.UNDATED.name)
+        settings.edit { it[DATE_CHAIN_VERSION] = chainVersion }
+    }
+
     private companion object {
+        val DATE_CHAIN_VERSION = intPreferencesKey("date_chain_version")
+
         // SQLite allows 999 variables per statement on older Android versions
         const val SQL_VARIABLE_LIMIT = 500
         const val WRITE_CHUNK = 500

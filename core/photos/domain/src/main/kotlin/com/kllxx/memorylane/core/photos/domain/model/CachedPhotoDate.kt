@@ -5,10 +5,16 @@ enum class DateSource {
     /** The EXIF date tags of the file. */
     EXIF,
 
+    /** The GPS date and time of the file's EXIF data, which are UTC. */
+    GPS,
+
+    /** An XMP date field of the file: `xmp:CreateDate`, `photoshop:DateCreated` or `exif:DateTimeOriginal`. */
+    XMP,
+
     /** A date written in the file name, like `IMG_20160107_101500.jpg`. */
     FILENAME,
 
-    /** Neither the EXIF data nor the file name has a usable date. */
+    /** None of the EXIF data, the XMP data and the file name has a usable date. */
     UNDATED,
 }
 

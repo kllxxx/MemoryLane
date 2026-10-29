@@ -22,4 +22,7 @@ interface PhotoDateCacheDao {
 
     @Query("DELETE FROM photo_date_cache WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    @Query("DELETE FROM photo_date_cache WHERE source = :source")
+    suspend fun deleteBySource(source: String)
 }

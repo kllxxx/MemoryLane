@@ -143,6 +143,160 @@ class PhotoDateResolverTest {
         assertNotNull(resolver.resolve(photo("IMG_20261015_120000.jpg")))
     }
 
+    // --- GPS ---
+
+    @Test
+    fun `the GPS moment is UTC and the day is the one of the device zone`() {
+        reader.tags[1] = ExifDateTags(gpsDate = "2016:01:07", gpsTime = "22/1,30/1,0/1")
+
+        val resolved = resolver.resolve(photo())!!
+
+        assertEquals(DateSource.GPS, resolved.source)
+        assertEquals(ZoneOffset.UTC, resolved.offset)
+        assertEquals(true, resolved.hasTime)
+        assertEquals(LocalDate.of(2016, 1, 7), resolved.toLocalDate(ZoneOffset.UTC))
+        assertEquals(LocalDate.of(2016, 1, 8), resolved.toLocalDate(ZoneOffset.ofHours(3)))
+        assertEquals(LocalDate.of(2016, 1, 7), resolved.toLocalDate(ZoneOffset.ofHours(-5)))
+    }
+
+    @Test
+    fun `EXIF date tags beat GPS`() {
+        reader.tags[1] = ExifDateTags(dateTime = "2016:01:07 10:15:00", gpsDate = "2020:05:05", gpsTime = "1/1,2/1,3/1")
+
+        assertEquals(DateSource.EXIF, resolver.resolve(photo())!!.source)
+    }
+
+    @Test
+    fun `GPS beats XMP and the file name`() {
+        reader.tags[1] = ExifDateTags(
+            gpsDate = "2016:01:07",
+            gpsTime = "10/1,15/1,0/1",
+            xmp = """xmp:CreateDate="2017-02-02T11:00:00"""",
+        )
+
+        val resolved = resolver.resolve(photo("IMG_20200505_101500.jpg"))!!
+
+        assertEquals(DateSource.GPS, resolved.source)
+        assertEquals(jan7, resolved.dateTime)
+    }
+
+    @Test
+    fun `an implausible or incomplete GPS moment falls through`() {
+        reader.tags[1] = ExifDateTags(gpsDate = "1970:01:01", gpsTime = "0/1,0/1,0/1")
+        assertNull(resolver.resolve(photo()))
+
+        reader.tags[1] = ExifDateTags(gpsDate = "2016:01:07")
+        assertNull(resolver.resolve(photo()))
+
+        reader.tags[1] = ExifDateTags(gpsDate = "2030:01:01", gpsTime = "0/1,0/1,0/1", xmp = """xmp:CreateDate="2016-01-07T10:15:00"""")
+        assertEquals(DateSource.XMP, resolver.resolve(photo())!!.source)
+    }
+
+    // --- XMP ---
+
+    @Test
+    fun `an XMP date is used with its offset`() {
+        reader.tags[1] = ExifDateTags(xmp = """xmp:CreateDate="2016-01-07T10:15:00+03:00"""")
+
+        val resolved = resolver.resolve(photo())!!
+
+        assertEquals(DateSource.XMP, resolved.source)
+        assertEquals(jan7, resolved.dateTime)
+        assertEquals(ZoneOffset.ofHours(3), resolved.offset)
+        assertEquals(true, resolved.hasTime)
+    }
+
+    @Test
+    fun `the XMP fields are tried in the order CreateDate, DateCreated, DateTimeOriginal`() {
+        val xmp = """photoshop:DateCreated="2017-02-02T11:00:00" exif:DateTimeOriginal="2018-03-03T12:00:00""""
+        reader.tags[1] = ExifDateTags(xmp = xmp)
+        assertEquals(LocalDateTime.of(2017, 2, 2, 11, 0, 0), resolver.resolve(photo())!!.dateTime)
+
+        reader.tags[1] = ExifDateTags(xmp = xmp + """ xmp:CreateDate="2016-01-07T10:15:00"""")
+        assertEquals(jan7, resolver.resolve(photo())!!.dateTime)
+
+        reader.tags[1] = ExifDateTags(xmp = """exif:DateTimeOriginal="2018-03-03T12:00:00"""")
+        assertEquals(LocalDateTime.of(2018, 3, 3, 12, 0, 0), resolver.resolve(photo())!!.dateTime)
+    }
+
+    @Test
+    fun `an implausible XMP field falls through to the next one`() {
+        reader.tags[1] = ExifDateTags(
+            xmp = """xmp:CreateDate="1970-01-01T00:00:00" photoshop:DateCreated="2030-01-01T00:00:00" exif:DateTimeOriginal="2016-01-07T10:15:00"""",
+        )
+
+        assertEquals(jan7, resolver.resolve(photo())!!.dateTime)
+    }
+
+    @Test
+    fun `an XMP day without a time has no time`() {
+        reader.tags[1] = ExifDateTags(xmp = """photoshop:DateCreated="2016-01-07"""")
+
+        val resolved = resolver.resolve(photo())!!
+
+        assertEquals(LocalDate.of(2016, 1, 7), resolved.dateTime.toLocalDate())
+        assertEquals(false, resolved.hasTime)
+    }
+
+    @Test
+    fun `XMP beats the file name, and the file name is used when XMP has no date`() {
+        reader.tags[1] = ExifDateTags(xmp = """xmp:CreateDate="2016-01-07T10:15:00"""")
+        assertEquals(DateSource.XMP, resolver.resolve(photo("IMG_20200505_101500.jpg"))!!.source)
+
+        reader.tags[1] = ExifDateTags(xmp = "<xmp:CreatorTool>Canva</xmp:CreatorTool>")
+        assertEquals(DateSource.FILENAME, resolver.resolve(photo("IMG_20200505_101500.jpg"))!!.source)
+        assertNull(resolver.resolve(photo("Canva.png")))
+    }
+
+    // --- the file name patterns, through the chain ---
+
+    @Test
+    fun `the generic file name patterns are plausibility checked one by one`() {
+        // The first date in the name is in the future, the second is real
+        val resolved = resolver.resolve(photo("2030-01-01_10-00-00 and 2016-01-07_10-15-00.jpg"))!!
+
+        assertEquals(jan7, resolved.dateTime)
+        assertEquals(DateSource.FILENAME, resolved.source)
+    }
+
+    @Test
+    fun `Telegram, Signal and Samsung names are dated`() {
+        assertEquals(jan7, resolver.resolve(photo("photo_2016-01-07_10-15-00.jpg"))!!.dateTime)
+        assertEquals(jan7, resolver.resolve(photo("signal-2016-01-07-101500.jpg"))!!.dateTime)
+        assertEquals(jan7, resolver.resolve(photo("Screenshot_20160107-101500.jpg"))!!.dateTime)
+        assertEquals(jan7, resolver.resolve(photo("holiday_20160107_101500.jpg"))!!.dateTime)
+    }
+
+    @Test
+    fun `a Unix timestamp in a file name is a UTC moment`() {
+        val seconds = resolver.resolve(photo("1452161700.jpg"))!!
+        val millis = resolver.resolve(photo("IMG_1452161700123.jpg"))!!
+
+        assertEquals(DateSource.FILENAME, seconds.source)
+        assertEquals(ZoneOffset.UTC, seconds.offset)
+        assertEquals(jan7, seconds.dateTime)
+        assertEquals(jan7, millis.dateTime)
+        assertEquals(LocalDate.of(2016, 1, 8), seconds.toLocalDate(ZoneOffset.ofHours(14)))
+    }
+
+    @Test
+    fun `an implausible Unix timestamp is not a date`() {
+        assertNull(resolver.resolve(photo("8005551234.jpg")))        // 2223
+        assertNull(resolver.resolve(photo("0631151999.jpg")))        // 31 Dec 1989 23:59:59 UTC
+        assertNull(resolver.resolve(photo("1792065601.jpg")))        // one second after the clock of the test
+    }
+
+    @Test
+    fun `the timestamp bounds are 1990 and now`() {
+        assertNotNull(resolver.resolve(photo("0631152000.jpg")))
+        assertNotNull(resolver.resolve(photo("1792065600.jpg")))
+    }
+
+    @Test
+    fun `DATE_MODIFIED is never a source`() {
+        assertNull(resolver.resolve(photo("photo.jpg").copy(dateModified = 1_452_161_700)))
+    }
+
     @Test
     fun `a cached entry round-trips`() {
         val resolved = ResolvedDate(jan7, ZoneOffset.ofHours(3), DateSource.EXIF)

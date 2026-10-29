@@ -260,7 +260,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             }
             PerfLog.d {
                 "dates: undated=${lookup.undated} phase1CacheHits=${lookup.cacheHits} misses=${lookup.misses.size} " +
-                    "stale=${lookup.stale.size} exif=${resolution.fromExif} fileName=${resolution.fromFileName} " +
+                    "stale=${lookup.stale.size} exif=${resolution.fromExif} gps=${resolution.fromGps} xmp=${resolution.fromXmp} fileName=${resolution.fromFileName} " +
                     "stillUndated=${resolution.stillUndated} indexChanged=$changed took=${PerfLog.sinceMs(startedAt)}ms"
             }
         } catch (e: CancellationException) {

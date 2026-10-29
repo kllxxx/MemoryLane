@@ -16,6 +16,8 @@ internal data class ExifDateTags(
     val offsetTime: String? = null,
     val gpsDate: String? = null,
     val gpsTime: String? = null,
+    /** The XMP packet of the file, when it has one. */
+    val xmp: String? = null,
 ) {
     /** The date tags in the order they are trusted, each with the offset tag that belongs to it. */
     fun candidates(): List<ExifCandidate> = listOf(
@@ -28,7 +30,11 @@ internal data class ExifDateTags(
     fun describe(): String =
         "DateTimeOriginal=$dateTimeOriginal DateTimeDigitized=$dateTimeDigitized DateTime=$dateTime " +
             "OffsetTimeOriginal=$offsetTimeOriginal OffsetTimeDigitized=$offsetTimeDigitized OffsetTime=$offsetTime " +
-            "GPSDateStamp=$gpsDate GPSTimeStamp=$gpsTime"
+            "GPSDateStamp=$gpsDate GPSTimeStamp=$gpsTime " +
+            "xmp[${parseXmpDates(xmp).joinToString { "${it.field}=${it.dateTime}${it.offset ?: ""}" }}]"
+
+    /** The GPS date and time, which are UTC; null when either is missing or not a real moment. */
+    fun gpsDateTime(): LocalDateTime? = parseGpsDateTime(gpsDate, gpsTime)
 }
 
 internal class ExifCandidate(val tag: String, val dateTime: String?, val offset: String?) {
@@ -80,5 +86,29 @@ internal fun readExifDateTags(stream: InputStream): ExifDateTags {
         offsetTime = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME),
         gpsDate = exif.getAttribute(ExifInterface.TAG_GPS_DATESTAMP),
         gpsTime = exif.getAttribute(ExifInterface.TAG_GPS_TIMESTAMP),
+        xmp = exif.getAttribute(ExifInterface.TAG_XMP),
     )
+}
+
+private val gpsDateStamp = Regex("""^\s*(\d{4})[:-](\d{2})[:-](\d{2})\s*$""")
+private val rational = Regex("""^\s*(\d+)(?:/(\d+))?\s*$""")
+
+/**
+ * `GPSDateStamp` (`2016:01:07`) and `GPSTimeStamp` (`10/1,15/1,0/1`: hours, minutes and seconds as fractions, or the
+ * `10:15:00` that ExifInterface may hand out) as a UTC moment; null for a missing, malformed or impossible value.
+ */
+internal fun parseGpsDateTime(date: String?, time: String?): LocalDateTime? {
+    val (year, month, day) = gpsDateStamp.find(date.orEmpty())?.destructured ?: return null
+    val parts = time.orEmpty().split(',', ':').map { part ->
+        val match = rational.find(part) ?: return null
+        val denominator = match.groupValues[2].ifEmpty { "1" }.toLong()
+        if (denominator == 0L) return null
+        match.groupValues[1].toLong().toDouble() / denominator
+    }
+    if (parts.size != 3) return null
+    return try {
+        LocalDateTime.of(year.toInt(), month.toInt(), day.toInt(), parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+    } catch (e: DateTimeException) {
+        null
+    }
 }

@@ -5,13 +5,25 @@ import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.PhotoDateCacheEntity
 import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoDate
 import com.kllxx.memorylane.core.photos.domain.model.DateSource
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import java.util.concurrent.Executor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -22,6 +34,11 @@ class PhotoDateCacheImplTest {
     private val directExecutor = Executor { it.run() }
     private lateinit var database: AppDatabase
     private lateinit var cache: PhotoDateCacheImpl
+    private lateinit var settings: DataStore<Preferences>
+    private lateinit var settingsScope: CoroutineScope
+
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     @Before
     fun setUp() {
@@ -30,11 +47,16 @@ class PhotoDateCacheImplTest {
             .setQueryExecutor(directExecutor)
             .setTransactionExecutor(directExecutor)
             .build()
-        cache = PhotoDateCacheImpl(database.photoDateCacheDao())
+        settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        settings = PreferenceDataStoreFactory.create(scope = settingsScope) { tmp.root.resolve("settings.preferences_pb") }
+        cache = PhotoDateCacheImpl(database.photoDateCacheDao(), settings)
     }
 
     @After
-    fun tearDown() = database.close()
+    fun tearDown() {
+        database.close()
+        settingsScope.cancel()
+    }
 
     private fun entry(id: Long, source: DateSource = DateSource.EXIF) = CachedPhotoDate(
         id = id,
@@ -122,6 +144,63 @@ class PhotoDateCacheImplTest {
         assertEquals(false, read.getValue(1).hasTime)
         assertEquals(true, read.getValue(2).hasTime)
         assertEquals(listOf(dateOnly, withTime), cache.getAllDated().sortedBy { it.id })
+    }
+
+    @Test
+    fun `every source survives a round trip, also the GPS and XMP ones`() = runTest {
+        val entries = listOf(entry(1, DateSource.GPS), entry(2, DateSource.XMP))
+
+        cache.putAll(entries)
+
+        assertEquals(entries.associateBy { it.id }, cache.get(listOf(1, 2)))
+        assertEquals(entries, cache.getAllDated().sortedBy { it.id })
+    }
+
+    @Test
+    fun `forgetUndatedBefore drops the undated entries and keeps the dated ones`() = runTest {
+        cache.putAll(listOf(entry(1, DateSource.UNDATED), entry(2, DateSource.EXIF), entry(3, DateSource.FILENAME), entry(4, DateSource.UNDATED)))
+
+        cache.forgetUndatedBefore(2)
+
+        assertEquals(setOf(2L, 3L), cache.get(listOf(1, 2, 3, 4)).keys)
+    }
+
+    @Test
+    fun `forgetUndatedBefore runs once for a version`() = runTest {
+        cache.forgetUndatedBefore(2)
+        cache.putAll(listOf(entry(1, DateSource.UNDATED)))
+
+        cache.forgetUndatedBefore(2)
+
+        assertEquals(setOf(1L), cache.get(listOf(1)).keys)
+    }
+
+    @Test
+    fun `forgetUndatedBefore runs again for a newer version`() = runTest {
+        cache.forgetUndatedBefore(2)
+        cache.putAll(listOf(entry(1, DateSource.UNDATED)))
+
+        cache.forgetUndatedBefore(3)
+
+        assertTrue(cache.get(listOf(1)).isEmpty())
+    }
+
+    @Test
+    fun `forgetUndatedBefore remembers the version in the settings`() = runTest {
+        cache.forgetUndatedBefore(2)
+
+        assertEquals(2, settings.data.first()[intPreferencesKey("date_chain_version")])
+    }
+
+    @Test
+    fun `an older version never runs it again`() = runTest {
+        settings.edit { it[intPreferencesKey("date_chain_version")] = 5 }
+        cache.putAll(listOf(entry(1, DateSource.UNDATED)))
+
+        cache.forgetUndatedBefore(2)
+
+        assertEquals(setOf(1L), cache.get(listOf(1)).keys)
+        assertEquals(5, settings.data.first()[intPreferencesKey("date_chain_version")])
     }
 
     @Test
