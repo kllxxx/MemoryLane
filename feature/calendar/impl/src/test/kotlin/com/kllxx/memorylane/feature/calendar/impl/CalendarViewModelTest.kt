@@ -2,6 +2,7 @@ package com.kllxx.memorylane.feature.calendar.impl
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
@@ -490,7 +491,7 @@ class CalendarViewModelTest {
     private val banner get() = viewModel.state.value.todayBanner
 
     @Test
-    fun `today with photos that are not decided has the banner, with the count of the index`() = runTest(dispatcher) {
+    fun `today with photos that are not decided has the banner, with the count of the photos`() = runTest(dispatcher) {
         givenToday(count = 3)
 
         enter()
@@ -600,23 +601,69 @@ class CalendarViewModelTest {
     }
 
     @Test
-    fun `the count is the one of the tile of today, not of the library query`() = runTest(dispatcher) {
-        // The photos that are dated from their files are in the index before the library query lists them all
+    fun `the count is the number of photos that exist, not the one of the index`() = runTest(dispatcher) {
+        // The index can be ahead of the library query (photos dated from their files) or behind it: the banner says
+        // what the deck will hold
         givenToday(count = 2, indexCount = 5)
 
         enter()
 
-        assertEquals(TodayBanner(5), banner)
+        assertEquals(TodayBanner(2), banner)
     }
 
     @Test
-    fun `a day whose photos cannot be listed yet is not completed`() = runTest(dispatcher) {
+    fun `the banner does not need an entry of today in the index`() = runTest(dispatcher) {
+        repository.todayPhotos = (1L..2L).map(::photo)
+        repository.next = indexWith(MonthDay.of(3, 9) to 2)
+
+        enter()
+
+        assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `the banner does not need an index at all`() = runTest(dispatcher) {
+        repository.todayPhotos = (1L..2L).map(::photo)
+        repository.next = indexWith()
+
+        enter()
+
+        assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `photos that are gone have no banner even when the index still counts them`() = runTest(dispatcher) {
         repository.next = indexWith(todayDay to 2)
         repository.todayPhotos = emptyList()
 
         enter()
 
+        assertNull(banner)
+    }
+
+    @Test
+    fun `decisions of photos that no longer exist do not matter`() = runTest(dispatcher) {
+        givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP, 9L to PhotoDecision.KEEP))
+
+        enter()
+
         assertEquals(TodayBanner(2), banner)
+    }
+
+    @Test
+    fun `the query time of the banner is logged`() = runTest(dispatcher) {
+        val lines = mutableListOf<String>()
+        PerfLog.setEnabled(true)
+        PerfLog.sink = { lines += it }
+        try {
+            givenToday(count = 3)
+
+            enter()
+
+            assertTrue(lines.any { "todayBanner" in it && "photosToReview=3" in it && "query=" in it })
+        } finally {
+            PerfLog.setEnabled(false)
+        }
     }
 
     @Test

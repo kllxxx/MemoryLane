@@ -3,16 +3,15 @@ package com.kllxx.memorylane.feature.calendar.impl
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kllxx.memorylane.core.domain.model.DayCompletion
+import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
-import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
-import java.time.MonthDay
 import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -64,8 +63,8 @@ class CalendarViewModel @Inject constructor(
     /** The list position of the current month, for scrolling back to it. */
     val currentMonthIndex: Int = scrollAnchor.index
 
-    // What the banner is worked out from: the photo index, and today's photos and decisions
-    private var latestIndex: OnThisDayIndex? = null
+    // The rule of the banner of today, shared with the reminder
+    private val photosToReview = PhotosToReview(photoRepository, swipeRepository)
     private var todayJob: Job? = null
 
     init {
@@ -109,7 +108,6 @@ class CalendarViewModel @Inject constructor(
     private fun observePhotoIndex() {
         viewModelScope.launch {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
-                latestIndex = index
                 refreshTodayBanner()
                 val months = yearGrid.withMemories(index, today)
                 onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
@@ -152,9 +150,10 @@ class CalendarViewModel @Inject constructor(
     }
 
     /**
-     * The banner of today: there when today has photos in the index and is not completed, which is when every photo of
-     * today has a decision and none is only marked for deletion (a day is done once the deletion is confirmed). It is
-     * worked out again whenever the index, the completed days or the screen change.
+     * The banner of today: there when today has photos that still exist and the day is not completed, which is when
+     * some photo has no decision (a mark for deletion is a decision). The count is the number of those photos, as
+     * [PhotosToReview] reads it from the gallery, not the one of the photo index. It is worked out again whenever the
+     * index, the completed days or the screen change.
      */
     private fun refreshTodayBanner() {
         todayJob?.cancel()
@@ -173,11 +172,10 @@ class CalendarViewModel @Inject constructor(
     }
 
     private suspend fun loadTodayBanner(): TodayBanner? {
-        val count = latestIndex?.entries?.get(MonthDay.from(today))?.count ?: return null
-        if (!photoRepository.hasMediaPermission()) return null
-        val photos = photoRepository.getPhotosForDate(today)
-        val decisions = swipeRepository.getDecisionsByDate(today)
-        return if (DayCompletion.isCompleted(photos.map { it.id }, decisions)) null else TodayBanner(count)
+        val startedAt = PerfLog.nanoTime()
+        val count = photosToReview(today)
+        PerfLog.d { "todayBanner date=$today photosToReview=$count query=${PerfLog.sinceMs(startedAt)}ms" }
+        return if (count > 0) TodayBanner(count) else null
     }
 
     /** One gallery query; the result arrives through [observePhotoIndex]. */
