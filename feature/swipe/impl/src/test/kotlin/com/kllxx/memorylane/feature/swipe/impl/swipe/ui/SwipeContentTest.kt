@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -86,6 +87,30 @@ class SwipeContentTest {
         (1L..3L).forEach { composeRule.onNodeWithTag(SwipeTags.stripItem(it)).assertExists() }
     }
 
+
+    @Test
+    fun `the undated deck says Без даты in the top bar, with the place when the photo has one`() {
+        val state = swipeState(count = 2, location = "Светлогорск, Россия").copy(deckKey = DeckKey.Undated)
+        show(state)
+
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_LOCATION).assertTextEquals("Светлогорск, Россия")
+    }
+
+    @Test
+    fun `the undated deck without a place has the label alone`() {
+        show(swipeState(count = 2).copy(deckKey = DeckKey.Undated))
+
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+        composeRule.onAllNodesWithTag(SwipeTags.TOP_BAR_LOCATION).assertCountEquals(0)
+    }
+
+    @Test
+    fun `the undated deck keeps saying Без даты whichever photo is on top`() {
+        show(swipeState(count = 3, currentIndex = 2).copy(deckKey = DeckKey.Undated))
+
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+    }
     @Test
     fun `the date is not shown for a photo that has none`() {
         show(swipeState(count = 0))

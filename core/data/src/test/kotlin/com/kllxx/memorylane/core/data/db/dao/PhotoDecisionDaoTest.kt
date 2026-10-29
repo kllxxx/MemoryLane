@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.data.db.dao
 
+import com.kllxx.memorylane.core.data.mapper.StoredDeck
 import androidx.room.Room
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
@@ -122,5 +123,49 @@ class PhotoDecisionDaoTest {
         dao.updateDecisions(listOf(1), "TRASHED", 5_000)
 
         assertTrue(dao.getAll().isEmpty())
+    }
+
+    // --- the undated deck ---
+
+    private val undated = StoredDeck.UNDATED_DATE
+
+    @Test
+    fun `moveFromUndated moves only the listed photos that are in the undated deck`() = runTest {
+        dao.upsert(decision(1, date = undated))
+        dao.upsert(decision(2, date = undated))
+        dao.upsert(decision(3, date = undated))
+        dao.upsert(decision(4, date = otherDay))
+
+        dao.moveFromUndated(listOf(1, 2, 4), day)
+
+        assertEquals(listOf(1L, 2L), dao.getByDate(day).map { it.photoId }.sorted())
+        assertEquals(listOf(3L), dao.getByDate(undated).map { it.photoId })
+        assertEquals(listOf(4L), dao.getByDate(otherDay).map { it.photoId })
+    }
+
+    @Test
+    fun `moveFromUndated keeps the decision and when it was made`() = runTest {
+        dao.upsert(decision(1, date = undated, value = "DELETE", at = 4_242))
+
+        dao.moveFromUndated(listOf(1), day)
+
+        assertEquals(decision(1, date = day, value = "DELETE", at = 4_242), dao.getById(1))
+    }
+
+    @Test
+    fun `moveFromUndated with no photos changes nothing`() = runTest {
+        dao.upsert(decision(1, date = undated))
+
+        dao.moveFromUndated(emptyList(), day)
+
+        assertEquals(listOf(1L), dao.getByDate(undated).map { it.photoId })
+    }
+
+    @Test
+    fun `a pending delete of the undated deck is a pending delete`() = runTest {
+        dao.upsert(decision(1, date = undated, value = "DELETE"))
+        dao.upsert(decision(2, date = day, value = "DELETE"))
+
+        assertEquals(listOf(1L, 2L), dao.getPendingDeletes().map { it.photoId }.sorted())
     }
 }

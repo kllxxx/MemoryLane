@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
@@ -14,8 +15,10 @@ import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.toDeckPhoto
+import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -45,9 +48,9 @@ class SwipeViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val date: LocalDate = LocalDate.parse(savedStateHandle.toRoute<SwipeRoute>().date)
+    private val deckKey: DeckKey = savedStateHandle.toRoute<SwipeRoute>().toDeckKey()
 
-    private val _state = MutableStateFlow(SwipeState(date = date, isLoading = true))
+    private val _state = MutableStateFlow(SwipeState(deckKey = deckKey, isLoading = true))
     val state: StateFlow<SwipeState> = _state.asStateFlow()
 
     private val _effects = Channel<SwipeEffect>(Channel.BUFFERED)
@@ -122,8 +125,10 @@ class SwipeViewModel @Inject constructor(
     private fun loadPhotos() {
         viewModelScope.launch {
             val event = try {
-                val photos = photoRepository.getPhotosForDate(date)
-                val decisions = swipeRepository.getDecisionsByDate(date)
+                val photos = photoRepository.getPhotos(deckKey)
+                // Photos that got a date since they were decided in the undated deck keep their decision on their day
+                if (deckKey is DeckKey.Day) swipeRepository.adoptUndatedDecisions(photos.map { it.id }, deckKey.date)
+                val decisions = swipeRepository.getDecisions(deckKey)
                 val trashed = loadTrashed(photos, decisions)
                 val locale = Locale.getDefault()
                 SwipeEvent.PhotosLoaded(
@@ -141,7 +146,7 @@ class SwipeViewModel @Inject constructor(
                 return@launch
             } catch (e: Exception) {
                 // A failed load is not an empty day, so no session is recorded for it
-                Log.e(TAG, "Could not load the photos for $date", e)
+                Log.e(TAG, "Could not load the photos for $deckKey", e)
                 _effects.trySend(SwipeEffect.NavigateToCalendar)
                 return@launch
             }
@@ -155,8 +160,8 @@ class SwipeViewModel @Inject constructor(
         }
     }
 
-    private fun reloadDecisions() = launchLogged("Could not read the decisions of $date again") {
-        onEvent(SwipeEvent.DecisionsReloaded(swipeRepository.getDecisionsByDate(date)))
+    private fun reloadDecisions() = launchLogged("Could not read the decisions of $deckKey again") {
+        onEvent(SwipeEvent.DecisionsReloaded(swipeRepository.getDecisions(deckKey)))
     }
 
     private fun isLive(decision: PhotoDecision) = decision != PhotoDecision.TRASHED && decision != PhotoDecision.DELETED
@@ -171,7 +176,7 @@ class SwipeViewModel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not load the trashed photos of $date", e)
+            Log.e(TAG, "Could not load the trashed photos of $deckKey", e)
             emptyList()
         }
     }
@@ -195,7 +200,7 @@ class SwipeViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not look up the locations of $date", e)
+                Log.e(TAG, "Could not look up the locations of $deckKey", e)
             }
         }
     }
@@ -217,7 +222,7 @@ class SwipeViewModel @Inject constructor(
 
     private fun saveDecision(photoId: Long, decision: PhotoDecision) =
         launchLogged("Could not save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, date, decision)
+            swipeRepository.saveDecision(photoId, deckKey, decision)
         }
 
     private fun removeDecision(photoId: Long) =
@@ -243,23 +248,27 @@ class SwipeViewModel @Inject constructor(
         viewModelScope.launch {
             // The marks of this day are in the deck already; the stored ones add those of the days before
             var hasDeletes = state.deck.any { it.decision == PhotoDecision.DELETE }
-            // The user has finished swiping, so a failed session write must not keep them on this screen
-            try {
-                val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
-                swipeRepository.saveSession(
-                    SwipeSession(
-                        date = state.date,
-                        completed = true,
-                        savedBytes = existing?.savedBytes ?: 0,
-                        deletedCount = existing?.deletedCount ?: 0,
-                        // The date the day is really completed on; a day that was completed on its own date keeps it
-                        completedAt = SessionCompletion.completedAt(existing, state.date, LocalDate.now(clock)),
-                    ),
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not save the session of ${state.date}", e)
+            // The user has finished swiping, so a failed session write must not keep them on this screen.
+            // The undated deck is not a day: it has no session to complete and never counts for a streak.
+            val day = (state.deckKey as? DeckKey.Day)?.date
+            if (day != null) {
+                try {
+                    val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
+                    swipeRepository.saveSession(
+                        SwipeSession(
+                            date = day,
+                            completed = true,
+                            savedBytes = existing?.savedBytes ?: 0,
+                            deletedCount = existing?.deletedCount ?: 0,
+                            // The date the day is really completed on; a day that was completed on its own date keeps it
+                            completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
+                        ),
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Could not save the session of $day", e)
+                }
             }
             if (!hasDeletes) {
                 hasDeletes = try {
@@ -273,10 +282,10 @@ class SwipeViewModel @Inject constructor(
             }
             _effects.trySend(
                 if (hasDeletes) {
-                    SwipeEffect.NavigateToBeforeDelete(state.date, totalPhotosCount = state.deck.size)
+                    SwipeEffect.NavigateToBeforeDelete(state.deckKey, totalPhotosCount = state.deck.size)
                 } else {
                     SwipeEffect.NavigateToResult(
-                        state.date,
+                        state.deckKey,
                         keptCount = state.deck.count { it.decision == PhotoDecision.KEEP },
                         totalCount = state.deck.size + state.trashed.size,
                     )

@@ -9,6 +9,7 @@ object CalendarReducer {
         CalendarIntent.ScreenEntered,
         CalendarIntent.RequestPermission,
         is CalendarIntent.OpenDay -> state
+        CalendarIntent.OpenUndated -> state
         is CalendarIntent.PermissionResult -> state.copy(hasPermission = intent.granted)
     }
 
@@ -20,6 +21,7 @@ object CalendarReducer {
         is CalendarEvent.SortedDatesLoaded -> state.copy(sortedDates = event.sortedDates.toImmutableSet())
         is CalendarEvent.StreakLoaded -> state.copy(currentStreak = event.currentStreak)
         is CalendarEvent.TodayBannerChanged -> state.copy(todayBanner = event.banner)
+        is CalendarEvent.UndatedBannerChanged -> state.copy(undatedBanner = event.banner)
         CalendarEvent.LoadSucceeded -> state.copy(error = null)
         // The grid does not depend on the photos, so it is shown anyway, with the banner on top
         CalendarEvent.LoadFailed -> state.copy(error = CalendarError.LoadFailed, phase = CalendarPhase.Content)

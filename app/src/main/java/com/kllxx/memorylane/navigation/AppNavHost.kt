@@ -31,6 +31,8 @@ import com.kllxx.memorylane.feature.profile.impl.ProfileScreen
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
+import com.kllxx.memorylane.feature.swipe.impl.toBeforeDeleteRoute
+import com.kllxx.memorylane.feature.swipe.impl.toResultRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteScreen
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultScreen
@@ -132,9 +134,9 @@ fun AppNavHost(
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 SwipeScreen(
                     // Swipe stays on the back stack: Back from «Перед удалением» returns to the deck
-                    onNavigateToBeforeDelete = { date -> navController.navigate(BeforeDeleteRoute(date.toString())) },
-                    onNavigateToResult = { date, keptCount, totalCount ->
-                        navController.navigate(ResultRoute(date.toString(), 0, 0L, keptCount, totalCount))
+                    onNavigateToBeforeDelete = { deck -> navController.navigate(deck.toBeforeDeleteRoute()) },
+                    onNavigateToResult = { deck, keptCount, totalCount ->
+                        navController.navigate(deck.toResultRoute(0, 0L, keptCount, totalCount))
                     },
                     onNavigateToCalendar = { navController.navigateToCalendar() },
                 )
@@ -144,8 +146,8 @@ fun AppNavHost(
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
                 BeforeDeleteScreen(
                     onBack = { navController.popBackStack() },
-                    onNavigateToResult = { date, deletedCount, freedBytes, keptCount, totalCount ->
-                        navController.navigate(ResultRoute(date.toString(), deletedCount, freedBytes, keptCount, totalCount)) {
+                    onNavigateToResult = { deck, deletedCount, freedBytes, keptCount, totalCount ->
+                        navController.navigate(deck.toResultRoute(deletedCount, freedBytes, keptCount, totalCount)) {
                             popUpTo<BeforeDeleteRoute> { inclusive = true }
                         }
                     },
@@ -161,7 +163,8 @@ fun AppNavHost(
         composable<CalendarRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
                 CalendarScreen(
-                    onNavigateToSwipe = { date -> navController.navigate(SwipeRoute(date.toString())) },
+                    onNavigateToSwipe = { date -> navController.navigate(SwipeRoute.day(date)) },
+                    onNavigateToUndated = { navController.navigate(SwipeRoute.undated()) },
                     reselected = calendarReselected,
                 )
             }
@@ -198,7 +201,7 @@ private fun NavHostController.navigateToCalendar() {
  * second deck, and any other screen above Calendar is replaced; Back goes to Calendar.
  */
 internal fun NavHostController.openToday(date: LocalDate) {
-    navigate(SwipeRoute(date.toString())) {
+    navigate(SwipeRoute.day(date)) {
         popUpTo<CalendarRoute> { inclusive = false }
         launchSingleTop = true
     }

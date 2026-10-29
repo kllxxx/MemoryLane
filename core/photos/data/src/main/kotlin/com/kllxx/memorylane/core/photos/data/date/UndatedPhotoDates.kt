@@ -20,6 +20,8 @@ internal class CacheLookup(
     val misses: List<UndatedPhoto>,
     val stale: Map<Long, ResolvedDate?>,
     val undated: Int,
+    /** The photos whose cached answer is current and says they have no date at all. */
+    val knownUndated: Set<Long> = emptySet(),
 ) {
     val cacheHits: Int get() = undated - misses.size
 
@@ -34,6 +36,8 @@ internal class CacheLookup(
 internal class MissResolution(
     val dates: Map<Long, ResolvedDate>,
     val read: Int,
+    /** The photos that were read and have no date at all. */
+    val undatedIds: Set<Long> = emptySet(),
 ) {
     val fromExif: Int get() = dates.values.count { it.source == DateSource.EXIF }
     val fromGps: Int get() = dates.values.count { it.source == DateSource.GPS }
@@ -62,12 +66,14 @@ internal class UndatedPhotoDates(
         val dates = HashMap<Long, ResolvedDate>()
         val misses = ArrayList<UndatedPhoto>()
         val stale = HashMap<Long, ResolvedDate?>()
+        val knownUndated = HashSet<Long>()
         for (photo in photos) {
             val entry = cached[photo.id]
             val date = entry?.let(ResolvedDate::fromCached)
             if (date != null) dates[photo.id] = date
             when {
                 entry == null -> misses += photo
+                entry.dateModified == photo.dateModified && date == null -> knownUndated += photo.id
                 entry.dateModified != photo.dateModified -> {
                     misses += photo
                     stale[photo.id] = date
@@ -75,7 +81,7 @@ internal class UndatedPhotoDates(
             }
         }
         cache.retainOnly(photos.mapTo(HashSet()) { it.id })
-        return CacheLookup(dates, misses, stale, undated = photos.size)
+        return CacheLookup(dates, misses, stale, undated = photos.size, knownUndated = knownUndated)
     }
 
     /**
@@ -99,7 +105,7 @@ internal class UndatedPhotoDates(
         } finally {
             if (fresh.isNotEmpty()) withContext(NonCancellable) { cache.putAll(fresh) }
         }
-        return MissResolution(dates, read = misses.size)
+        return MissResolution(dates, read = misses.size, undatedIds = misses.mapNotNullTo(HashSet()) { it.id.takeIf { id -> id !in dates } })
     }
 
     private companion object {

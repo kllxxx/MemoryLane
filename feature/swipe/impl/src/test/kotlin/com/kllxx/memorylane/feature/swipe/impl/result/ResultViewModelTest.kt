@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.result
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
+import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.format.FormattedSize
@@ -11,6 +13,7 @@ import com.kllxx.memorylane.core.domain.streak.Streaks
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -62,10 +65,11 @@ class ResultViewModelTest {
         freed: Long = 320_000_000,
         kept: Int = 37,
         total: Int = 48,
+        undated: Boolean = false,
     ): ResultViewModel {
         val handle = SavedStateHandle(
             mapOf(
-                "date" to date.toString(),
+                *(if (undated) arrayOf("deck" to DeckKind.UNDATED) else arrayOf("date" to date.toString())),
                 "deletedCount" to deleted,
                 "freedBytes" to freed,
                 "keptCount" to kept,
@@ -84,7 +88,7 @@ class ResultViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertEquals(today, state.date)
+        assertEquals(DeckKey.Day(today), state.deck)
         assertEquals(11, state.deletedCount)
         assertEquals(37, state.keptCount)
         assertEquals(48, state.totalCount)
@@ -92,6 +96,37 @@ class ResultViewModelTest {
         assertFalse(state.nothingDeleted)
     }
 
+
+    @Test
+    fun `the undated deck is a deck of its own, with the numbers of the route`() = runTest(dispatcher) {
+        val viewModel = create(undated = true, deleted = 1, freed = 5_000_000, kept = 2, total = 3)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(DeckKey.Undated, state.deck)
+        assertEquals(1, state.deletedCount)
+        assertEquals(2, state.keptCount)
+        assertEquals(3, state.totalCount)
+    }
+
+    @Test
+    fun `the undated deck has no streak chip and does not even ask for the streak`() = runTest(dispatcher) {
+        streaks.value = Streaks(current = 3, best = 5)
+        val viewModel = create(undated = true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.streakDays)
+        verify(exactly = 0) { swipeRepository.getCompletedSessions() }
+    }
+
+    @Test
+    fun `the undated route is the contract between the two screens`() {
+        val route = ResultRoute.undated(deletedCount = 2, freedBytes = 5, keptCount = 1, totalCount = 3)
+
+        assertEquals(DeckKey.Undated, route.toState().deck)
+        assertEquals(DeckKind.UNDATED, route.deck)
+        assertNull(route.date)
+    }
     @Test
     fun `nothing deleted is a day without deleted photos`() = runTest(dispatcher) {
         val viewModel = create(deleted = 0, freed = 0, kept = 48)
@@ -170,9 +205,9 @@ class ResultViewModelTest {
 
     @Test
     fun `the route is the contract between the two screens`() {
-        val route = ResultRoute("2015-01-15", deletedCount = 2, freedBytes = 5, keptCount = 1, totalCount = 3)
+        val route = ResultRoute.day(LocalDate.of(2015, 1, 15), deletedCount = 2, freedBytes = 5, keptCount = 1, totalCount = 3)
 
-        assertEquals(LocalDate.of(2015, 1, 15), route.toState().date)
+        assertEquals(DeckKey.Day(LocalDate.of(2015, 1, 15)), route.toState().deck)
         assertEquals(2, route.toState().deletedCount)
     }
 }

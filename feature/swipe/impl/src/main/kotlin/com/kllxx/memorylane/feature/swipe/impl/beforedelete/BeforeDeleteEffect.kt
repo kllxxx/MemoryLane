@@ -11,7 +11,7 @@ sealed interface BeforeDeleteEffect {
 
     /** The deletion is done, or there was nothing to delete: «Итоги» with these numbers. */
     data class NavigateToResult(
-        val date: java.time.LocalDate,
+        val deck: com.kllxx.memorylane.core.domain.model.DeckKey,
         val deletedCount: Int,
         val freedBytes: Long,
         val keptCount: Int,

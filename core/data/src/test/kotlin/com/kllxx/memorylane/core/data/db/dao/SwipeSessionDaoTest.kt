@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.data.db.dao
 
+import com.kllxx.memorylane.core.data.mapper.StoredDeck
 import androidx.room.Room
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.data.db.AppDatabase
@@ -130,5 +131,47 @@ class SwipeSessionDaoTest {
             assertEquals(5, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // --- the undated deck is stored as a session but is never a day ---
+
+    private val undated = StoredDeck.UNDATED_DATE
+
+    @Test
+    fun `the reserved date is year 1, the one the queries filter on`() {
+        assertEquals(LocalDate.of(1, 1, 1), undated)
+        assertEquals(undated.toEpochDay(), StoredDeck.UNDATED_EPOCH_DAY)
+    }
+
+    @Test
+    fun `observeCompleted leaves out the undated deck`() = runTest {
+        dao.insert(session(monday, completed = true, savedBytes = 100))
+        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
+
+        assertEquals(listOf(monday), dao.observeCompleted().first().map { it.date })
+    }
+
+    @Test
+    fun `getCompletedOn leaves out the undated deck`() = runTest {
+        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
+
+        assertNull(dao.getCompletedOn(wednesday))
+    }
+
+    @Test
+    fun `getCompletedOn still finds the day next to the undated deck`() = runTest {
+        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
+        dao.insert(session(tuesday, completed = true, savedBytes = 100, completedAt = wednesday))
+
+        assertEquals(tuesday, dao.getCompletedOn(wednesday)?.date)
+    }
+
+    @Test
+    fun `the totals keep the undated deck, it is where its deleted photos and bytes are`() = runTest {
+        dao.insert(session(monday, completed = true, savedBytes = 100).copy(deletedCount = 1))
+        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday).copy(deletedCount = 4))
+
+        assertEquals(5, dao.observeDeletedCount().first())
+        assertEquals(1_000L, dao.observeFreedBytes().first())
     }
 }

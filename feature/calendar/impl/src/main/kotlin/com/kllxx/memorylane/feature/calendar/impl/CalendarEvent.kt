@@ -11,6 +11,8 @@ internal sealed interface CalendarEvent {
     data class StreakLoaded(val currentStreak: Int) : CalendarEvent
     data class TodayBannerChanged(val banner: TodayBanner?) : CalendarEvent
 
+    data class UndatedBannerChanged(val banner: UndatedBanner?) : CalendarEvent
+
     /** A refresh finished: whatever failed before is over. */
     data object LoadSucceeded : CalendarEvent
     data object LoadFailed : CalendarEvent

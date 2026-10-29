@@ -17,12 +17,12 @@ import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntentFactory
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntent
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeViewModel
 import com.kllxx.memorylane.feature.swipe.impl.swipe.ui.SwipeContent
-import java.time.LocalDate
+import com.kllxx.memorylane.core.domain.model.DeckKey
 
 @Composable
 fun SwipeScreen(
-    onNavigateToBeforeDelete: (date: LocalDate) -> Unit,
-    onNavigateToResult: (date: LocalDate, keptCount: Int, totalCount: Int) -> Unit,
+    onNavigateToBeforeDelete: (deck: DeckKey) -> Unit,
+    onNavigateToResult: (deck: DeckKey, keptCount: Int, totalCount: Int) -> Unit,
     onNavigateToCalendar: () -> Unit,
     viewModel: SwipeViewModel = hiltViewModel(),
 ) {
@@ -32,8 +32,8 @@ fun SwipeScreen(
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is SwipeEffect.NavigateToBeforeDelete -> onNavigateToBeforeDelete(effect.date)
-                is SwipeEffect.NavigateToResult -> onNavigateToResult(effect.date, effect.keptCount, effect.totalCount)
+                is SwipeEffect.NavigateToBeforeDelete -> onNavigateToBeforeDelete(effect.deck)
+                is SwipeEffect.NavigateToResult -> onNavigateToResult(effect.deck, effect.keptCount, effect.totalCount)
                 SwipeEffect.NavigateToCalendar -> onNavigateToCalendar()
                 // Calendar asks for the permission, so the user is not left on an empty screen
                 SwipeEffect.PermissionRequired -> onNavigateToCalendar()

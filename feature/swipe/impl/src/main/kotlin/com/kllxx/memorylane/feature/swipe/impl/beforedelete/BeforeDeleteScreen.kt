@@ -15,7 +15,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui.BeforeDeleteContent
-import java.time.LocalDate
+import com.kllxx.memorylane.core.domain.model.DeckKey
 
 /**
  * «Перед удалением». The screen owns the launchers: their results are kept by the activity, so an answer of the
@@ -24,7 +24,7 @@ import java.time.LocalDate
 @Composable
 fun BeforeDeleteScreen(
     onBack: () -> Unit,
-    onNavigateToResult: (date: LocalDate, deletedCount: Int, freedBytes: Long, keptCount: Int, totalCount: Int) -> Unit,
+    onNavigateToResult: (deck: DeckKey, deletedCount: Int, freedBytes: Long, keptCount: Int, totalCount: Int) -> Unit,
     onNavigateToCalendar: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BeforeDeleteViewModel = hiltViewModel(),
@@ -47,7 +47,7 @@ fun BeforeDeleteScreen(
                 BeforeDeleteEffect.RequestWritePermission ->
                     permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 is BeforeDeleteEffect.NavigateToResult ->
-                    onNavigateToResult(effect.date, effect.deletedCount, effect.freedBytes, effect.keptCount, effect.totalCount)
+                    onNavigateToResult(effect.deck, effect.deletedCount, effect.freedBytes, effect.keptCount, effect.totalCount)
                 BeforeDeleteEffect.NavigateToCalendar -> onNavigateToCalendar()
                 BeforeDeleteEffect.ShowDeleteError ->
                     Toast.makeText(context, R.string.before_delete_error, Toast.LENGTH_SHORT).show()

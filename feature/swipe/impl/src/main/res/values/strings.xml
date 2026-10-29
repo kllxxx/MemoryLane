@@ -57,6 +57,7 @@
     <string name="result_all_kept">Все фото оставлены</string>
     <string name="result_unit_mb">МБ</string>
     <string name="result_unit_gb">ГБ</string>
+    <string name="deck_undated">Без даты</string>
     <string name="result_caption">%1$s · %2$s</string>
     <plurals name="result_caption_photos">
         <item quantity="one">%d фото</item>

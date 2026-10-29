@@ -23,12 +23,21 @@ enum class StripDot { None, Keep, Delete }
 private const val UNDECIDED_ALPHA = 0.55f
 private const val TRASHED_ALPHA = 0.4f
 
-/** The deck and the trashed photos in one list, oldest first by capture time (the id breaks a tie). */
+/**
+ * The deck and the trashed photos in one list, oldest first by capture time (the id breaks a tie). The photos of the
+ * undated deck have no capture time: they keep the order of the deck, with the trashed ones after them.
+ */
 fun buildStrip(deck: List<DeckPhoto>, trashed: List<DeckPhoto>): List<StripItem> {
     val inDeck = deck.mapIndexed { index, item -> item to index }
     val inTrash = trashed.map { it to null }
     return (inDeck + inTrash)
-        .sortedWith(compareBy<Pair<DeckPhoto, Int?>> { it.first.photo.takenAt }.thenBy { it.first.id })
+        .sortedWith(
+            if (deck.any { it.photo.takenAt == null }) {
+                compareBy<Pair<DeckPhoto, Int?>> { it.second == null }.thenBy { it.second }.thenBy { it.first.id }
+            } else {
+                compareBy<Pair<DeckPhoto, Int?>> { it.first.photo.takenAt }.thenBy { it.first.id }
+            },
+        )
         .map { (item, deckIndex) ->
             StripItem(
                 photoId = item.id,

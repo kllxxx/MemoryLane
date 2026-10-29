@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.core.photos.domain.usecase
 
 import com.kllxx.memorylane.core.domain.model.DayCompletion
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import java.time.LocalDate
@@ -23,7 +24,9 @@ class PhotosToReview(
     suspend operator fun invoke(date: LocalDate): Int {
         if (!photoRepository.hasMediaPermission()) return 0
         val photos = photoRepository.getPhotosForDate(date)
-        val decisions = swipeRepository.getDecisionsByDate(date)
+        // Photos that got a date since they were decided in the undated deck keep their decision on their day
+        swipeRepository.adoptUndatedDecisions(photos.map { it.id }, date)
+        val decisions = swipeRepository.getDecisions(DeckKey.Day(date))
         return if (DayCompletion.isCompleted(photos.map { it.id }, decisions)) 0 else photos.size
     }
 }

@@ -37,6 +37,30 @@ class StripMapperTest {
         assertEquals(listOf(5L, 7L, 9L), buildStrip(deck, trashed).map { it.photoId })
     }
 
+
+    // --- the undated deck: no capture time, the order of the deck ---
+
+    private fun undated(id: Long, decision: PhotoDecision? = null) =
+        DeckPhoto(Photo(id, uri, takenAt = null, sizeBytes = 1), decision, takenAtText = "")
+
+    @Test
+    fun `the strip of the undated deck keeps the order of the deck, not the order of the ids`() {
+        val deck = listOf(undated(30), undated(10), undated(20))
+
+        assertEquals(listOf(30L, 10L, 20L), buildStrip(deck, emptyList()).map { it.photoId })
+        assertEquals(listOf(0, 1, 2), buildStrip(deck, emptyList()).map { it.deckIndex })
+    }
+
+    @Test
+    fun `trashed photos come after the undated deck in the strip`() {
+        val deck = listOf(undated(30), undated(10))
+        val trashed = listOf(photo(5, at, PhotoDecision.TRASHED), photo(7, at.minusYears(3), PhotoDecision.TRASHED))
+
+        val strip = buildStrip(deck, trashed)
+
+        assertEquals(listOf(30L, 10L, 5L, 7L), strip.map { it.photoId })
+        assertEquals(listOf(0, 1, null, null), strip.map { it.deckIndex })
+    }
     @Test
     fun `a deck photo keeps its deck index and a trashed photo has none`() {
         val deck = listOf(photo(1, at), photo(3, at.plusYears(2)))

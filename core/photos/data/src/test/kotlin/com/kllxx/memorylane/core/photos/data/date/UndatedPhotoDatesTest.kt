@@ -211,4 +211,37 @@ class UndatedPhotoDatesTest {
         assertEquals(reader.reads.size, cache.entries.size)
         assertTrue(cache.entries.size in 100..120)
     }
+
+    // --- the photos with no date at all ---
+
+    @Test
+    fun `the lookup names the photos the cache knows to have no date, when the file is unchanged`() = runTest {
+        cache.forgottenFor = PhotoDateResolver.DATE_CHAIN_VERSION
+        cache.entries[1] = ResolvedDate.undatedToCached(photo(1, modified = 100))
+        cache.entries[2] = ResolvedDate.undatedToCached(photo(2, modified = 100))
+        cache.entries[3] = ResolvedDate(LocalDateTime.of(2016, 1, 7, 10, 15), null, DateSource.EXIF).toCached(photo(3))
+
+        val lookup = dates.lookup(listOf(photo(1, modified = 100), photo(2, modified = 200), photo(3), photo(4)))
+
+        assertEquals(setOf(1L), lookup.knownUndated)
+        assertEquals(listOf(2L, 4L), lookup.misses.map { it.id })
+    }
+
+    @Test
+    fun `reading the files names the photos left without a date`() = runTest {
+        reader.tags[1] = ExifDateTags(dateTimeOriginal = "2016:01:07 10:15:00")
+        reader.tags[2] = ExifDateTags()
+
+        val result = dates.resolveMisses(listOf(photo(1), photo(2), photo(3, name = "IMG_20160107_101500.jpg"), photo(4, name = "x.jpg")))
+
+        assertEquals(setOf(2L, 4L), result.undatedIds)
+        assertEquals(result.stillUndated, result.undatedIds.size)
+    }
+
+    @Test
+    fun `an unreadable file with no date in its name is undated too`() = runTest {
+        val result = dates.resolveMisses(listOf(photo(1, name = "vk_1452191711_photo.jpg")))
+
+        assertEquals(setOf(1L), result.undatedIds)
+    }
 }

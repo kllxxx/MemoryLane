@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +37,7 @@ fun SwipeContent(
         // The design has the top bar 4dp below the status bar
         Spacer(Modifier.height(SwipeLayout.TopBarGap))
         SwipeTopBar(
-            dateText = current?.takenAtText,
+            dateText = if (state.deckKey == DeckKey.Undated) stringResource(R.string.deck_undated) else current?.takenAtText,
             location = current?.photo?.location,
             onClose = { onIntent(SwipeIntent.Close) },
         )

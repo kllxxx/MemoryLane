@@ -7,6 +7,9 @@ import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
 import com.kllxx.memorylane.core.data.mapper.toDecisionOrNull
 import com.kllxx.memorylane.core.data.mapper.toDomain
 import com.kllxx.memorylane.core.data.mapper.toEntity
+import com.kllxx.memorylane.core.data.mapper.toDeckKey
+import com.kllxx.memorylane.core.data.mapper.toStoredDate
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -24,23 +27,27 @@ internal class SwipeRepositoryImpl @Inject constructor(
     private val clock: Clock,
 ) : SwipeRepository {
 
-    override suspend fun saveDecision(photoId: Long, date: LocalDate, decision: PhotoDecision) =
+    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision) =
         photoDecisionDao.upsert(
             PhotoDecisionEntity(
                 photoId = photoId,
-                sessionDate = date,
+                sessionDate = deck.toStoredDate(),
                 decision = decision.name,
                 decidedAt = clock.millis(),
             ),
         )
 
-    override suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision> =
-        photoDecisionDao.getByDate(date)
+    override suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision> =
+        photoDecisionDao.getByDate(deck.toStoredDate())
             .mapNotNull { row -> row.toDecisionOrNull()?.let { row.photoId to it } }
             .toMap()
 
-    override suspend fun getPendingDeletes(): Map<LocalDate, Set<Long>> =
-        photoDecisionDao.getPendingDeletes().groupBy({ it.sessionDate }, { it.photoId }).mapValues { it.value.toSet() }
+    override suspend fun getPendingDeletes(): Map<DeckKey, Set<Long>> =
+        photoDecisionDao.getPendingDeletes().groupBy({ it.sessionDate.toDeckKey() }, { it.photoId }).mapValues { it.value.toSet() }
+
+    override suspend fun adoptUndatedDecisions(photoIds: Collection<Long>, date: LocalDate) {
+        photoIds.chunked(SQL_VARIABLE_LIMIT).forEach { photoDecisionDao.moveFromUndated(it, date) }
+    }
 
     override suspend fun removeDecision(photoId: Long) = photoDecisionDao.deleteById(photoId)
 

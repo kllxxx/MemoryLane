@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.photos.domain.usecase
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
@@ -23,7 +24,9 @@ class PhotosToReviewTest {
     private val photoRepository = mockk<PhotoRepository> {
         every { hasMediaPermission() } returns true
     }
-    private val swipeRepository = mockk<SwipeRepository>()
+    private val swipeRepository = mockk<SwipeRepository> {
+        coEvery { adoptUndatedDecisions(any(), any()) } returns Unit
+    }
 
     private val review = PhotosToReview(photoRepository, swipeRepository)
 
@@ -33,9 +36,19 @@ class PhotosToReviewTest {
     }
 
     private fun givenDecisions(vararg decisions: Pair<Long, PhotoDecision>) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(*decisions)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(*decisions)
     }
 
+
+    @Test
+    fun `photos that got a date since they were decided as undated keep their decision on their day`() = runTest {
+        givenPhotos(1, 2)
+        givenDecisions(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
+
+        assertEquals(0, review(date))
+
+        coVerify { swipeRepository.adoptUndatedDecisions(listOf(1L, 2L), date) }
+    }
     @Test
     fun `photos without any decision are all waiting`() = runTest {
         givenPhotos(1, 2, 3)
@@ -106,7 +119,7 @@ class PhotosToReviewTest {
 
         assertEquals(0, review(date))
         coVerify(exactly = 0) { photoRepository.getPhotosForDate(any()) }
-        coVerify(exactly = 0) { swipeRepository.getDecisionsByDate(any()) }
+        coVerify(exactly = 0) { swipeRepository.getDecisions(any()) }
     }
 
     @Test
@@ -119,7 +132,7 @@ class PhotosToReviewTest {
     @Test
     fun `a failure to read the decisions is thrown to the caller`() = runTest {
         givenPhotos(1)
-        coEvery { swipeRepository.getDecisionsByDate(date) } throws IllegalStateException("db failed")
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } throws IllegalStateException("db failed")
 
         assertFails { review(date) }
     }

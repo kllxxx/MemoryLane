@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.kllxx.memorylane.core.domain.format.FormattedSize
 import com.kllxx.memorylane.core.domain.format.SizeUnit
@@ -15,7 +16,7 @@ import org.junit.Test
 class BeforeDeleteReducerTest {
 
     private fun cell(id: Long, marked: Boolean = true, size: Long = 100_000_000) =
-        DeleteCell(id, mockk<Uri>(relaxed = true), size, marked, LocalDate.of(2015, 1, 15))
+        DeleteCell(id, mockk<Uri>(relaxed = true), size, marked, DeckKey.Day(LocalDate.of(2015, 1, 15)))
 
     private fun state(vararg cells: DeleteCell, deleting: Boolean = false) =
         BeforeDeleteState(isLoading = false, cells = cells.toList().toImmutableList(), isDeleting = deleting)

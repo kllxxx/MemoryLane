@@ -42,6 +42,7 @@ import com.kllxx.memorylane.feature.calendar.impl.CalendarPerf
 import com.kllxx.memorylane.feature.calendar.impl.CalendarPhase
 import com.kllxx.memorylane.feature.calendar.impl.CalendarState
 import com.kllxx.memorylane.feature.calendar.impl.DayItem
+import com.kllxx.memorylane.feature.calendar.impl.UndatedBanner
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -53,6 +54,7 @@ import kotlinx.collections.immutable.ImmutableSet
 private const val WEEKDAY_HEADER_KEY = "weekdays"
 private const val MONTH_KEY_PREFIX = "month-"
 private const val ROW_KEY_PREFIX = "row-"
+private const val UNDATED_BANNER_KEY = "undated-banner"
 
 internal const val WEEKDAY_HEADER_TAG = "calendar-weekdays"
 internal const val EMPTY_STATE_TAG = "calendar-empty"
@@ -70,7 +72,16 @@ internal fun CalendarContent(
             !state.hasPermission -> PermissionPrompt(onRequest = { onIntent(CalendarIntent.RequestPermission) })
             // The photos are not known yet: the top bar only, no spinner
             state.phase == CalendarPhase.Loading -> Unit
-            state.phase == CalendarPhase.Empty -> CalendarEmpty(Modifier.weight(1f))
+            state.phase == CalendarPhase.Empty -> {
+                CalendarEmpty(Modifier.weight(1f))
+                // Nothing to look back on, but the photos without a date can still be sorted
+                if (state.undatedBanner != null) {
+                    UndatedBannerCard(
+                        count = state.undatedBanner.count,
+                        onClick = { onIntent(CalendarIntent.OpenUndated) },
+                    )
+                }
+            }
             else -> {
                 if (state.error != null) {
                     ErrorBanner(state.error, onRetry = { onIntent(CalendarIntent.LoadDays) })
@@ -87,6 +98,7 @@ internal fun CalendarContent(
                     months = state.months,
                     today = state.today,
                     sortedDates = state.sortedDates,
+                    undatedBanner = state.undatedBanner,
                     listState = listState,
                     onIntent = onIntent,
                 )
@@ -110,6 +122,7 @@ private fun MonthList(
     months: ImmutableList<CalendarMonth>,
     today: LocalDate,
     sortedDates: ImmutableSet<LocalDate>,
+    undatedBanner: UndatedBanner?,
     listState: LazyListState,
     onIntent: (CalendarIntent) -> Unit,
 ) {
@@ -131,6 +144,15 @@ private fun MonthList(
             item(key = MONTH_KEY_PREFIX + month.yearMonth) { MonthSeparator(month.yearMonth, locale) }
             items(items = month.rows, key = { row -> rowKey(row) }) { row ->
                 DayRow(row = row, today = today, sortedDates = sortedDates, onOpenDay = onOpenDay)
+            }
+        }
+        // After December and scrolling with the list; behind every month, so the positions of the months do not change
+        if (undatedBanner != null) {
+            item(key = UNDATED_BANNER_KEY) {
+                UndatedBannerCard(
+                    count = undatedBanner.count,
+                    onClick = { onIntent(CalendarIntent.OpenUndated) },
+                )
             }
         }
     }

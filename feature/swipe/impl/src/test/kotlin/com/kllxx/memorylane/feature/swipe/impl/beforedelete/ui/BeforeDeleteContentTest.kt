@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,14 +40,14 @@ class BeforeDeleteContentTest {
     val composeRule = createComposeRule()
 
     private fun cells(vararg sizes: Long) =
-        sizes.mapIndexed { index, size -> DeleteCell(index + 1L, uriOf(index + 1L), size, marked = true, date = LocalDate.of(2015, 1, 15)) }
+        sizes.mapIndexed { index, size -> DeleteCell(index + 1L, uriOf(index + 1L), size, marked = true, deck = DeckKey.Day(LocalDate.of(2015, 1, 15))) }
 
     private fun initial(vararg sizes: Long, deleting: Boolean = false, dialog: Boolean = false) = BeforeDeleteState(
         isLoading = false,
         cells = cells(*sizes).toImmutableList(),
         isDeleting = deleting,
         showPermanentDialog = dialog,
-        currentDate = LocalDate.of(2015, 1, 15),
+        currentDeck = DeckKey.Day(LocalDate.of(2015, 1, 15)),
     )
 
     private val intents = mutableListOf<BeforeDeleteIntent>()
@@ -118,13 +119,13 @@ class BeforeDeleteContentTest {
         val current = LocalDate.of(2015, 1, 15)
         val earlier = LocalDate.of(2014, 1, 15)
         val cells = listOf(
-            DeleteCell(1, uriOf(1), 100, marked = true, date = earlier),
-            DeleteCell(2, uriOf(2), 100, marked = true, date = current),
+            DeleteCell(1, uriOf(1), 100, marked = true, deck = DeckKey.Day(earlier)),
+            DeleteCell(2, uriOf(2), 100, marked = true, deck = DeckKey.Day(current)),
         )
-        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDate = current))
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDeck = DeckKey.Day(current)))
 
-        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(earlier)).assertTextEquals("Отмечено ранее · 15 января")
-        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(current)).assertTextEquals("15 января")
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Day(earlier))).assertTextEquals("Отмечено ранее · 15 января")
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Day(current))).assertTextEquals("15 января")
         val currentTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(2)).getUnclippedBoundsInRoot().top
         val earlierTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(1)).getUnclippedBoundsInRoot().top
         assertTrue("the current day comes first", currentTop < earlierTop)
@@ -134,17 +135,57 @@ class BeforeDeleteContentTest {
     fun `an earlier day alone still says it was marked earlier`() {
         val current = LocalDate.of(2015, 1, 15)
         val earlier = LocalDate.of(2014, 1, 15)
-        val cells = listOf(DeleteCell(1, uriOf(1), 100, marked = true, date = earlier))
-        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDate = current))
+        val cells = listOf(DeleteCell(1, uriOf(1), 100, marked = true, deck = DeckKey.Day(earlier)))
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDeck = DeckKey.Day(current)))
 
-        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(earlier)).assertTextEquals("Отмечено ранее · 15 января")
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Day(earlier))).assertTextEquals("Отмечено ранее · 15 января")
     }
 
+
+    @Test
+    fun `the undated deck is a group of its own, after the days, and says it was marked earlier`() {
+        val current = LocalDate.of(2015, 1, 15)
+        val cells = listOf(
+            DeleteCell(1, uriOf(1), 100, marked = true, deck = DeckKey.Undated),
+            DeleteCell(2, uriOf(2), 100, marked = true, deck = DeckKey.Day(LocalDate.of(2014, 1, 15))),
+            DeleteCell(3, uriOf(3), 100, marked = true, deck = DeckKey.Day(current)),
+        )
+        val state = BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDeck = DeckKey.Day(current))
+        show(state)
+
+        assertEquals(
+            listOf(DeckKey.Day(current), DeckKey.Day(LocalDate.of(2014, 1, 15)), DeckKey.Undated),
+            state.groups.map { it.deck },
+        )
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Undated)).assertTextEquals("Отмечено ранее · Без даты")
+    }
+
+    @Test
+    fun `the undated deck alone, as the current deck, is headed Без даты`() {
+        val cells = listOf(
+            DeleteCell(1, uriOf(1), 100, marked = true, deck = DeckKey.Undated),
+            DeleteCell(2, uriOf(2), 100, marked = true, deck = DeckKey.Day(LocalDate.of(2014, 1, 15))),
+        )
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDeck = DeckKey.Undated))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Undated)).assertTextEquals("Без даты")
+        val undatedTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(1)).getUnclippedBoundsInRoot().top
+        val dayTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(2)).getUnclippedBoundsInRoot().top
+        assertTrue("the current deck comes first", undatedTop < dayTop)
+    }
+
+    @Test
+    fun `an undated deck alone has no header`() {
+        val cells = listOf(DeleteCell(1, uriOf(1), 100, marked = true, deck = DeckKey.Undated))
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDeck = DeckKey.Undated))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Undated)).assertDoesNotExist()
+    }
     @Test
     fun `a single day has no header`() {
         show(initial(100))
 
-        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(LocalDate.of(2015, 1, 15))).assertDoesNotExist()
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(DeckKey.Day(LocalDate.of(2015, 1, 15)))).assertDoesNotExist()
     }
 
     // --- the text and the button ---

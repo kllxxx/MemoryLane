@@ -133,7 +133,7 @@ internal fun PhotoCardStack(
         shown = latest
     }
 
-    val photoDescription = state.currentPhoto?.takenAtText
+    val photoDescription = state.currentPhoto?.takenAtText?.takeIf { it.isNotEmpty() }
         ?.let { stringResource(R.string.swipe_card_description, it) }
         ?: stringResource(R.string.swipe_card_description_undated)
     val deleteLabel = stringResource(R.string.swipe_action_delete)

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.result.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -29,7 +30,7 @@ class ResultContentTest {
     private val intents = mutableListOf<ResultIntent>()
 
     private val freedState = ResultState(
-        date = LocalDate.of(2026, 10, 28),
+        deck = DeckKey.Day(LocalDate.of(2026, 10, 28)),
         deletedCount = 11,
         keptCount = 37,
         totalCount = 48,
@@ -74,7 +75,7 @@ class ResultContentTest {
 
     @Test
     fun `the caption has the month in the genitive`() {
-        show(freedState.copy(date = LocalDate.of(2026, 1, 8), totalCount = 1))
+        show(freedState.copy(deck = DeckKey.Day(LocalDate.of(2026, 1, 8)), totalCount = 1))
 
         text(ResultTags.CAPTION).assertTextEquals("8 января · 1 фото")
     }
@@ -91,6 +92,20 @@ class ResultContentTest {
         text(ResultTags.KEPT_CARD).assertIsDisplayed()
         composeRule.onNodeWithText("37").assertIsDisplayed()
         composeRule.onNodeWithText("оставлено").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the caption of the undated deck is Без даты and the number of photos`() {
+        show(freedState.copy(deck = DeckKey.Undated, totalCount = 3, streakDays = null))
+
+        text(ResultTags.CAPTION).assertTextEquals("Без даты · 3 фото")
+    }
+
+    @Test
+    fun `the undated deck has no streak chip`() {
+        show(freedState.copy(deck = DeckKey.Undated, totalCount = 3, streakDays = null))
+
+        text(ResultTags.STREAK).assertDoesNotExist()
     }
 
     // --- the streak chip ---

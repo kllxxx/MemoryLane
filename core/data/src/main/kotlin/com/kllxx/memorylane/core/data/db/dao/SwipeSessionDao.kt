@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
+import com.kllxx.memorylane.core.data.mapper.StoredDeck
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -13,10 +14,12 @@ interface SwipeSessionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: SwipeSessionEntity)
 
-    @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND completed_at = :date LIMIT 1")
+    // The undated deck is stored as a session too (it holds its deleted count and freed bytes) but is never a day: the
+    // queries that feed streaks, sorted days and the daily routing leave it out. The sums below keep it.
+    @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND date <> ${StoredDeck.UNDATED_EPOCH_DAY} AND completed_at = :date LIMIT 1")
     suspend fun getCompletedOn(date: LocalDate): SwipeSessionEntity?
 
-    @Query("SELECT * FROM swipe_sessions WHERE completed = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND date <> ${StoredDeck.UNDATED_EPOCH_DAY} ORDER BY date DESC")
     fun observeCompleted(): Flow<List<SwipeSessionEntity>>
 
     @Query("SELECT COALESCE(SUM(deleted_count), 0) FROM swipe_sessions")

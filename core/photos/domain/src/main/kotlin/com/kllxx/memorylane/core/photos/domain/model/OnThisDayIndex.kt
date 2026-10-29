@@ -30,6 +30,11 @@ data class OnThisDayIndex(
      * for a date of another year.
      */
     val photoYears: Map<MonthDay, Set<Int>> = emptyMap(),
+    /**
+     * The photos that have no date anywhere once the date chain has run on them (no `DATE_TAKEN`, nothing in the file
+     * either). Photos whose file has not been read yet are not here: they may still get a date.
+     */
+    val undatedIds: Set<Long> = emptySet(),
 ) {
     /** Photos in the index, i.e. photos that can show up as a memory in the calendar. */
     val totalPhotos: Int get() = entries.values.sumOf { it.count }

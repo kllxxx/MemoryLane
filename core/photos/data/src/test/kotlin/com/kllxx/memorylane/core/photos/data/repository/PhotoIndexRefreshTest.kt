@@ -229,7 +229,7 @@ class PhotoIndexRefreshTest {
     }
 
     @Test
-    fun `photos with no date anywhere stay out of the index, without falling back to DATE_ADDED`() = runTest {
+    fun `photos with no date anywhere stay out of the day index and are named as undated, without falling back to DATE_ADDED`() = runTest {
         val repository = repository(StandardTestDispatcher(testScheduler))
         FakeMediaProvider.rows = listOf(row(2, null, name = "photo.jpg"), row(3, 0L, name = null))
 
@@ -240,7 +240,10 @@ class PhotoIndexRefreshTest {
 
             advanceUntilIdle()
 
-            // Nothing was added, so the index is not emitted a second time
+            // No date was found, so the dates are the same; the index comes once more, now naming the undated photos
+            val withUndated = awaitItem()!!
+            assertTrue(withUndated.isEmpty)
+            assertEquals(setOf(2L, 3L), withUndated.undatedIds)
             expectNoEvents()
         }
     }

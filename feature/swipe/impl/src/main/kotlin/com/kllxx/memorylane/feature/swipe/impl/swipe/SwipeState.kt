@@ -2,7 +2,7 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.photos.domain.model.Photo
-import java.time.LocalDate
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
@@ -26,14 +26,14 @@ data class DeckPhoto(
 data class UndoEntry(val photoId: Long, val previous: PhotoDecision?)
 
 /**
- * [date] comes from the route argument, so it has no default.
+ * [deckKey] comes from the route argument, so it has no default.
  *
  * [deck] holds the photos that still exist, oldest first; [currentIndex] points into it and equals the deck size
  * once the last photo is done ([isFinished]). [trashed] holds the photos of the day that are in the system trash,
  * oldest first: they appear in the strip only, are view-only and can never be swiped.
  */
 data class SwipeState(
-    val date: LocalDate,
+    val deckKey: DeckKey,
     val deck: ImmutableList<DeckPhoto> = persistentListOf(),
     val trashed: ImmutableList<DeckPhoto> = persistentListOf(),
     val currentIndex: Int = 0,

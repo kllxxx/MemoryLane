@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -145,7 +146,7 @@ private fun PhotoGrid(state: BeforeDeleteState, onIntent: (BeforeDeleteIntent) -
         groups.forEach { group ->
             // The current day alone needs no header; a day before it always says so
             if (groups.size > 1 || !group.isCurrent) {
-                item(key = "group-${group.date}", span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
+                item(key = "group-${BeforeDeleteTags.groupHeader(group.deck)}", span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
             }
             val first = number
             number += group.cells.size
@@ -164,10 +165,13 @@ private fun PhotoGrid(state: BeforeDeleteState, onIntent: (BeforeDeleteIntent) -
 /** The day of a group; the days before the current one say they were marked earlier. */
 @Composable
 private fun GroupHeader(group: DeleteGroup) {
-    val day = formatDayMonth(group.date, Locale.getDefault())
+    val day = when (val deck = group.deck) {
+        is DeckKey.Day -> formatDayMonth(deck.date, Locale.getDefault())
+        DeckKey.Undated -> stringResource(R.string.deck_undated)
+    }
     Text(
         text = if (group.isCurrent) day else stringResource(R.string.before_delete_earlier, day),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag(BeforeDeleteTags.groupHeader(group.date)),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag(BeforeDeleteTags.groupHeader(group.deck)),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 13.sp,
         fontWeight = FontWeight.ExtraBold,

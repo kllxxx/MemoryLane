@@ -11,5 +11,8 @@ object BeforeDeleteTags {
 
     fun cell(photoId: Long) = "before_delete_cell_$photoId"
 
-    fun groupHeader(date: java.time.LocalDate) = "before_delete_group_$date"
+    fun groupHeader(deck: com.kllxx.memorylane.core.domain.model.DeckKey) = when (deck) {
+        is com.kllxx.memorylane.core.domain.model.DeckKey.Day -> "before_delete_group_${deck.date}"
+        com.kllxx.memorylane.core.domain.model.DeckKey.Undated -> "before_delete_group_undated"
+    }
 }

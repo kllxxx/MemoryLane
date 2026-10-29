@@ -65,13 +65,24 @@ class FakeMediaProvider : ContentProvider() {
         lastProjection = projection?.toList()
         val columns = projection.orEmpty()
         val cursor = MatrixCursor(columns)
-        // MediaStore is not simulated, only the two filters the repository relies on to keep undated photos apart
+        // MediaStore is not simulated, only the filters the repository relies on to keep undated photos apart
         val answered = when {
             selection?.contains("${MediaStore.Images.Media.DATE_TAKEN} >=") == true ->
                 rows.filter { it[MediaStore.Images.Media.DATE_TAKEN] != null }
+            selection?.contains("${MediaStore.Images.Media.DATE_TAKEN} IS NULL") == true ->
+                rows.filter { (it[MediaStore.Images.Media.DATE_TAKEN] as Long?).let { taken -> taken == null || taken <= 0 } }
             selection?.startsWith("${MediaStore.Images.Media._ID} IN") == true ->
                 rows.filter { it[MediaStore.Images.Media._ID].toString() in selectionArgs.orEmpty() }
             else -> rows
+        }.let { found ->
+            if (sortOrder?.startsWith(MediaStore.Images.Media.DATE_ADDED) == true) {
+                found.sortedWith(
+                    compareBy<Map<String, Any?>> { it[MediaStore.Images.Media.DATE_ADDED] as Long? ?: 0L }
+                        .thenBy { it[MediaStore.Images.Media._ID] as Long },
+                )
+            } else {
+                found
+            }
         }
         answered.forEach { row -> cursor.addRow(columns.map { column -> row[column] }) }
         return cursor

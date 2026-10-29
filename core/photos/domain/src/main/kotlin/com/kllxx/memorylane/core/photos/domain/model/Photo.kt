@@ -13,13 +13,15 @@ import java.time.LocalDateTime
  * degrees) is applied, so a photo taken upright with the phone turned has a landscape file and a 90 or 270
  * orientation. 0 means MediaStore does not know.
  *
+ * [takenAt] is null for a photo of the undated deck: no source has a date for it.
+ *
  * [hasTime] is false when only the day is known (a date read from a file name without a time): the time of day in
  * [takenAt] is then a placeholder, and only the date is shown. A real midnight has [hasTime] true.
  */
 data class Photo(
     val id: Long,
     val uri: Uri,
-    val takenAt: LocalDateTime,
+    val takenAt: LocalDateTime?,
     val sizeBytes: Long,
     val dateModified: Long = 0,
     val location: String? = null,
@@ -28,5 +30,5 @@ data class Photo(
     val orientation: Int = 0,
     val hasTime: Boolean = true,
 ) {
-    val dateTaken: LocalDate get() = takenAt.toLocalDate()
+    val dateTaken: LocalDate? get() = takenAt?.toLocalDate()
 }

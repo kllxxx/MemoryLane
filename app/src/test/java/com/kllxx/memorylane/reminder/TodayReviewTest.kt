@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.reminder
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.app.Application
 import android.net.Uri
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
@@ -34,7 +35,8 @@ class TodayReviewTest {
         coEvery { getPhotosForDate(today) } returns photos
     }
     private val swipeRepository = mockk<SwipeRepository> {
-        coEvery { getDecisionsByDate(today) } returns emptyMap()
+        coEvery { getDecisions(DeckKey.Day(today)) } returns emptyMap()
+        coEvery { adoptUndatedDecisions(any(), any()) } returns Unit
     }
 
     private fun review() = TodayReview(photoRepository, swipeRepository, clock)
@@ -46,20 +48,20 @@ class TodayReviewTest {
 
     @Test
     fun `a day with every photo decided has nothing to review`() = runTest {
-        coEvery { swipeRepository.getDecisionsByDate(today) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(today)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP, 3L to PhotoDecision.TRASHED)
         assertEquals(0, review().photosToReview())
     }
 
     @Test
     fun `one photo left undecided keeps the whole day waiting`() = runTest {
-        coEvery { swipeRepository.getDecisionsByDate(today) } returns mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(today)) } returns mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
         assertEquals(3, review().photosToReview())
     }
 
     @Test
     fun `a pending delete is a decision, so the day is completed`() = runTest {
-        coEvery { swipeRepository.getDecisionsByDate(today) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(today)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP, 3L to PhotoDecision.DELETE)
         assertEquals(0, review().photosToReview())
     }

@@ -4,6 +4,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,16 @@ interface PhotoRepository {
     suspend fun getPhotosForDate(date: LocalDate): List<Photo>
 
     /**
+     * The photos that have no date anywhere (see [OnThisDayIndex.undatedIds]), in the order of the undated deck: by
+     * the moment they were added to the library, then by id. That moment is only for the order and is never shown.
+     * [Photo.takenAt] is null and [Photo.location] is always null here; use [resolveLocations].
+     *
+     * @throws com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+     * if the media permission is not granted.
+     */
+    suspend fun getUndatedPhotos(): List<Photo>
+
+    /**
      * The photos among [ids] that are in the system trash (API 30+), oldest first. Empty below API 30, where
      * there is no trash. An id whose photo has been purged from the trash is simply missing.
      */
@@ -64,4 +75,10 @@ interface PhotoRepository {
      * [DeleteResult.RequiresConfirmation]. Below 30 there is no trash: they are deleted for good, at once.
      */
     suspend fun deletePhotos(photoIds: List<Long>): DeleteResult
+}
+
+/** The photos of [deck]: a day's On This Day photos, or the undated ones. */
+suspend fun PhotoRepository.getPhotos(deck: DeckKey): List<Photo> = when (deck) {
+    is DeckKey.Day -> getPhotosForDate(deck.date)
+    DeckKey.Undated -> getUndatedPhotos()
 }

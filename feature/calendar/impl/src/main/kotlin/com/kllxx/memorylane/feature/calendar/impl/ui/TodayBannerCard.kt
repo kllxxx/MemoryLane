@@ -37,11 +37,14 @@ import java.time.LocalDate
 internal const val TODAY_BANNER_TAG = "calendar-today-banner"
 internal const val TODAY_BANNER_COUNT_TAG = "calendar-today-banner-count"
 
+internal const val UNDATED_BANNER_TAG = "calendar-undated-banner"
+internal const val UNDATED_BANNER_COUNT_TAG = "calendar-undated-banner-count"
+
 private val BannerShape = RoundedCornerShape(16.dp)
 
 /**
- * The banner of today, the first item of the calendar list: «28 ОКТЯБРЯ», «Сегодняшние фото» and how many photos there
- * are. The item is 92dp high, the card 72dp with 8dp above it and 12dp below, as in the design.
+ * The banner of today: «28 ОКТЯБРЯ», «Сегодняшние фото» and how many photos there are. Pinned between the app bar and
+ * the list; the item is 92dp high, the card 72dp with 8dp above it and 12dp below, as in the design.
  */
 @Composable
 internal fun TodayBannerCard(
@@ -50,16 +53,56 @@ internal fun TodayBannerCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = MaterialTheme.colorScheme
     val locale = currentLocale()
     val overline = remember(date, locale) { formatDayMonth(date, locale).uppercase(locale) }
+    CalendarBannerCard(
+        overline = overline,
+        title = stringResource(R.string.calendar_today_title),
+        countText = pluralStringResource(R.plurals.calendar_today_photos, count, count),
+        onClick = onClick,
+        modifier = modifier,
+        tag = TODAY_BANNER_TAG,
+        countTag = TODAY_BANNER_COUNT_TAG,
+    )
+}
+
+/** The banner of the photos without a date, the last item of the calendar list: «БЕЗ ДАТЫ», «Фото без даты», «3 фото». */
+@Composable
+internal fun UndatedBannerCard(
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CalendarBannerCard(
+        overline = stringResource(R.string.calendar_undated_overline),
+        title = stringResource(R.string.calendar_undated_title),
+        countText = pluralStringResource(R.plurals.calendar_today_photos, count, count),
+        onClick = onClick,
+        modifier = modifier,
+        tag = UNDATED_BANNER_TAG,
+        countTag = UNDATED_BANNER_COUNT_TAG,
+    )
+}
+
+/** The one card of both banners: an overline and a title on the left, the count and a chevron on the right. */
+@Composable
+internal fun CalendarBannerCard(
+    overline: String,
+    title: String,
+    countText: String,
+    onClick: () -> Unit,
+    tag: String,
+    countTag: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.CalendarHorizontal)
             .padding(top = 8.dp, bottom = 12.dp)
             .height(72.dp)
-            .testTag(TODAY_BANNER_TAG)
+            .testTag(tag)
             .clip(BannerShape)
             .background(colors.surface)
             .border(1.5.dp, colors.primary, BannerShape)
@@ -78,7 +121,7 @@ internal fun TodayBannerCard(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = stringResource(R.string.calendar_today_title),
+                text = title,
                 color = colors.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -86,8 +129,8 @@ internal fun TodayBannerCard(
             )
         }
         Text(
-            text = pluralStringResource(R.plurals.calendar_today_photos, count, count),
-            modifier = Modifier.testTag(TODAY_BANNER_COUNT_TAG),
+            text = countText,
+            modifier = Modifier.testTag(countTag),
             color = colors.primary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,

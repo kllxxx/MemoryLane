@@ -9,6 +9,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -17,6 +18,8 @@ import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
+import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -54,9 +57,9 @@ class BeforeDeleteViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val date: LocalDate = LocalDate.parse(savedStateHandle.toRoute<BeforeDeleteRoute>().date)
+    private val deck: DeckKey = savedStateHandle.toRoute<BeforeDeleteRoute>().toDeckKey()
 
-    private val _state = MutableStateFlow(BeforeDeleteState(currentDate = date))
+    private val _state = MutableStateFlow(BeforeDeleteState(currentDeck = deck))
     val state: StateFlow<BeforeDeleteState> = _state.asStateFlow()
 
     private val _effects = Channel<BeforeDeleteEffect>(Channel.BUFFERED)
@@ -106,27 +109,33 @@ class BeforeDeleteViewModel @Inject constructor(
             // A trash request is open: the marked photos may already be in the trash, so none of them is "stale"
             val awaitingResult = savedStateHandle.contains(PENDING_IDS)
             val savedIds = savedStateHandle.get<LongArray>(GRID_IDS)
-            val savedDates = savedStateHandle.get<ArrayList<String>>(GRID_DATES)
-            val gridByDate: Map<LocalDate, Set<Long>> = if (savedIds != null && savedDates != null && savedDates.size == savedIds.size) {
-                savedIds.indices.groupBy({ LocalDate.parse(savedDates[it]) }, { savedIds[it] }).mapValues { it.value.toSet() }
+            val savedDecks = savedStateHandle.get<ArrayList<String>>(GRID_DATES)
+            val gridByDeck: Map<DeckKey, Set<Long>> = if (savedIds != null && savedDecks != null && savedDecks.size == savedIds.size) {
+                savedIds.indices.groupBy({ decodeDeck(savedDecks[it]) }, { savedIds[it] }).mapValues { it.value.toSet() }
             } else {
                 pending
             }
-            val cells = gridByDate.keys.flatMap { day ->
-                val photos = photoRepository.getPhotosForDate(day)
-                val decisions = swipeRepository.getDecisionsByDate(day)
+            val cells = gridByDeck.keys.flatMap { deck ->
+                val photos = photoRepository.getPhotos(deck)
+                val decisions = swipeRepository.getDecisions(deck)
                 val inLibrary = photos.mapTo(HashSet()) { it.id }
                 // A marked photo that is no longer in the library (deleted elsewhere) cannot be deleted again
                 if (!awaitingResult) {
-                    decisions.filter { (id, decision) -> decision == PhotoDecision.DELETE && id !in inLibrary }.keys
-                        .forEach(::removeStaleDecision)
+                    val missing = decisions.filter { (id, decision) -> decision == PhotoDecision.DELETE && id !in inLibrary }.keys
+                    // A photo of the undated deck that is gone from it may have got a date: it is not deleted, it is on its day now
+                    val stale = if (deck == DeckKey.Undated && missing.isNotEmpty()) {
+                        missing - photoRepository.getPhotoSizes(missing).keys
+                    } else {
+                        missing
+                    }
+                    stale.forEach(::removeStaleDecision)
                 }
-                photos.filter { it.id in gridByDate.getValue(day) }.map {
-                    DeleteCell(it.id, it.uri, it.sizeBytes, marked = decisions[it.id] == PhotoDecision.DELETE, date = day)
+                photos.filter { it.id in gridByDeck.getValue(deck) }.map {
+                    DeleteCell(it.id, it.uri, it.sizeBytes, marked = decisions[it.id] == PhotoDecision.DELETE, deck = deck)
                 }
             }
             savedStateHandle[GRID_IDS] = cells.map { it.photoId }.toLongArray()
-            savedStateHandle[GRID_DATES] = ArrayList(cells.map { it.date.toString() })
+            savedStateHandle[GRID_DATES] = ArrayList(cells.map { encodeDeck(it.deck) })
             if (cells.isEmpty() && !awaitingResult) {
                 // Nothing to review, so the screen is not shown at all
                 _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
@@ -156,7 +165,7 @@ class BeforeDeleteViewModel @Inject constructor(
         val cell = before.cells.firstOrNull { it.photoId == photoId } ?: return
         val decision = if (cell.marked) PhotoDecision.KEEP else PhotoDecision.DELETE
         launchLogged("Could not save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, cell.date, decision)
+            swipeRepository.saveDecision(photoId, cell.deck, decision)
         }
     }
 
@@ -286,23 +295,27 @@ class BeforeDeleteViewModel @Inject constructor(
     /** Nothing is marked any more: the day is finished without deleting anything. */
     private fun finishWithoutDeleting() {
         viewModelScope.launch {
-            try {
-                val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == date }
-                swipeRepository.saveSession(
-                    SwipeSession(
-                        date = date,
-                        completed = true,
-                        savedBytes = existing?.savedBytes ?: 0,
-                        deletedCount = existing?.deletedCount ?: 0,
-                        // The date the day is really completed on; a day that was completed on its own date keeps it
-                        completedAt = SessionCompletion.completedAt(existing, date, LocalDate.now(clock)),
-                    ),
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // The user has finished, so a failed write must not keep them on this screen
-                Log.e(TAG, "Could not save the session of $date", e)
+            // The undated deck is not a day: it has no session to complete
+            val day = (deck as? DeckKey.Day)?.date
+            if (day != null) {
+                try {
+                    val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
+                    swipeRepository.saveSession(
+                        SwipeSession(
+                            date = day,
+                            completed = true,
+                            savedBytes = existing?.savedBytes ?: 0,
+                            deletedCount = existing?.deletedCount ?: 0,
+                            // The date the day is really completed on; a day that was completed on its own date keeps it
+                            completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
+                        ),
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The user has finished, so a failed write must not keep them on this screen
+                    Log.e(TAG, "Could not save the session of $day", e)
+                }
             }
             finished = true
             handOver(DeletionOutcome(deletedCount = 0, freedBytes = 0))
@@ -311,16 +324,16 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private suspend fun handOver(outcome: DeletionOutcome) {
         val decisions = try {
-            swipeRepository.getDecisionsByDate(date)
+            swipeRepository.getDecisions(deck)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not read the decisions of $date", e)
+            Log.e(TAG, "Could not read the decisions of $deck", e)
             emptyMap()
         }
         _effects.trySend(
             BeforeDeleteEffect.NavigateToResult(
-                date = date,
+                deck = deck,
                 deletedCount = outcome.deletedCount,
                 freedBytes = outcome.freedBytes,
                 keptCount = decisions.count { it.value == PhotoDecision.KEEP },
@@ -369,6 +382,17 @@ class BeforeDeleteViewModel @Inject constructor(
         /** The photos of the grid, kept so that a recreated screen shows the unmarked ones as well. */
         const val GRID_IDS = "grid_ids"
         const val GRID_DATES = "grid_dates"
+        private const val UNDATED_DECK = "undated"
+        private const val DAY_PREFIX = "day:"
+
+        /** "day:2026-10-15" or "undated": a deck as the saved state keeps it. */
+        fun encodeDeck(deck: DeckKey): String = when (deck) {
+            is DeckKey.Day -> DAY_PREFIX + deck.date
+            DeckKey.Undated -> UNDATED_DECK
+        }
+
+        fun decodeDeck(value: String): DeckKey =
+            if (value == UNDATED_DECK) DeckKey.Undated else DeckKey.Day(LocalDate.parse(value.removePrefix(DAY_PREFIX)))
 
         /** The trash request that is open: the photo ids and their sizes, in the same order. */
         const val PENDING_IDS = "pending_ids"

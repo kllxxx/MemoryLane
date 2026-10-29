@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.haroncode.lazycardstack.swiper.SwipeDirection
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
@@ -39,7 +40,7 @@ class SwipeReducerTest {
         restoredIndex: Int? = null,
         restoredUndo: List<UndoEntry> = emptyList(),
     ): SwipeState = reduce(
-        SwipeState(date = date, isLoading = true),
+        SwipeState(deckKey = DeckKey.Day(date), isLoading = true),
         SwipeEvent.PhotosLoaded(deck(count, *decisions), trashed, restoredIndex, restoredUndo),
     )
 

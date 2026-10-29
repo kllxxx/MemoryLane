@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.photos.domain.model.Photo
@@ -36,7 +37,7 @@ internal fun swipeState(
     buttonsMode: Boolean = false,
     location: String? = null,
 ) = SwipeState(
-    date = FixtureDate,
+    deckKey = DeckKey.Day(FixtureDate),
     deck = (1..count).map { deckPhoto(it.toLong(), decisions[it.toLong()], location, aspectRatios[it.toLong()] ?: aspectRatio) }.toImmutableList(),
     trashed = trashed.toImmutableList(),
     currentIndex = currentIndex,

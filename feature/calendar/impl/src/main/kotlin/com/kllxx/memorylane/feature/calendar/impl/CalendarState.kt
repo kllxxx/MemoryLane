@@ -19,6 +19,10 @@ enum class CalendarPhase {
     Content,
 }
 
+/** The photos with no date anywhere that have no decision yet: [count] of them, as the last item of the list says. */
+@Immutable
+data class UndatedBanner(val count: Int)
+
 /** Today has photos from earlier years and is not completed yet: [count] is how many, as the calendar tile has it. */
 @Immutable
 data class TodayBanner(val count: Int)
@@ -34,6 +38,8 @@ data class CalendarState(
     val currentStreak: Int = 0,
     /** Null when today has no photos or is completed; the first item of the list while it is there. */
     val todayBanner: TodayBanner? = null,
+    /** Null while every undated photo has a decision or there is none; the last item of the list while it is there. */
+    val undatedBanner: UndatedBanner? = null,
     val hasPermission: Boolean = false,
     val error: CalendarError? = null,
 )

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.Manifest
 import android.app.Application
 import android.content.IntentSender
@@ -14,6 +15,7 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -50,8 +52,8 @@ private class FakeSwipeRepository(
     val decisions: MutableMap<Long, PhotoDecision>,
     private val defaultDate: LocalDate,
 ) : SwipeRepository {
-    /** The day of a decision, [defaultDate] unless set. */
-    val days = mutableMapOf<Long, LocalDate>()
+    /** The deck of a decision, the day [defaultDate] unless set. */
+    val days = mutableMapOf<Long, DeckKey>()
 
     val saved = mutableListOf<Pair<Long, PhotoDecision>>()
     val removed = mutableListOf<Long>()
@@ -62,17 +64,23 @@ private class FakeSwipeRepository(
     var deletedCount = 0
     var freedBytes = 0L
 
-    override suspend fun saveDecision(photoId: Long, date: LocalDate, decision: PhotoDecision) {
+    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision) {
         saved += photoId to decision
         decisions[photoId] = decision
-        days[photoId] = date
+        days[photoId] = deck
     }
 
-    override suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision> =
-        decisions.filterKeys { (days[it] ?: defaultDate) == date }
+    override suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision> =
+        decisions.filterKeys { (days[it] ?: DeckKey.Day(defaultDate)) == deck }
 
-    override suspend fun getPendingDeletes(): Map<LocalDate, Set<Long>> =
-        decisions.filterValues { it == PhotoDecision.DELETE }.keys.groupBy { days[it] ?: defaultDate }.mapValues { it.value.toSet() }
+    override suspend fun getPendingDeletes(): Map<DeckKey, Set<Long>> =
+        decisions.filterValues { it == PhotoDecision.DELETE }.keys.groupBy { days[it] ?: DeckKey.Day(defaultDate) }.mapValues { it.value.toSet() }
+
+    val adopted = mutableListOf<Pair<Collection<Long>, LocalDate>>()
+
+    override suspend fun adoptUndatedDecisions(photoIds: Collection<Long>, date: LocalDate) {
+        adopted += photoIds to date
+    }
 
     override suspend fun removeDecision(photoId: Long) {
         removed += photoId
@@ -144,13 +152,14 @@ class BeforeDeleteViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun create(extra: Map<String, Any> = emptyMap()) {
-        savedStateHandle = SavedStateHandle(mapOf<String, Any>("date" to date.toString()) + extra)
+    private fun create(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
+        val route = if (undated) mapOf<String, Any>("deck" to DeckKind.UNDATED) else mapOf<String, Any>("date" to date.toString())
+        savedStateHandle = SavedStateHandle(route + extra)
         viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, clock, application, savedStateHandle)
     }
 
-    private fun TestScope.load(extra: Map<String, Any> = emptyMap()) {
-        create(extra)
+    private fun TestScope.load(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
+        create(extra, undated)
         advanceUntilIdle()
     }
 
@@ -264,7 +273,7 @@ class BeforeDeleteViewModelTest {
     private fun markEarlier(vararg ids: Long) {
         ids.forEach {
             swipeRepository.decisions[it] = PhotoDecision.DELETE
-            swipeRepository.days[it] = earlier
+            swipeRepository.days[it] = DeckKey.Day(earlier)
         }
         coEvery { photoRepository.getPhotosForDate(earlier) } answers { earlierPhotos }
         coEvery { photoRepository.getPhotoSizes(any()) } answers { (photos + earlierPhotos).associate { it.id to it.sizeBytes } }
@@ -277,7 +286,7 @@ class BeforeDeleteViewModelTest {
         load()
 
         assertEquals(listOf(1L, 2L, 11L, 12L), marked())
-        assertEquals(listOf(date, earlier), state.groups.map { it.date })
+        assertEquals(listOf(DeckKey.Day(date), DeckKey.Day(earlier)), state.groups.map { it.deck })
         assertEquals(listOf(true, false), state.groups.map { it.isCurrent })
         assertEquals(listOf(listOf(1L, 2L), listOf(11L, 12L)), state.groups.map { g -> g.cells.map { it.photoId } })
     }
@@ -287,13 +296,13 @@ class BeforeDeleteViewModelTest {
         val oldest = LocalDate.of(2012, 1, 15)
         markEarlier(11)
         swipeRepository.decisions[21] = PhotoDecision.DELETE
-        swipeRepository.days[21] = oldest
+        swipeRepository.days[21] = DeckKey.Day(oldest)
         val photo21 = Photo(21, mockk<Uri>(relaxed = true), LocalDateTime.of(2012, 1, 15, 9, 0), sizeBytes = 5)
         coEvery { photoRepository.getPhotosForDate(oldest) } returns listOf(photo21)
 
         load()
 
-        assertEquals(listOf(date, earlier, oldest), state.groups.map { it.date })
+        assertEquals(listOf(DeckKey.Day(date), DeckKey.Day(earlier), DeckKey.Day(oldest)), state.groups.map { it.deck })
     }
 
     @Test
@@ -304,7 +313,7 @@ class BeforeDeleteViewModelTest {
         send(BeforeDeleteIntent.Toggle(12))
 
         assertEquals(listOf(12L to PhotoDecision.KEEP), swipeRepository.saved)
-        assertEquals(earlier, swipeRepository.days[12])
+        assertEquals(DeckKey.Day(earlier), swipeRepository.days[12])
         assertEquals(listOf(1L, 2L, 11L), marked())
     }
 
@@ -324,7 +333,7 @@ class BeforeDeleteViewModelTest {
 
         load()
 
-        assertEquals(listOf(earlier), state.groups.map { it.date })
+        assertEquals(listOf(DeckKey.Day(earlier)), state.groups.map { it.deck })
         assertEquals(listOf(11L, 12L), marked())
     }
 
@@ -350,7 +359,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 4, freedBytes = 403_000_000, keptCount = 1, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 4, freedBytes = 403_000_000, keptCount = 1, totalCount = 3),
                 awaitItem(),
             )
         }
@@ -358,7 +367,125 @@ class BeforeDeleteViewModelTest {
         assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[1])
         assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[11])
         assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[12])
-        assertEquals(earlier, swipeRepository.days[12])
+        assertEquals(DeckKey.Day(earlier), swipeRepository.days[12])
+    }
+
+    // --- the undated deck ---
+
+    private val undated21 = Photo(21, mockk<Uri>(relaxed = true), takenAt = null, sizeBytes = 21_000_000)
+    private val undated22 = Photo(22, mockk<Uri>(relaxed = true), takenAt = null, sizeBytes = 22_000_000)
+    private val undated23 = Photo(23, mockk<Uri>(relaxed = true), takenAt = null, sizeBytes = 23_000_000)
+    private var undatedPhotos = listOf(undated21, undated22, undated23)
+
+    /** 21 and 22 marked, 23 kept, all in the undated deck. */
+    private fun givenUndatedDeck() {
+        swipeRepository = FakeSwipeRepository(
+            mutableMapOf(21L to PhotoDecision.DELETE, 22L to PhotoDecision.DELETE, 23L to PhotoDecision.KEEP),
+            date,
+        )
+        listOf(21L, 22L, 23L).forEach { swipeRepository.days[it] = DeckKey.Undated }
+        coEvery { photoRepository.getUndatedPhotos() } answers { undatedPhotos }
+        coEvery { photoRepository.getPhotoSizes(any()) } answers { undatedPhotos.associate { it.id to it.sizeBytes } }
+    }
+
+    @Test
+    fun `the undated deck is the current deck and its marks are the grid`() = runTest(dispatcher) {
+        givenUndatedDeck()
+
+        load(undated = true)
+
+        assertEquals(DeckKey.Undated, state.currentDeck)
+        assertEquals(listOf(21L, 22L), marked())
+        assertEquals(listOf(DeckKey.Undated), state.groups.map { it.deck })
+        assertEquals(listOf(true), state.groups.map { it.isCurrent })
+        coVerify(exactly = 0) { photoRepository.getPhotosForDate(any()) }
+    }
+
+    @Test
+    fun `marks of the undated deck come after the current day as a group of their own`() = runTest(dispatcher) {
+        swipeRepository.decisions[21] = PhotoDecision.DELETE
+        swipeRepository.days[21] = DeckKey.Undated
+        coEvery { photoRepository.getUndatedPhotos() } returns listOf(undated21)
+        coEvery { photoRepository.getPhotoSizes(any()) } answers { (photos + undated21).associate { it.id to it.sizeBytes } }
+
+        load()
+
+        assertEquals(listOf(1L, 2L, 21L), marked())
+        assertEquals(listOf(DeckKey.Day(date), DeckKey.Undated), state.groups.map { it.deck })
+    }
+
+    @Test
+    fun `a tap in the undated group saves the decision in the undated deck`() = runTest(dispatcher) {
+        givenUndatedDeck()
+        load(undated = true)
+
+        send(BeforeDeleteIntent.Toggle(21))
+
+        assertEquals(DeckKey.Undated, swipeRepository.days[21])
+        assertEquals(PhotoDecision.KEEP, swipeRepository.decisions[21])
+    }
+
+    @Test
+    fun `a mark whose photo got a date is not dropped, it is on its day now`() = runTest(dispatcher) {
+        givenUndatedDeck()
+        // 22 is not undated any more, but it is still in the library
+        undatedPhotos = listOf(undated21, undated23)
+        coEvery { photoRepository.getPhotoSizes(any()) } answers { mapOf(22L to 22_000_000L) }
+
+        load(undated = true)
+
+        assertEquals(listOf(21L), marked())
+        assertTrue(swipeRepository.removed.isEmpty())
+        assertEquals(PhotoDecision.DELETE, swipeRepository.decisions[22])
+    }
+
+    @Test
+    fun `a mark whose photo is gone from the library is dropped`() = runTest(dispatcher) {
+        givenUndatedDeck()
+        undatedPhotos = listOf(undated21, undated23)
+        coEvery { photoRepository.getPhotoSizes(any()) } returns emptyMap()
+
+        load(undated = true)
+
+        assertEquals(listOf(21L), marked())
+        assertEquals(listOf(22L), swipeRepository.removed)
+    }
+
+    @Test
+    fun `confirming the undated deck trashes its marks and opens the result of the undated deck`() = runTest(dispatcher) {
+        givenUndatedDeck()
+        load(undated = true)
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+            assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
+
+            send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Undated, deletedCount = 2, freedBytes = 43_000_000, keptCount = 1, totalCount = 3),
+                awaitItem(),
+            )
+        }
+        coVerify { photoRepository.deletePhotos(listOf(21L, 22L)) }
+        assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[21])
+    }
+
+    @Test
+    fun `with nothing marked in the undated deck the button opens the result and saves no session`() = runTest(dispatcher) {
+        givenUndatedDeck()
+        load(undated = true)
+        send(BeforeDeleteIntent.Toggle(21))
+        send(BeforeDeleteIntent.Toggle(22))
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Undated, deletedCount = 0, freedBytes = 0, keptCount = 3, totalCount = 3),
+                awaitItem(),
+            )
+        }
+        assertTrue(swipeRepository.sessions.isEmpty())
     }
 
     // --- nothing marked ---
@@ -373,7 +500,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.DeleteClicked)
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 0, freedBytes = 0, keptCount = 3, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 0, freedBytes = 0, keptCount = 3, totalCount = 3),
                 awaitItem(),
             )
         }
@@ -412,7 +539,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
                 awaitItem(),
             )
         }
@@ -435,7 +562,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.SystemDeleteResult(true))
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 1, freedBytes = 150_000_000, keptCount = 2, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 1, freedBytes = 150_000_000, keptCount = 2, totalCount = 3),
                 awaitItem(),
             )
         }
@@ -549,7 +676,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
                 awaitItem(),
             )
         }
@@ -625,7 +752,7 @@ class BeforeDeleteViewModelTest {
             send(BeforeDeleteIntent.PermanentDeleteConfirmed)
 
             assertEquals(
-                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
                 awaitItem(),
             )
         }

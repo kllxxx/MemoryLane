@@ -31,6 +31,13 @@ class DeckMapperTest {
         assertEquals("7 января 2016, 21:15", deckPhoto.takenAtText)
     }
 
+
+    @Test
+    fun `a photo without a capture time has no date text`() {
+        val undated = photo.copy(takenAt = null)
+
+        assertEquals("", undated.toDeckPhoto(null, Locale.forLanguageTag("ru-RU")).takenAtText)
+    }
     @Test
     fun `an undecided photo has no decision`() {
         assertNull(photo.toDeckPhoto(null, Locale.US).decision)

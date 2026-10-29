@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +68,7 @@ class CalendarViewModel @Inject constructor(
     // The rule of the banner of today, shared with the reminder
     private val photosToReview = PhotosToReview(photoRepository, swipeRepository)
     private var todayJob: Job? = null
+    private var undatedJob: Job? = null
 
     init {
         CalendarPerf.onViewModelCreated()
@@ -84,7 +87,8 @@ class CalendarViewModel @Inject constructor(
                 // The permission may have been revoked while the app was away
                 val granted = photoRepository.hasMediaPermission()
                 _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
-                // Photos may have been decided in a day that was open meanwhile
+                // Photos may have been decided in a day or in the undated deck that was open meanwhile
+                refreshUndatedBanner(photoRepository.onThisDayIndex.value)
                 refreshTodayBanner()
                 if (granted) refresh()
             }
@@ -92,6 +96,7 @@ class CalendarViewModel @Inject constructor(
             CalendarIntent.RequestPermission ->
                 _effects.trySend(CalendarEffect.RequestPermissionLauncher)
             is CalendarIntent.PermissionResult -> if (intent.granted) refresh()
+            CalendarIntent.OpenUndated -> _effects.trySend(CalendarEffect.NavigateToUndated)
             is CalendarIntent.OpenDay ->
                 // A day that has not happened yet has no photos to sort
                 if (!intent.date.isAfter(LocalDate.now(clock))) {
@@ -108,6 +113,7 @@ class CalendarViewModel @Inject constructor(
     private fun observePhotoIndex() {
         viewModelScope.launch {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
+                refreshUndatedBanner(index)
                 refreshTodayBanner()
                 val months = yearGrid.withMemories(index, today)
                 onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
@@ -176,6 +182,35 @@ class CalendarViewModel @Inject constructor(
         val count = photosToReview(today)
         PerfLog.d { "todayBanner date=$today photosToReview=$count query=${PerfLog.sinceMs(startedAt)}ms" }
         return if (count > 0) TodayBanner(count) else null
+    }
+
+    /**
+     * The banner of the photos without a date: there when at least one of them has no decision yet. The photos are those
+     * of the index, so the banner appears once the date chain has looked at every file and never counts a photo that
+     * may still get a date; a photo that does leaves the count at once. It is worked out again whenever the index or the
+     * screen change.
+     */
+    private fun refreshUndatedBanner(index: OnThisDayIndex?) {
+        undatedJob?.cancel()
+        undatedJob = viewModelScope.launch {
+            val banner = try {
+                loadUndatedBanner(index)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not work out the banner of the undated photos", e)
+                null
+            }
+            onEvent(CalendarEvent.UndatedBannerChanged(banner))
+        }
+    }
+
+    private suspend fun loadUndatedBanner(index: OnThisDayIndex?): UndatedBanner? {
+        val undated = index?.undatedIds.orEmpty()
+        if (undated.isEmpty() || !photoRepository.hasMediaPermission()) return null
+        val decisions = swipeRepository.getDecisions(DeckKey.Undated)
+        val count = undated.count { it !in decisions }
+        return if (count > 0) UndatedBanner(count) else null
     }
 
     /** One gallery query; the result arrives through [observePhotoIndex]. */

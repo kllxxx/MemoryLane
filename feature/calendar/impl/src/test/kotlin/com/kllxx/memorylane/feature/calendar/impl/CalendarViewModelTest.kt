@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.common.PerfLog
@@ -82,6 +83,7 @@ private class FakePhotoRepository : PhotoRepository {
         todayFailure?.let { throw it }
         return todayPhotos
     }
+    override suspend fun getUndatedPhotos(): List<Photo> = emptyList()
     override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = emptyList()
     override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = emptyFlow()
     override suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long> = emptyMap()
@@ -105,6 +107,7 @@ class CalendarViewModelTest {
     private val sessions = MutableSharedFlow<List<SwipeSession>>(replay = 1)
     private val streaks = MutableStateFlow(Streaks.None)
     private var decisions = emptyMap<Long, PhotoDecision>()
+    private var undatedDecisions = emptyMap<Long, PhotoDecision>()
 
     @Before
     fun setUp() {
@@ -114,7 +117,10 @@ class CalendarViewModelTest {
         statsRepository = mockk()
         sessions.tryEmit(emptyList())
         every { swipeRepository.getCompletedSessions() } returns sessions
-        coEvery { swipeRepository.getDecisionsByDate(any()) } answers { decisions }
+        coEvery { swipeRepository.getDecisions(any()) } answers {
+            if (firstArg<DeckKey>() == DeckKey.Undated) undatedDecisions else decisions
+        }
+        coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } returns Unit
         every { statsRepository.streaks } returns streaks
         viewModel = createViewModel()
     }
@@ -132,6 +138,129 @@ class CalendarViewModelTest {
     )
 
     private fun CalendarState.days() = months.flatMap { it.rows }.flatten().filterNotNull()
+
+    // --- the banner of the photos without a date ---
+
+    private fun indexWithUndated(vararg ids: Long) = OnThisDayIndex(2026, emptyMap(), undatedIds = ids.toSet())
+
+    private suspend fun TestScope.showIndex(index: OnThisDayIndex) {
+        repository.next = index
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `no undated photos, no banner`() = runTest(dispatcher) {
+        showIndex(indexWith(MonthDay.of(3, 9) to 2))
+
+        assertNull(viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `the banner counts the undated photos without a decision`() = runTest(dispatcher) {
+        showIndex(indexWithUndated(1, 2, 3))
+
+        assertEquals(UndatedBanner(3), viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `decided photos are not counted, a mark for deletion is a decision`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
+
+        showIndex(indexWithUndated(1, 2, 3))
+
+        assertEquals(UndatedBanner(1), viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `the banner is gone when every undated photo has a decision`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
+
+        showIndex(indexWithUndated(1, 2))
+
+        assertNull(viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `decisions of photos that are not undated any more do not take from the count`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(9L to PhotoDecision.KEEP, 10L to PhotoDecision.TRASHED)
+
+        showIndex(indexWithUndated(1, 2))
+
+        assertEquals(UndatedBanner(2), viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `coming back to the screen counts again after the deck was sorted`() = runTest(dispatcher) {
+        showIndex(indexWithUndated(1, 2, 3))
+        undatedDecisions = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
+
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+
+        assertEquals(UndatedBanner(1), viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `a photo that got a date leaves the count with the next index`() = runTest(dispatcher) {
+        showIndex(indexWithUndated(1, 2, 3))
+
+        showIndex(indexWithUndated(1, 3))
+
+        assertEquals(UndatedBanner(2), viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `no permission, no banner`() = runTest(dispatcher) {
+        showIndex(indexWithUndated(1, 2))
+        repository.permission = false
+
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `a failure to read the decisions hides the banner and does not crash`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getDecisions(DeckKey.Undated) } throws IllegalStateException("db")
+
+        showIndex(indexWithUndated(1, 2))
+
+        assertNull(viewModel.state.value.undatedBanner)
+    }
+
+    @Test
+    fun `tapping the banner opens the undated deck`() = runTest(dispatcher) {
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.OpenUndated)
+
+            assertEquals(CalendarEffect.NavigateToUndated, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the banner does not move the anchor or the current month index`() = runTest(dispatcher) {
+        showIndex(indexWith(MonthDay.of(3, 9) to 2))
+        viewModel.onScrolled(index = 5, offset = 20)
+        val currentMonth = viewModel.currentMonthIndex
+
+        showIndex(indexWithUndated(1, 2, 3))
+
+        assertEquals(ScrollAnchor(5, 20), viewModel.scrollAnchor)
+        assertEquals(currentMonth, viewModel.currentMonthIndex)
+        assertEquals(12, viewModel.state.value.months.size)
+    }
+
+    @Test
+    fun `the banner of today and the banner of the undated photos are independent`() = runTest(dispatcher) {
+        repository.todayPhotos = listOf(Photo(10, uri, LocalDateTime.of(2020, 10, 15, 9, 0), sizeBytes = 1))
+
+        showIndex(indexWithUndated(1, 2))
+
+        assertEquals(TodayBanner(1), viewModel.state.value.todayBanner)
+        assertEquals(UndatedBanner(2), viewModel.state.value.undatedBanner)
+    }
 
     // --- scroll position ---
 

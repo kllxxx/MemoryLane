@@ -124,7 +124,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             // alone would drop those photos for a moment and bring them back with the next one
             val lookup = withContext(ioDispatcher) { undatedPhotoDates.lookup(scan.undated) }
             lookup.dates.forEach { (id, date) -> scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli())) }
-            _onThisDayIndex.value = scan.toIndex()
+            _onThisDayIndex.value = scan.toIndex(lookup.knownUndated)
             // Only the files the cache has no date for are read, after this index was shown; the index is emitted
             // again, once, if that found anything
             resolutionJob?.cancel()
@@ -145,7 +145,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         val currentYear: Int,
         val zone: ZoneId,
     ) {
-        fun toIndex(): OnThisDayIndex = OnThisDayIndex(
+        fun toIndex(undatedIds: Set<Long> = emptySet()): OnThisDayIndex = OnThisDayIndex(
             currentYear = currentYear,
             entries = builder.entries().mapValues { (_, value) ->
                 val (count, cover) = value
@@ -155,6 +155,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
                 )
             },
             photoYears = builder.photoYears().mapValues { it.value.toSet() },
+            undatedIds = undatedIds,
         )
     }
 
@@ -239,15 +240,18 @@ internal class PhotoRepositoryImpl @Inject constructor(
             if (lookup.changedBy(resolution)) {
                 // A file that was changed since it was cached has another date than the one the index was built with:
                 // the index is built again, now from a cache that is up to date (the only case with a second query)
+                lateinit var undatedIds: Set<Long>
                 val rebuilt = withContext(ioDispatcher) {
                     scanMediaStore().also { again ->
-                        undatedPhotoDates.lookup(again.undated).dates.forEach { (id, date) ->
+                        val current = undatedPhotoDates.lookup(again.undated)
+                        undatedIds = current.knownUndated
+                        current.dates.forEach { (id, date) ->
                             again.builder.add(IndexedImage(id, date.toInstant(again.zone).toEpochMilli()))
                         }
                     }
                 }
                 currentCoroutineContext().ensureActive()
-                _onThisDayIndex.value = rebuilt.toIndex()
+                _onThisDayIndex.value = rebuilt.toIndex(undatedIds)
                 changed = true
             } else {
                 val countedBefore = scan.builder.counted
@@ -256,7 +260,9 @@ internal class PhotoRepositoryImpl @Inject constructor(
                     scan.builder.add(IndexedImage(id, date.toInstant(scan.zone).toEpochMilli()))
                 }
                 changed = scan.builder.counted != countedBefore
-                if (changed) _onThisDayIndex.value = scan.toIndex()
+                // The photos left without a date are part of the index too, so a pass that dates nothing still tells Calendar
+                val undatedIds = lookup.knownUndated + resolution.undatedIds
+                if (changed || undatedIds != _onThisDayIndex.value?.undatedIds) _onThisDayIndex.value = scan.toIndex(undatedIds)
             }
             PerfLog.d {
                 "dates: undated=${lookup.undated} phase1CacheHits=${lookup.cacheHits} misses=${lookup.misses.size} " +
@@ -342,6 +348,48 @@ internal class PhotoRepositoryImpl @Inject constructor(
         photos
     }
 
+
+    /**
+     * The photos with no `DATE_TAKEN` whose date the chain has looked for in their files and not found, by the moment
+     * they were added and then the id. `DATE_ADDED` only decides the order. Photos the chain has not reached yet, or
+     * whose file changed since, are left out: they may still get a date, and then belong to a day.
+     */
+    override suspend fun getUndatedPhotos(): List<Photo> = withContext(ioDispatcher) {
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        ensureIndexLoading()
+        val selection = "${MediaStore.Images.Media.DATE_TAKEN} IS NULL OR ${MediaStore.Images.Media.DATE_TAKEN} <= 0"
+        val sort = "${MediaStore.Images.Media.DATE_ADDED} ASC, ${MediaStore.Images.Media._ID} ASC"
+        val rows = resolver.query(COLLECTION_URI, UNDATED_PROJECTION, selection, null, sort)?.use {
+            val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+            val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
+            buildList {
+                while (it.moveToNext()) {
+                    val id = it.getLong(idColumn)
+                    add(
+                        Photo(
+                            id = id,
+                            uri = ContentUris.withAppendedId(COLLECTION_URI, id),
+                            takenAt = null,
+                            sizeBytes = it.getLong(sizeColumn),
+                            dateModified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn),
+                            width = it.intOrZero(MediaStore.Images.Media.WIDTH),
+                            height = it.intOrZero(MediaStore.Images.Media.HEIGHT),
+                            orientation = it.intOrZero(MediaStore.Images.Media.ORIENTATION),
+                        ),
+                    )
+                }
+            }
+        }.orEmpty()
+        val cached = rows.map { it.id }.chunked(SQL_VARIABLE_LIMIT).fold(emptyMap<Long, CachedPhotoDate>()) { all, chunk ->
+            all + dateCache.get(chunk)
+        }
+        // Only a current answer of the chain that says "no date" counts; the order of the query is kept
+        rows.filter { photo ->
+            val entry = cached[photo.id]
+            entry != null && entry.dateModified == photo.dateModified && ResolvedDate.fromCached(entry) == null
+        }
+    }
     /**
      * Starts the first scan of this process in the background when nothing has loaded the index yet, so that the files
      * of undated photos get read and cached even if the user never opens Calendar. Not awaited, and a failure is
@@ -678,6 +726,16 @@ internal class PhotoRepositoryImpl @Inject constructor(
             MediaStore.Images.Media.DATE_TAKEN,
             MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.DISPLAY_NAME,
+        )
+
+        // What the undated deck is made of; DATE_ADDED is in the sort order only and is not read
+        val UNDATED_PROJECTION = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT,
+            MediaStore.Images.Media.ORIENTATION,
         )
 
         val SIZE_PROJECTION = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.SIZE)

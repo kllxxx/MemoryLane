@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.data.repository
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
 import com.kllxx.memorylane.core.data.db.dao.SwipeSessionDao
@@ -35,13 +36,13 @@ class SwipeRepositoryImplTest {
         val saved = slot<PhotoDecisionEntity>()
         coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
 
-        repository.saveDecision(7L, date, PhotoDecision.DELETE)
+        repository.saveDecision(7L, DeckKey.Day(date), PhotoDecision.DELETE)
 
         assertEquals(PhotoDecisionEntity(7L, date, "DELETE", now.toEpochMilli()), saved.captured)
     }
 
     @Test
-    fun `getDecisionsByDate reads only that date and maps to a map by photo`() = runTest {
+    fun `getDecisions reads only that date and maps to a map by photo`() = runTest {
         coEvery { photoDecisionDao.getByDate(date) } returns listOf(
             PhotoDecisionEntity(7L, date, "KEEP", 1),
             PhotoDecisionEntity(8L, date, "TRASHED", 1),
@@ -49,7 +50,7 @@ class SwipeRepositoryImplTest {
 
         assertEquals(
             mapOf(7L to PhotoDecision.KEEP, 8L to PhotoDecision.TRASHED),
-            repository.getDecisionsByDate(date),
+            repository.getDecisions(DeckKey.Day(date)),
         )
 
         coVerify(exactly = 0) { photoDecisionDao.getAll() }
@@ -64,19 +65,71 @@ class SwipeRepositoryImplTest {
             PhotoDecisionEntity(9L, date, "DELETE", 1),
         )
 
-        assertEquals(mapOf(date to setOf(7L, 9L), earlier to setOf(8L)), repository.getPendingDeletes())
+        assertEquals(mapOf(DeckKey.Day(date) to setOf(7L, 9L), DeckKey.Day(earlier) to setOf(8L)), repository.getPendingDeletes())
     }
 
     @Test
-    fun `getDecisionsByDate ignores a decision this version does not know`() = runTest {
+    fun `getDecisions ignores a decision this version does not know`() = runTest {
         coEvery { photoDecisionDao.getByDate(date) } returns listOf(
             PhotoDecisionEntity(7L, date, "KEEP", 1),
             PhotoDecisionEntity(8L, date, "FROM_THE_FUTURE", 1),
         )
 
-        assertEquals(mapOf(7L to PhotoDecision.KEEP), repository.getDecisionsByDate(date))
+        assertEquals(mapOf(7L to PhotoDecision.KEEP), repository.getDecisions(DeckKey.Day(date)))
     }
 
+
+    // --- the undated deck: stored as the reserved date, seen as DeckKey.Undated ---
+
+    private val undatedStored = LocalDate.of(1, 1, 1)
+
+    @Test
+    fun `a decision of the undated deck is stored under the reserved date`() = runTest {
+        val saved = slot<PhotoDecisionEntity>()
+        coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
+
+        repository.saveDecision(7L, DeckKey.Undated, PhotoDecision.KEEP)
+
+        assertEquals(PhotoDecisionEntity(7L, undatedStored, "KEEP", now.toEpochMilli()), saved.captured)
+    }
+
+    @Test
+    fun `the decisions of the undated deck are read from the reserved date only`() = runTest {
+        coEvery { photoDecisionDao.getByDate(undatedStored) } returns listOf(PhotoDecisionEntity(7L, undatedStored, "DELETE", 1))
+
+        assertEquals(mapOf(7L to PhotoDecision.DELETE), repository.getDecisions(DeckKey.Undated))
+
+        coVerify(exactly = 0) { photoDecisionDao.getByDate(date) }
+    }
+
+    @Test
+    fun `the pending deletes tell the undated deck from the days`() = runTest {
+        coEvery { photoDecisionDao.getPendingDeletes() } returns listOf(
+            PhotoDecisionEntity(7L, undatedStored, "DELETE", 1),
+            PhotoDecisionEntity(8L, date, "DELETE", 1),
+        )
+
+        assertEquals(
+            mapOf(DeckKey.Undated to setOf(7L), DeckKey.Day(date) to setOf(8L)),
+            repository.getPendingDeletes(),
+        )
+    }
+
+    @Test
+    fun `adoptUndatedDecisions moves the photos to the day, in chunks under the SQLite variable limit`() = runTest {
+        coEvery { photoDecisionDao.moveFromUndated(any(), any()) } returns Unit
+
+        repository.adoptUndatedDecisions((1L..1_200L).toList(), date)
+
+        coVerify(exactly = 3) { photoDecisionDao.moveFromUndated(match { it.size <= 500 }, date) }
+    }
+
+    @Test
+    fun `adoptUndatedDecisions with no photos asks for nothing`() = runTest {
+        repository.adoptUndatedDecisions(emptyList(), date)
+
+        coVerify(exactly = 0) { photoDecisionDao.moveFromUndated(any(), any()) }
+    }
     @Test
     fun `removeDecision deletes only that photo`() = runTest {
         coEvery { photoDecisionDao.deleteById(7L) } returns Unit

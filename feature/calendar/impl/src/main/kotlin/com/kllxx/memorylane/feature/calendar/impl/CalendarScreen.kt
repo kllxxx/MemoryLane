@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.emptyFlow
 @Composable
 fun CalendarScreen(
     onNavigateToSwipe: (LocalDate) -> Unit,
+    onNavigateToUndated: () -> Unit,
     reselected: Flow<Unit> = emptyFlow(),
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
@@ -30,7 +31,8 @@ fun CalendarScreen(
 
     // The list opens where the ViewModel last saw it, which is the current month the first time: the position is
     // never decided again when this screen is composed anew, so coming back does not jump. The banner of today is
-    // pinned outside the list, so it has no effect on the positions.
+    // pinned outside the list and the banner of the undated photos is its last item, so neither has an effect on the
+    // positions of the months.
     val listReady = state.hasPermission && state.phase != CalendarPhase.Loading
     val listState = key(listReady) {
         rememberLazyListState(
@@ -61,6 +63,7 @@ fun CalendarScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 is CalendarEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
+                CalendarEffect.NavigateToUndated -> onNavigateToUndated()
                 CalendarEffect.RequestPermissionLauncher -> permissionLauncher.launch(mediaReadPermission())
             }
         }

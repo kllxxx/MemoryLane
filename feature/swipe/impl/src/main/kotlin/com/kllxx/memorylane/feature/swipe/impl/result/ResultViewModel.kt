@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
@@ -52,7 +53,8 @@ class ResultViewModel @Inject constructor(
      * one every screen shows: it comes from the [StatsRepository].
      */
     private fun loadStreak() {
-        val date = _state.value.date
+        // The undated deck is not a day: it never has a streak chip
+        val date = (_state.value.deck as? DeckKey.Day)?.date ?: return
         val today = LocalDate.now(clock)
         if (date != today) return
         viewModelScope.launch {

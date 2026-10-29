@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
@@ -15,8 +16,10 @@ import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.domain.format.formatTakenAt
+import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Clock
@@ -85,7 +88,7 @@ class SwipeViewModelTest {
             locationRequests += firstArg<List<Photo>>().map { it.id }
             emptyFlow()
         }
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns emptyMap()
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns emptyMap()
         every { swipeRepository.getCompletedSessions() } returns flowOf(emptyList())
         every { appSettingsRepository.getSettings() } returns settings
     }
@@ -132,7 +135,7 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(1L, 2L), state.deck.map { it.id })
         assertEquals(false, state.isLoading)
-        assertEquals(date, state.date)
+        assertEquals(DeckKey.Day(date), state.deckKey)
         assertEquals(0, state.currentIndex)
     }
 
@@ -141,7 +144,7 @@ class SwipeViewModelTest {
         load()
 
         assertEquals(
-            listOf(formatTakenAt(photo1.takenAt, Locale.getDefault()), formatTakenAt(photo2.takenAt, Locale.getDefault())),
+            listOf(formatTakenAt(photo1.takenAt!!, Locale.getDefault()), formatTakenAt(photo2.takenAt!!, Locale.getDefault())),
             state.deck.map { it.takenAtText },
         )
     }
@@ -149,7 +152,7 @@ class SwipeViewModelTest {
     @Test
     fun `stored decisions are on the deck and the visit resumes at the first undecided photo`() = runTest(dispatcher) {
         photos = listOf(photo1, photo2, photo3)
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
 
         load()
@@ -161,7 +164,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `a day that is completely decided opens on its first photo and stays on the screen`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
         createViewModel()
 
@@ -179,7 +182,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `photos in the trash are loaded for the strip only`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(50L to PhotoDecision.TRASHED)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(50L to PhotoDecision.TRASHED)
         val trashed = Photo(50, mockk(relaxed = true), LocalDateTime.of(2015, 1, 7, 9, 0), sizeBytes = 500)
         coEvery { photoRepository.getTrashedPhotos(setOf(50L)) } returns listOf(trashed)
 
@@ -188,12 +191,12 @@ class SwipeViewModelTest {
         assertEquals(listOf(1L, 2L), state.deck.map { it.id })
         assertEquals(listOf(50L), state.trashed.map { it.id })
         assertEquals(PhotoDecision.TRASHED, state.trashed.single().decision)
-        assertEquals(formatTakenAt(trashed.takenAt, Locale.getDefault()), state.trashed.single().takenAtText)
+        assertEquals(formatTakenAt(trashed.takenAt!!, Locale.getDefault()), state.trashed.single().takenAtText)
     }
 
     @Test
     fun `a photo that is back in the library after being trashed is undecided again`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.TRASHED, 2L to PhotoDecision.DELETED)
 
         load()
@@ -206,7 +209,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `a failing trash query still gives the deck`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(50L to PhotoDecision.TRASHED)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(50L to PhotoDecision.TRASHED)
         coEvery { photoRepository.getTrashedPhotos(any()) } throws IllegalStateException("provider died")
 
         load()
@@ -270,7 +273,7 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(PhotoDecision.DELETE, null), decisions())
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
     }
 
     @Test
@@ -281,7 +284,7 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(PhotoDecision.KEEP, null), decisions())
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
     }
 
     @Test
@@ -321,7 +324,7 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Left)
 
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
     }
 
     @Test
@@ -340,7 +343,7 @@ class SwipeViewModelTest {
     @Test
     fun `jumping, then swiping, overwrites the decision and continues from there`() = runTest(dispatcher) {
         photos = listOf(photo1, photo2, photo3)
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(1L to PhotoDecision.DELETE)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(1L to PhotoDecision.DELETE)
         load()
         assertEquals(1, state.currentIndex)
 
@@ -349,7 +352,7 @@ class SwipeViewModelTest {
 
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
     }
 
     @Test
@@ -382,7 +385,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `undo restores the decision the photo had before the swipe`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.DELETE, 2L to PhotoDecision.KEEP)
         load()
 
@@ -393,8 +396,8 @@ class SwipeViewModelTest {
 
         assertEquals(PhotoDecision.DELETE, state.deck[0].decision)
         // The previous decision is written back, last
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.KEEP) }
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
         coVerify(exactly = 0) { swipeRepository.removeDecision(any()) }
     }
 
@@ -453,7 +456,7 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Right)
 
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
     }
 
     // --- end of the deck ---
@@ -464,18 +467,18 @@ class SwipeViewModelTest {
         viewModel.effects.test {
             swipe(SwipeDirection.Right, SwipeDirection.Right)
             assertTrue(state.isFinished)
-            assertEquals(SwipeEffect.NavigateToResult(date, keptCount = 2, totalCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToResult(DeckKey.Day(date), keptCount = 2, totalCount = 2), awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
 
     @Test
     fun `finishing with only earlier marks pending opens before-delete`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getPendingDeletes() } returns mapOf(LocalDate.of(2014, 1, 7) to setOf(99L))
+        coEvery { swipeRepository.getPendingDeletes() } returns mapOf(DeckKey.Day(LocalDate.of(2014, 1, 7)) to setOf(99L))
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Right, SwipeDirection.Right)
-            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 2), awaitItem())
         }
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
@@ -486,7 +489,7 @@ class SwipeViewModelTest {
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Right, SwipeDirection.Right)
-            assertEquals(SwipeEffect.NavigateToResult(date, keptCount = 2, totalCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToResult(DeckKey.Day(date), keptCount = 2, totalCount = 2), awaitItem())
         }
     }
 
@@ -495,7 +498,7 @@ class SwipeViewModelTest {
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Left, SwipeDirection.Right)
-            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 2), awaitItem())
         }
         // A mark is a decision: the day is completed by the swipes, a cancelled dialog does not reopen it
         coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
@@ -504,7 +507,7 @@ class SwipeViewModelTest {
     @Test
     fun `the last photo goes back to the first undecided one while any is left`() = runTest(dispatcher) {
         photos = listOf(photo1, photo2, photo3)
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.KEEP, 3L to PhotoDecision.KEEP)
         load()
         viewModel.effects.test {
@@ -521,12 +524,12 @@ class SwipeViewModelTest {
     @Test
     fun `after jumping around, finishing the last undecided photo routes by what is marked`() = runTest(dispatcher) {
         photos = listOf(photo1, photo2, photo3)
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(1L to PhotoDecision.KEEP)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(1L to PhotoDecision.KEEP)
         load()
         viewModel.effects.test {
             // Swipe 2, then 3 (the last one): the day is complete and one photo is marked
             swipe(SwipeDirection.Left, SwipeDirection.Right)
-            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 3), awaitItem())
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 3), awaitItem())
         }
     }
 
@@ -590,18 +593,18 @@ class SwipeViewModelTest {
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Left, SwipeDirection.Left)
-            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 2), awaitItem())
         }
     }
 
     @Test
     fun `a re-opened completed day leads to before-delete again for a new mark`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP)
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Right, SwipeDirection.Left)
-            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 2), awaitItem())
         }
     }
 
@@ -742,7 +745,7 @@ class SwipeViewModelTest {
 
     @Test
     fun `an undo stack survives process death`() = runTest(dispatcher) {
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(1L to PhotoDecision.KEEP)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(1L to PhotoDecision.KEEP)
         load()
         viewModel.onIntent(SwipeIntent.JumpTo(0))
         swipe(SwipeDirection.Left)
@@ -751,7 +754,7 @@ class SwipeViewModelTest {
         assertEquals(listOf("1:KEEP"), savedUndo)
 
         // The process dies and the screen comes back with what was saved; the decision itself is in the database
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns mapOf(1L to PhotoDecision.DELETE)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(1L to PhotoDecision.DELETE)
         createViewModel(restoredIndex = savedIndex, restoredUndo = savedUndo)
         advanceUntilIdle()
 
@@ -760,7 +763,7 @@ class SwipeViewModelTest {
         viewModel.onIntent(SwipeIntent.Undo)
         advanceUntilIdle()
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, date, PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
     }
 
     @Test
@@ -901,7 +904,7 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Left, SwipeDirection.Left)
         assertTrue(state.isFinished)
         // In the review the first photo was unmarked
-        coEvery { swipeRepository.getDecisionsByDate(date) } returns
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
 
         viewModel.onIntent(SwipeIntent.ReturnedToDeck)
@@ -911,5 +914,204 @@ class SwipeViewModelTest {
         assertEquals(1, state.currentIndex)
         assertEquals(listOf(PhotoDecision.KEEP, PhotoDecision.DELETE), decisions())
         assertFalse(state.canUndo)
+    }
+
+    // --- the undated deck ---
+
+    private val undated1 = Photo(21, uri1, takenAt = null, sizeBytes = 10)
+    private val undated2 = Photo(22, uri2, takenAt = null, sizeBytes = 20)
+    private val undated3 = Photo(23, uri3, takenAt = null, sizeBytes = 30)
+
+    private fun createUndatedViewModel(photos: List<Photo> = listOf(undated1, undated2, undated3)) {
+        coEvery { photoRepository.getUndatedPhotos() } returns photos
+        coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns emptyMap()
+        savedStateHandle = SavedStateHandle(mapOf("deck" to DeckKind.UNDATED))
+        viewModel = SwipeViewModel(
+            photoRepository, swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle,
+        )
+    }
+
+    @Test
+    fun `the undated deck is the photos without a date, in the order the repository gives`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        assertEquals(DeckKey.Undated, state.deckKey)
+        assertEquals(listOf(21L, 22L, 23L), state.deck.map { it.id })
+        assertEquals(false, state.isLoading)
+        coVerify(exactly = 0) { photoRepository.getPhotosForDate(any()) }
+    }
+
+    @Test
+    fun `a photo of the undated deck shows no date on its card`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        assertEquals(listOf("", "", ""), state.deck.map { it.takenAtText })
+    }
+
+    @Test
+    fun `the decisions of the undated deck are read from the undated deck only`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns mapOf(21L to PhotoDecision.KEEP)
+        load()
+
+        assertEquals(listOf(PhotoDecision.KEEP, null, null), decisions())
+        assertEquals(1, state.currentIndex)
+        coVerify(exactly = 0) { swipeRepository.getDecisions(DeckKey.Day(date)) }
+    }
+
+    @Test
+    fun `swiping the undated deck saves the decisions under the undated deck`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        swipe(SwipeDirection.Left, SwipeDirection.Right)
+
+        coVerify(exactly = 1) { swipeRepository.saveDecision(21L, DeckKey.Undated, PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(22L, DeckKey.Undated, PhotoDecision.KEEP) }
+        coVerify(exactly = 2) { statsRepository.markReviewed(any()) }
+    }
+
+    @Test
+    fun `undo works in the undated deck`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+        swipe(SwipeDirection.Right)
+
+        viewModel.onIntent(SwipeIntent.Undo)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { swipeRepository.removeDecision(21L) }
+        assertEquals(0, state.currentIndex)
+    }
+
+    @Test
+    fun `jumping works in the undated deck`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        viewModel.onIntent(SwipeIntent.JumpTo(2))
+        advanceUntilIdle()
+
+        assertEquals(2, state.currentIndex)
+    }
+
+    @Test
+    fun `finishing the undated deck saves no session, it is not a day`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        swipe(SwipeDirection.Right, SwipeDirection.Right, SwipeDirection.Right)
+
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+        coVerify(exactly = 0) { swipeRepository.getCompletedSessions() }
+    }
+
+    @Test
+    fun `finishing the undated deck with nothing to delete opens the result of the undated deck`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { swipeRepository.getPendingDeletes() } returns emptyMap()
+        load()
+
+        viewModel.effects.test {
+            swipe(SwipeDirection.Right, SwipeDirection.Right, SwipeDirection.Right)
+
+            assertEquals(SwipeEffect.NavigateToResult(DeckKey.Undated, keptCount = 3, totalCount = 3), awaitItem())
+        }
+    }
+
+    @Test
+    fun `finishing the undated deck with marks opens before-delete of the undated deck`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        viewModel.effects.test {
+            swipe(SwipeDirection.Left, SwipeDirection.Right, SwipeDirection.Right)
+
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Undated, totalPhotosCount = 3), awaitItem())
+        }
+    }
+
+    @Test
+    fun `finishing the undated deck with marks left in a day opens before-delete`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { swipeRepository.getPendingDeletes() } returns mapOf(DeckKey.Day(LocalDate.of(2014, 1, 7)) to setOf(99L))
+        load()
+
+        viewModel.effects.test {
+            swipe(SwipeDirection.Right, SwipeDirection.Right, SwipeDirection.Right)
+
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Undated, totalPhotosCount = 3), awaitItem())
+        }
+    }
+
+    @Test
+    fun `an undated deck that is completely decided opens on its first photo and stays on the screen`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns
+            mapOf(21L to PhotoDecision.KEEP, 22L to PhotoDecision.DELETE, 23L to PhotoDecision.KEEP)
+        viewModel.effects.test {
+            load()
+
+            assertEquals(0, state.currentIndex)
+            assertEquals(true, state.isDayCompleted)
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `an empty undated deck goes to calendar and records nothing`() = runTest(dispatcher) {
+        createUndatedViewModel(photos = emptyList())
+
+        viewModel.effects.test {
+            load()
+
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
+        }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `the undated deck never adopts decisions, a day does`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        load()
+
+        coVerify(exactly = 0) { swipeRepository.adoptUndatedDecisions(any(), any()) }
+    }
+
+    @Test
+    fun `a day gives the photos that got a date their decision before the decisions are read`() = runTest(dispatcher) {
+        load()
+
+        coVerifyOrder {
+            swipeRepository.adoptUndatedDecisions(listOf(1L, 2L), date)
+            swipeRepository.getDecisions(DeckKey.Day(date))
+        }
+    }
+
+    @Test
+    fun `a failed undated load goes to calendar without recording a session`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { photoRepository.getUndatedPhotos() } throws IllegalStateException("db")
+
+        viewModel.effects.test {
+            load()
+
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
+        }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `missing permission in the undated deck asks for it`() = runTest(dispatcher) {
+        createUndatedViewModel()
+        coEvery { photoRepository.getUndatedPhotos() } throws PermissionDeniedException("no access")
+
+        viewModel.effects.test {
+            load()
+
+            assertEquals(SwipeEffect.PermissionRequired, awaitItem())
+        }
     }
 }

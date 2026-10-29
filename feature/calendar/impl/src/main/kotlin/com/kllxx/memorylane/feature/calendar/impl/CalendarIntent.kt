@@ -11,4 +11,7 @@ sealed interface CalendarIntent {
     data object RequestPermission : CalendarIntent
     data class PermissionResult(val granted: Boolean) : CalendarIntent
     data class OpenDay(val date: LocalDate) : CalendarIntent
+
+    /** The banner of the photos without a date was tapped. */
+    data object OpenUndated : CalendarIntent
 }

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.result.ui
 
+import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -143,10 +144,14 @@ private fun FreedValue(state: ResultState) {
     }
 }
 
-/** «28 октября · 48 фото»: the day and how many photos it had. */
+/** «28 октября · 48 фото»: the day and how many photos it had; «Без даты · 3 фото» for the undated photos. */
 @Composable
 private fun Caption(state: ResultState) {
-    val dayMonth = remember(state.date) { formatDayMonth(state.date, Locale.getDefault()) }
+    val deck = state.deck
+    val dayMonth = when (deck) {
+        is DeckKey.Day -> remember(deck) { formatDayMonth(deck.date, Locale.getDefault()) }
+        DeckKey.Undated -> stringResource(R.string.deck_undated)
+    }
     Text(
         text = stringResource(
             R.string.result_caption,
