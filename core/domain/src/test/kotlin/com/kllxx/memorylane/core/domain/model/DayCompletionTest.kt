@@ -24,8 +24,8 @@ class DayCompletionTest {
     }
 
     @Test
-    fun `a photo only marked for deletion keeps the day open`() {
-        assertFalse(DayCompletion.isCompleted(listOf(1L, 2L), mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)))
+    fun `a photo marked for deletion is decided, so a cancelled dialog leaves the day completed`() {
+        assertTrue(DayCompletion.isCompleted(listOf(1L, 2L), mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)))
     }
 
     @Test

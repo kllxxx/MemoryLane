@@ -46,7 +46,13 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /** A [SwipeRepository] in memory that moves decisions and records a deletion the way the real transaction does. */
-private class FakeSwipeRepository(val decisions: MutableMap<Long, PhotoDecision>) : SwipeRepository {
+private class FakeSwipeRepository(
+    val decisions: MutableMap<Long, PhotoDecision>,
+    private val defaultDate: LocalDate,
+) : SwipeRepository {
+    /** The day of a decision, [defaultDate] unless set. */
+    val days = mutableMapOf<Long, LocalDate>()
+
     val saved = mutableListOf<Pair<Long, PhotoDecision>>()
     val removed = mutableListOf<Long>()
     val sessions = mutableListOf<SwipeSession>()
@@ -59,9 +65,14 @@ private class FakeSwipeRepository(val decisions: MutableMap<Long, PhotoDecision>
     override suspend fun saveDecision(photoId: Long, date: LocalDate, decision: PhotoDecision) {
         saved += photoId to decision
         decisions[photoId] = decision
+        days[photoId] = date
     }
 
-    override suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision> = decisions.toMap()
+    override suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision> =
+        decisions.filterKeys { (days[it] ?: defaultDate) == date }
+
+    override suspend fun getPendingDeletes(): Map<LocalDate, Set<Long>> =
+        decisions.filterValues { it == PhotoDecision.DELETE }.keys.groupBy { days[it] ?: defaultDate }.mapValues { it.value.toSet() }
 
     override suspend fun removeDecision(photoId: Long) {
         removed += photoId
@@ -70,7 +81,7 @@ private class FakeSwipeRepository(val decisions: MutableMap<Long, PhotoDecision>
 
     override suspend fun setDecisions(photoIds: Collection<Long>, decision: PhotoDecision) = Unit
 
-    override suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome {
+    override suspend fun confirmDeletion(bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome {
         confirmed += bytesById to decision
         val applied = bytesById.keys.filter { decisions[it] == PhotoDecision.DELETE }
         applied.forEach { decisions[it] = decision }
@@ -119,6 +130,7 @@ class BeforeDeleteViewModelTest {
         Dispatchers.setMain(dispatcher)
         swipeRepository = FakeSwipeRepository(
             mutableMapOf(1L to PhotoDecision.DELETE, 2L to PhotoDecision.DELETE, 3L to PhotoDecision.KEEP),
+            date,
         )
         photoRepository = mockk()
         coEvery { photoRepository.getPhotosForDate(date) } answers { photos }
@@ -239,6 +251,114 @@ class BeforeDeleteViewModelTest {
 
         assertEquals(listOf(1L, 2L), marked())
         assertTrue(swipeRepository.saved.isEmpty())
+    }
+
+    // --- marks left over from earlier days ---
+
+    private val earlier = LocalDate.of(2014, 1, 15)
+    private val older1 = Photo(11, mockk<Uri>(relaxed = true), LocalDateTime.of(2014, 1, 15, 9, 0), sizeBytes = 1_000_000)
+    private val older2 = Photo(12, mockk<Uri>(relaxed = true), LocalDateTime.of(2014, 1, 15, 9, 1), sizeBytes = 2_000_000)
+    private var earlierPhotos = listOf(older1, older2)
+
+    /** Photos 11 and 12 of the earlier day, marked in an earlier visit whose dialog was cancelled. */
+    private fun markEarlier(vararg ids: Long) {
+        ids.forEach {
+            swipeRepository.decisions[it] = PhotoDecision.DELETE
+            swipeRepository.days[it] = earlier
+        }
+        coEvery { photoRepository.getPhotosForDate(earlier) } answers { earlierPhotos }
+        coEvery { photoRepository.getPhotoSizes(any()) } answers { (photos + earlierPhotos).associate { it.id to it.sizeBytes } }
+    }
+
+    @Test
+    fun `marks of an earlier day appear after the current day under their own group`() = runTest(dispatcher) {
+        markEarlier(11, 12)
+
+        load()
+
+        assertEquals(listOf(1L, 2L, 11L, 12L), marked())
+        assertEquals(listOf(date, earlier), state.groups.map { it.date })
+        assertEquals(listOf(true, false), state.groups.map { it.isCurrent })
+        assertEquals(listOf(listOf(1L, 2L), listOf(11L, 12L)), state.groups.map { g -> g.cells.map { it.photoId } })
+    }
+
+    @Test
+    fun `earlier groups are newest first`() = runTest(dispatcher) {
+        val oldest = LocalDate.of(2012, 1, 15)
+        markEarlier(11)
+        swipeRepository.decisions[21] = PhotoDecision.DELETE
+        swipeRepository.days[21] = oldest
+        val photo21 = Photo(21, mockk<Uri>(relaxed = true), LocalDateTime.of(2012, 1, 15, 9, 0), sizeBytes = 5)
+        coEvery { photoRepository.getPhotosForDate(oldest) } returns listOf(photo21)
+
+        load()
+
+        assertEquals(listOf(date, earlier, oldest), state.groups.map { it.date })
+    }
+
+    @Test
+    fun `a tap in an earlier group saves the decision in that day`() = runTest(dispatcher) {
+        markEarlier(11, 12)
+        load()
+
+        send(BeforeDeleteIntent.Toggle(12))
+
+        assertEquals(listOf(12L to PhotoDecision.KEEP), swipeRepository.saved)
+        assertEquals(earlier, swipeRepository.days[12])
+        assertEquals(listOf(1L, 2L, 11L), marked())
+    }
+
+    @Test
+    fun `the button counts and sizes the marks of every day`() = runTest(dispatcher) {
+        markEarlier(11, 12)
+        load()
+
+        assertEquals(DeleteButton.Delete(4, com.kllxx.memorylane.core.domain.format.formatSize(403_000_000)), state.toButton())
+    }
+
+    @Test
+    fun `only earlier marks still open the grid`() = runTest(dispatcher) {
+        swipeRepository.decisions[1] = PhotoDecision.KEEP
+        swipeRepository.decisions[2] = PhotoDecision.KEEP
+        markEarlier(11, 12)
+
+        load()
+
+        assertEquals(listOf(earlier), state.groups.map { it.date })
+        assertEquals(listOf(11L, 12L), marked())
+    }
+
+    @Test
+    fun `an earlier mark whose photo is gone is dropped from the grid`() = runTest(dispatcher) {
+        markEarlier(11, 12)
+        earlierPhotos = listOf(older1)
+
+        load()
+
+        assertEquals(listOf(1L, 2L, 11L), marked())
+        assertEquals(listOf(12L), swipeRepository.removed)
+    }
+
+    @Test
+    fun `one confirmation trashes every day, and the result counts them all but keeps the current day only`() = runTest(dispatcher) {
+        markEarlier(11, 12)
+        load()
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+            assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
+
+            send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(date, deletedCount = 4, freedBytes = 403_000_000, keptCount = 1, totalCount = 3),
+                awaitItem(),
+            )
+        }
+        coVerify { photoRepository.deletePhotos(listOf(1L, 2L, 11L, 12L)) }
+        assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[1])
+        assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[11])
+        assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[12])
+        assertEquals(earlier, swipeRepository.days[12])
     }
 
     // --- nothing marked ---
@@ -390,7 +510,7 @@ class BeforeDeleteViewModelTest {
     @Test
     fun `a failure to record the deletion is an error and keeps the screen`() = runTest(dispatcher) {
         val failing = object : SwipeRepository by swipeRepository {
-            override suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome =
+            override suspend fun confirmDeletion(bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome =
                 throw IllegalStateException("disk full")
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))

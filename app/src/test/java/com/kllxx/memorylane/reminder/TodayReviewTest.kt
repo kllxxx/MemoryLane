@@ -58,10 +58,10 @@ class TodayReviewTest {
     }
 
     @Test
-    fun `a pending delete is not a completed day`() = runTest {
+    fun `a pending delete is a decision, so the day is completed`() = runTest {
         coEvery { swipeRepository.getDecisionsByDate(today) } returns
             mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.KEEP, 3L to PhotoDecision.DELETE)
-        assertEquals(3, review().photosToReview())
+        assertEquals(0, review().photosToReview())
     }
 
     @Test

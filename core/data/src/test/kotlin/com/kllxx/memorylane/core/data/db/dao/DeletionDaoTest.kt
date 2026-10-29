@@ -50,7 +50,7 @@ class DeletionDaoTest {
     fun `marked photos become the new decision and are counted with their bytes`() = runTest {
         decide(1, "DELETE"); decide(2, "DELETE"); decide(3, "KEEP")
 
-        val outcome = dao.confirmDeletion(date, sizes, "TRASHED", decidedAt = 5, today = today)
+        val outcome = dao.confirmDeletion(sizes, "TRASHED", decidedAt = 5, today = today)
 
         assertEquals(DeletionOutcome(deletedCount = 2, freedBytes = 300), outcome)
         assertEquals(mapOf(1L to "TRASHED", 2L to "TRASHED", 3L to "KEEP"), decisions())
@@ -60,7 +60,7 @@ class DeletionDaoTest {
     fun `the session is completed and gets the count and the bytes`() = runTest {
         decide(1, "DELETE"); decide(2, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         assertEquals(SwipeSessionEntity(date, completed = true, savedBytes = 300, completedAt = today, deletedCount = 2), dao.getSession(date))
     }
@@ -69,8 +69,8 @@ class DeletionDaoTest {
     fun `confirming the same photos twice counts them once`() = runTest {
         decide(1, "DELETE"); decide(2, "DELETE")
 
-        val first = dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
-        val second = dao.confirmDeletion(date, sizes, "TRASHED", 6, today)
+        val first = dao.confirmDeletion(sizes, "TRASHED", 5, today)
+        val second = dao.confirmDeletion(sizes, "TRASHED", 6, today)
 
         assertEquals(DeletionOutcome(2, 300), first)
         assertEquals(DeletionOutcome(0, 0), second)
@@ -82,7 +82,7 @@ class DeletionDaoTest {
     fun `a photo that was unmarked meanwhile is not deleted and not counted`() = runTest {
         decide(1, "DELETE"); decide(2, "KEEP")
 
-        val outcome = dao.confirmDeletion(date, sizes, "DELETED", 5, today)
+        val outcome = dao.confirmDeletion(sizes, "DELETED", 5, today)
 
         assertEquals(DeletionOutcome(1, 100), outcome)
         assertEquals("KEEP", decisions().getValue(2))
@@ -92,7 +92,7 @@ class DeletionDaoTest {
     fun `nothing marked changes nothing, not even the session`() = runTest {
         decide(1, "KEEP")
 
-        val outcome = dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        val outcome = dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         assertEquals(DeletionOutcome(0, 0), outcome)
         assertNull(dao.getSession(date))
@@ -105,7 +105,7 @@ class DeletionDaoTest {
         dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = first, deletedCount = 5))
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         val session = dao.getSession(date)!!
         assertEquals(1_100L, session.savedBytes)
@@ -117,28 +117,29 @@ class DeletionDaoTest {
         dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = date, deletedCount = 5))
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         assertEquals(date, dao.getSession(date)!!.completedAt)
     }
 
     @Test
-    fun `a day completed on another date is completed on the date of the confirmation`() = runTest {
-        dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = LocalDate.of(2026, 10, 1), deletedCount = 5))
+    fun `a day completed on another date keeps that date when it is confirmed`() = runTest {
+        val first = LocalDate.of(2026, 10, 1)
+        dao.putSession(SwipeSessionEntity(date, completed = true, savedBytes = 1_000, completedAt = first, deletedCount = 5))
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
-        assertEquals(today, dao.getSession(date)!!.completedAt)
+        assertEquals(first, dao.getSession(date)!!.completedAt)
     }
 
     @Test
-    fun `a day swiped on its own date and confirmed the next day is completed the next day`() = runTest {
-        // Saved as not completed when the last photo was swiped, with the date of that day
+    fun `a session saved as not completed is completed on the date of the confirmation`() = runTest {
+        // Saved by an earlier version, which left a day with marked photos open
         dao.putSession(SwipeSessionEntity(date, completed = false, savedBytes = 0, completedAt = date, deletedCount = 0))
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         assertEquals(today, dao.getSession(date)!!.completedAt)
     }
@@ -147,7 +148,7 @@ class DeletionDaoTest {
     fun `a day confirmed on its own date is completed on its own date`() = runTest {
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today = date)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today = date)
 
         assertEquals(date, dao.getSession(date)!!.completedAt)
     }
@@ -157,9 +158,24 @@ class DeletionDaoTest {
         dao.putSession(SwipeSessionEntity(date, completed = false, savedBytes = 0, completedAt = today, deletedCount = 0))
         decide(2, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "DELETED", 5, today)
+        dao.confirmDeletion(sizes, "DELETED", 5, today)
 
         assertEquals(SwipeSessionEntity(date, true, 200, today, 1), dao.getSession(date))
+    }
+
+    @Test
+    fun `one confirmation updates the decisions and the session of each day`() = runTest {
+        val earlier = LocalDate.of(2014, 1, 15)
+        database.photoDecisionDao().upsert(PhotoDecisionEntity(9, earlier, "DELETE", 1))
+        dao.putSession(SwipeSessionEntity(earlier, completed = true, savedBytes = 50, completedAt = earlier, deletedCount = 1))
+        decide(1, "DELETE"); decide(2, "KEEP")
+
+        val outcome = dao.confirmDeletion(sizes + (9L to 700L), "TRASHED", 5, today)
+
+        assertEquals(DeletionOutcome(deletedCount = 2, freedBytes = 800), outcome)
+        assertEquals(mapOf(1L to "TRASHED", 2L to "KEEP", 9L to "TRASHED"), decisions())
+        assertEquals(SwipeSessionEntity(earlier, true, 750, earlier, 2), dao.getSession(earlier))
+        assertEquals(SwipeSessionEntity(date, true, 100, today, 1), dao.getSession(date))
     }
 
     @Test
@@ -167,7 +183,7 @@ class DeletionDaoTest {
         database.photoDecisionDao().upsert(PhotoDecisionEntity(9, LocalDate.of(2014, 1, 15), "DELETE", 1))
         decide(1, "DELETE")
 
-        dao.confirmDeletion(date, sizes, "TRASHED", 5, today)
+        dao.confirmDeletion(sizes, "TRASHED", 5, today)
 
         assertEquals("DELETE", decisions().getValue(9))
     }

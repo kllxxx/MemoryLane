@@ -543,12 +543,12 @@ class CalendarViewModelTest {
     }
 
     @Test
-    fun `a photo that is only marked for deletion keeps the banner, the day is done once the deletion is confirmed`() = runTest(dispatcher) {
+    fun `a photo marked for deletion is decided, so the banner hides even with the dialog cancelled`() = runTest(dispatcher) {
         givenToday(count = 2, decided = mapOf(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE))
 
         enter()
 
-        assertEquals(TodayBanner(2), banner)
+        assertNull(banner)
     }
 
     @Test

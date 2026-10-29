@@ -149,7 +149,7 @@ class CalendarScreenScrollTest {
         composeRule.onNodeWithText("OCTOBER 2026").assertIsDisplayed()
     }
 
-    // --- the banner of today comes and goes ---
+    // --- the banner of today is pinned ---
 
     private fun completeToday() {
         decisions = mapOf(10L to PhotoDecision.KEEP, 11L to PhotoDecision.KEEP)
@@ -164,32 +164,31 @@ class CalendarScreenScrollTest {
     }
 
     @Test
-    fun `the banner is the first item of the list`() {
+    fun `the banner is visible at launch next to the current month`() {
         show(viewModel(withTodayPhotos = true))
-
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(0)
-        composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("Сегодняшние фото").assertIsDisplayed()
+        composeRule.onNodeWithText("OCTOBER 2026").assertIsDisplayed()
     }
 
     @Test
-    fun `the list opens on the current month also when the banner is there`() {
+    fun `the banner does not scroll with the list`() {
         show(viewModel(withTodayPhotos = true))
 
-        composeRule.onNodeWithText("OCTOBER 2026").assertIsDisplayed()
-        composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertDoesNotExist()
+        scrollToJanuary()
+
+        composeRule.onNodeWithText("JANUARY 2026").assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertIsDisplayed()
     }
 
     @Test
-    fun `the anchor is the same with the banner as without it`() {
+    fun `the anchor is the list index, banner or not`() {
         val withBanner = viewModel(withTodayPhotos = true)
         show(withBanner)
 
-        // With the banner: the banner, the weekday header, then the January separator, which is item 1 of a list without it
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
-        composeRule.waitForIdle()
+        // Item 0 is the weekday header, item 1 the January separator
+        scrollToJanuary()
 
         assertEquals(1, withBanner.scrollAnchor.index)
     }
@@ -198,9 +197,7 @@ class CalendarScreenScrollTest {
     fun `the position stays when the banner goes away`() {
         val viewModel = viewModel(withTodayPhotos = true)
         show(viewModel)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("JANUARY 2026").assertIsDisplayed()
+        scrollToJanuary()
         val before = viewModel.scrollAnchor
 
         completeToday()
@@ -215,13 +212,12 @@ class CalendarScreenScrollTest {
         val viewModel = viewModel(withTodayPhotos = true)
         show(viewModel)
         completeToday()
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(1)
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("JANUARY 2026").assertIsDisplayed()
+        scrollToJanuary()
         val before = viewModel.scrollAnchor
 
         uncompleteToday()
 
+        composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertIsDisplayed()
         composeRule.onNodeWithText("JANUARY 2026").assertIsDisplayed()
         assertEquals(before, viewModel.scrollAnchor)
     }
@@ -229,8 +225,7 @@ class CalendarScreenScrollTest {
     @Test
     fun `selecting the tab again goes to the current month with the banner there`() {
         show(viewModel(withTodayPhotos = true))
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
-        composeRule.waitForIdle()
+        scrollToJanuary()
         composeRule.onNodeWithText("OCTOBER 2026").assertDoesNotExist()
 
         composeRule.runOnIdle { reselected.tryEmit(Unit) }
@@ -244,8 +239,7 @@ class CalendarScreenScrollTest {
         val viewModel = viewModel(withTodayPhotos = true)
         var visible by mutableStateOf(true)
         show(viewModel) { visible }
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
-        composeRule.waitForIdle()
+        scrollToJanuary()
 
         composeRule.runOnIdle { visible = false }
         composeRule.waitForIdle()
@@ -253,5 +247,6 @@ class CalendarScreenScrollTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("JANUARY 2026").assertIsDisplayed()
+        composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertIsDisplayed()
     }
 }

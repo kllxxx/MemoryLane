@@ -236,19 +236,20 @@ class SwipeViewModel @Inject constructor(
     }
 
     /**
-     * Every photo of the day has a decision. With photos marked for deletion the day is only completed once Review
-     * has deleted them, and an existing result is never reset; without any, there is nothing left to do.
+     * Every photo of the day has a decision, a mark for deletion included, so the day is completed now. Marks left
+     * in any day lead to «Перед удалением»; without any there is nothing to delete.
      */
     private fun onAllSwiped(state: SwipeState) {
-        val hasDeletes = state.deck.any { it.decision == PhotoDecision.DELETE }
         viewModelScope.launch {
+            // The marks of this day are in the deck already; the stored ones add those of the days before
+            var hasDeletes = state.deck.any { it.decision == PhotoDecision.DELETE }
             // The user has finished swiping, so a failed session write must not keep them on this screen
             try {
                 val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == state.date }
                 swipeRepository.saveSession(
                     SwipeSession(
                         date = state.date,
-                        completed = !hasDeletes || existing?.completed == true,
+                        completed = true,
                         savedBytes = existing?.savedBytes ?: 0,
                         deletedCount = existing?.deletedCount ?: 0,
                         // The date the day is really completed on; a day that was completed on its own date keeps it
@@ -259,6 +260,16 @@ class SwipeViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Could not save the session of ${state.date}", e)
+            }
+            if (!hasDeletes) {
+                hasDeletes = try {
+                    swipeRepository.getPendingDeletes().isNotEmpty()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Could not read the pending deletions", e)
+                    false
+                }
             }
             _effects.trySend(
                 if (hasDeletes) {

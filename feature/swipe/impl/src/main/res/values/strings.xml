@@ -47,6 +47,7 @@
         <item quantity="one">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
         <item quantity="other">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
     </plurals>
+    <string name="before_delete_earlier">Отмечено ранее · %1$s</string>
     <string name="before_delete_description_none">Ничего не отмечено. Нажми на фото, чтобы отметить его снова.</string>
     <plurals name="before_delete_button">
         <item quantity="one">Удалить %1$d фото · %2$s %3$s</item>

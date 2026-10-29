@@ -108,6 +108,16 @@ class PhotoDecisionDaoTest {
     }
 
     @Test
+    fun `getPendingDeletes returns the marked photos of every day and nothing else`() = runTest {
+        dao.upsert(decision(1, value = "DELETE"))
+        dao.upsert(decision(2, date = otherDay, value = "DELETE"))
+        dao.upsert(decision(3, value = "KEEP"))
+        dao.upsert(decision(4, value = "TRASHED"))
+
+        assertEquals(listOf(decision(1, value = "DELETE"), decision(2, date = otherDay, value = "DELETE")), dao.getPendingDeletes())
+    }
+
+    @Test
     fun `updateDecisions skips a photo that has no decision`() = runTest {
         dao.updateDecisions(listOf(1), "TRASHED", 5_000)
 

@@ -5,6 +5,7 @@ import com.kllxx.memorylane.core.domain.format.FormattedSize
 import com.kllxx.memorylane.core.domain.format.SizeUnit
 import io.mockk.mockk
 import kotlinx.collections.immutable.toImmutableList
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -14,7 +15,7 @@ import org.junit.Test
 class BeforeDeleteReducerTest {
 
     private fun cell(id: Long, marked: Boolean = true, size: Long = 100_000_000) =
-        DeleteCell(id, mockk<Uri>(relaxed = true), size, marked)
+        DeleteCell(id, mockk<Uri>(relaxed = true), size, marked, LocalDate.of(2015, 1, 15))
 
     private fun state(vararg cells: DeleteCell, deleting: Boolean = false) =
         BeforeDeleteState(isLoading = false, cells = cells.toList().toImmutableList(), isDeleting = deleting)

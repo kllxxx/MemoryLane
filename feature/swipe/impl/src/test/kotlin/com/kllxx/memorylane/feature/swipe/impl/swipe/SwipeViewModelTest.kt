@@ -470,14 +470,35 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `finishing with photos marked for deletion saves an open session and opens before-delete`() = runTest(dispatcher) {
+    fun `finishing with only earlier marks pending opens before-delete`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletes() } returns mapOf(LocalDate.of(2014, 1, 7) to setOf(99L))
+        load()
+        viewModel.effects.test {
+            swipe(SwipeDirection.Right, SwipeDirection.Right)
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
+        }
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
+    }
+
+    @Test
+    fun `finishing with no mark anywhere opens the result with nothing deleted`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getPendingDeletes() } returns emptyMap()
+        load()
+        viewModel.effects.test {
+            swipe(SwipeDirection.Right, SwipeDirection.Right)
+            assertEquals(SwipeEffect.NavigateToResult(date, keptCount = 2, totalCount = 2), awaitItem())
+        }
+    }
+
+    @Test
+    fun `finishing with photos marked for deletion saves a completed session and opens before-delete`() = runTest(dispatcher) {
         load()
         viewModel.effects.test {
             swipe(SwipeDirection.Left, SwipeDirection.Right)
             assertEquals(SwipeEffect.NavigateToBeforeDelete(date, totalPhotosCount = 2), awaitItem())
         }
-        // Only the delete flow completes the session, once the photos are really gone
-        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, false, 0, today)) }
+        // A mark is a decision: the day is completed by the swipes, a cancelled dialog does not reopen it
+        coVerify(exactly = 1) { swipeRepository.saveSession(SwipeSession(date, true, 0, today)) }
     }
 
     @Test

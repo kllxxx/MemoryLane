@@ -36,7 +36,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * «Перед удалением». The marked photos of the day are a grid; a tap flips a mark and saves it at once.
+ * «Перед удалением». The photos marked for deletion, of the current day and of the days before whose dialog was
+ * cancelled, are a grid grouped by day; a tap flips a mark and saves it at once.
  *
  * Deleting on API 30+ is a trash request the user confirms in the system dialog. What it is about (the photo ids and
  * their sizes, read before the request) is written to the [SavedStateHandle] before the dialog opens and removed only
@@ -55,7 +56,7 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private val date: LocalDate = LocalDate.parse(savedStateHandle.toRoute<BeforeDeleteRoute>().date)
 
-    private val _state = MutableStateFlow(BeforeDeleteState())
+    private val _state = MutableStateFlow(BeforeDeleteState(currentDate = date))
     val state: StateFlow<BeforeDeleteState> = _state.asStateFlow()
 
     private val _effects = Channel<BeforeDeleteEffect>(Channel.BUFFERED)
@@ -101,22 +102,31 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private fun load() = viewModelScope.launch {
         try {
-            val photos = photoRepository.getPhotosForDate(date)
-            val decisions = swipeRepository.getDecisionsByDate(date)
+            val pending = swipeRepository.getPendingDeletes()
             // A trash request is open: the marked photos may already be in the trash, so none of them is "stale"
             val awaitingResult = savedStateHandle.contains(PENDING_IDS)
-            val inLibrary = photos.mapTo(HashSet()) { it.id }
-            val gridIds: Set<Long> = savedStateHandle.get<LongArray>(GRID_IDS)?.toSet()
-                ?: decisions.filterValues { it == PhotoDecision.DELETE }.keys
-            // A marked photo that is no longer in the library (deleted elsewhere) cannot be deleted again
-            if (!awaitingResult) {
-                decisions.filter { (id, decision) -> decision == PhotoDecision.DELETE && id !in inLibrary }.keys
-                    .forEach(::removeStaleDecision)
+            val savedIds = savedStateHandle.get<LongArray>(GRID_IDS)
+            val savedDates = savedStateHandle.get<ArrayList<String>>(GRID_DATES)
+            val gridByDate: Map<LocalDate, Set<Long>> = if (savedIds != null && savedDates != null && savedDates.size == savedIds.size) {
+                savedIds.indices.groupBy({ LocalDate.parse(savedDates[it]) }, { savedIds[it] }).mapValues { it.value.toSet() }
+            } else {
+                pending
             }
-            val cells = photos.filter { it.id in gridIds }.map {
-                DeleteCell(it.id, it.uri, it.sizeBytes, marked = decisions[it.id] == PhotoDecision.DELETE)
+            val cells = gridByDate.keys.flatMap { day ->
+                val photos = photoRepository.getPhotosForDate(day)
+                val decisions = swipeRepository.getDecisionsByDate(day)
+                val inLibrary = photos.mapTo(HashSet()) { it.id }
+                // A marked photo that is no longer in the library (deleted elsewhere) cannot be deleted again
+                if (!awaitingResult) {
+                    decisions.filter { (id, decision) -> decision == PhotoDecision.DELETE && id !in inLibrary }.keys
+                        .forEach(::removeStaleDecision)
+                }
+                photos.filter { it.id in gridByDate.getValue(day) }.map {
+                    DeleteCell(it.id, it.uri, it.sizeBytes, marked = decisions[it.id] == PhotoDecision.DELETE, date = day)
+                }
             }
             savedStateHandle[GRID_IDS] = cells.map { it.photoId }.toLongArray()
+            savedStateHandle[GRID_DATES] = ArrayList(cells.map { it.date.toString() })
             if (cells.isEmpty() && !awaitingResult) {
                 // Nothing to review, so the screen is not shown at all
                 _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
@@ -130,7 +140,7 @@ class BeforeDeleteViewModel @Inject constructor(
         } catch (e: PermissionDeniedException) {
             _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
         } catch (e: Exception) {
-            Log.e(TAG, "Could not load the marked photos of $date", e)
+            Log.e(TAG, "Could not load the marked photos", e)
             _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
         }
     }
@@ -146,7 +156,7 @@ class BeforeDeleteViewModel @Inject constructor(
         val cell = before.cells.firstOrNull { it.photoId == photoId } ?: return
         val decision = if (cell.marked) PhotoDecision.KEEP else PhotoDecision.DELETE
         launchLogged("Could not save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, date, decision)
+            swipeRepository.saveDecision(photoId, cell.date, decision)
         }
     }
 
@@ -256,7 +266,7 @@ class BeforeDeleteViewModel @Inject constructor(
         if (finished || confirming) return
         confirming = true
         try {
-            val outcome = swipeRepository.confirmDeletion(date, bytesById, decision)
+            val outcome = swipeRepository.confirmDeletion(bytesById, decision)
             clearPending()
             finished = true
             refreshPhotoIndex()
@@ -358,6 +368,7 @@ class BeforeDeleteViewModel @Inject constructor(
 
         /** The photos of the grid, kept so that a recreated screen shows the unmarked ones as well. */
         const val GRID_IDS = "grid_ids"
+        const val GRID_DATES = "grid_dates"
 
         /** The trash request that is open: the photo ids and their sizes, in the same order. */
         const val PENDING_IDS = "pending_ids"

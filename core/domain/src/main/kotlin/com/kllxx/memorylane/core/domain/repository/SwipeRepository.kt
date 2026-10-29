@@ -13,16 +13,20 @@ interface SwipeRepository {
     /** The decisions of the day [date] only, by photo id. Undecided photos are not in the map. */
     suspend fun getDecisionsByDate(date: LocalDate): Map<Long, PhotoDecision>
 
+    /** The photos marked DELETE and not confirmed yet, by the day they were decided on. Days without any are not in the map. */
+    suspend fun getPendingDeletes(): Map<LocalDate, Set<Long>>
+
     /** Takes the decision of the photo back, so it is undecided again. */
     suspend fun removeDecision(photoId: Long)
 
     /**
-     * Confirms the deletion of the photos of [bytesById] (photo id to size in bytes) that are still marked DELETE on [date]:
-     * they become [decision] (TRASHED or DELETED), and their count and bytes are added to the session of [date], which
-     * is completed. All in one transaction. Photos not marked DELETE any more are ignored, so confirming the same photos
-     * twice counts them once and returns zero the second time.
+     * Confirms the deletion of the photos of [bytesById] (photo id to size in bytes) that are still marked DELETE, on
+     * whichever day: they become [decision] (TRASHED or DELETED) in their own day, and their count and bytes are added
+     * to the session of that day, which is completed. All in one transaction, and the outcome covers all days. Photos
+     * not marked DELETE any more are ignored, so confirming the same photos twice counts them once and returns zero the
+     * second time.
      */
-    suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome
+    suspend fun confirmDeletion(bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome
 
     /** Sets [decision] on every photo of [photoIds] that has one, e.g. to [PhotoDecision.TRASHED] once they are gone. */
     suspend fun setDecisions(photoIds: Collection<Long>, decision: PhotoDecision)

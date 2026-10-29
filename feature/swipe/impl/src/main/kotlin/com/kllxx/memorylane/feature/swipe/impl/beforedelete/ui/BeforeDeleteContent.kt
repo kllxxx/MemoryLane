@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
@@ -49,11 +50,14 @@ import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteIntent
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteState
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteButton
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteCell
+import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteGroup
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteIntro
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toButton
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toIntro
 import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.formatDayMonth
+import java.util.Locale
 
 private val CellShape = RoundedCornerShape(14.dp)
 private val GridGap = 8.dp
@@ -136,15 +140,38 @@ private fun PhotoGrid(state: BeforeDeleteState, onIntent: (BeforeDeleteIntent) -
         horizontalArrangement = Arrangement.spacedBy(GridGap),
         verticalArrangement = Arrangement.spacedBy(GridGap),
     ) {
-        itemsIndexed(state.cells, key = { _, cell -> cell.photoId }) { index, cell ->
-            DeleteGridCell(
-                cell = cell,
-                number = index + 1,
-                enabled = !state.isDeleting,
-                onToggle = { onIntent(BeforeDeleteIntent.Toggle(cell.photoId)) },
-            )
+        val groups = state.groups
+        var number = 0
+        groups.forEach { group ->
+            // The current day alone needs no header; a day before it always says so
+            if (groups.size > 1 || !group.isCurrent) {
+                item(key = "group-${group.date}", span = { GridItemSpan(maxLineSpan) }) { GroupHeader(group) }
+            }
+            val first = number
+            number += group.cells.size
+            itemsIndexed(group.cells, key = { _, cell -> cell.photoId }) { index, cell ->
+                DeleteGridCell(
+                    cell = cell,
+                    number = first + index + 1,
+                    enabled = !state.isDeleting,
+                    onToggle = { onIntent(BeforeDeleteIntent.Toggle(cell.photoId)) },
+                )
+            }
         }
     }
+}
+
+/** The day of a group; the days before the current one say they were marked earlier. */
+@Composable
+private fun GroupHeader(group: DeleteGroup) {
+    val day = formatDayMonth(group.date, Locale.getDefault())
+    Text(
+        text = if (group.isCurrent) day else stringResource(R.string.before_delete_earlier, day),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag(BeforeDeleteTags.groupHeader(group.date)),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.ExtraBold,
+    )
 }
 
 @Composable

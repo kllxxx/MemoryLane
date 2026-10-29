@@ -56,6 +56,18 @@ class SwipeRepositoryImplTest {
     }
 
     @Test
+    fun `getPendingDeletes groups the marked photos by day`() = runTest {
+        val earlier = LocalDate.of(2025, 3, 3)
+        coEvery { photoDecisionDao.getPendingDeletes() } returns listOf(
+            PhotoDecisionEntity(7L, date, "DELETE", 1),
+            PhotoDecisionEntity(8L, earlier, "DELETE", 1),
+            PhotoDecisionEntity(9L, date, "DELETE", 1),
+        )
+
+        assertEquals(mapOf(date to setOf(7L, 9L), earlier to setOf(8L)), repository.getPendingDeletes())
+    }
+
+    @Test
     fun `getDecisionsByDate ignores a decision this version does not know`() = runTest {
         coEvery { photoDecisionDao.getByDate(date) } returns listOf(
             PhotoDecisionEntity(7L, date, "KEEP", 1),
@@ -113,10 +125,10 @@ class SwipeRepositoryImplTest {
     fun `confirmDeletion hands the photos, the decision name and the time to the transaction`() = runTest {
         val bytes = mapOf(7L to 100L, 8L to 200L)
         coEvery {
-            deletionDao.confirmDeletion(date, bytes, "TRASHED", now.toEpochMilli(), LocalDate.of(2026, 10, 28))
+            deletionDao.confirmDeletion(bytes, "TRASHED", now.toEpochMilli(), LocalDate.of(2026, 10, 28))
         } returns com.kllxx.memorylane.core.domain.model.DeletionOutcome(2, 300)
 
-        val outcome = repository.confirmDeletion(date, bytes, PhotoDecision.TRASHED)
+        val outcome = repository.confirmDeletion(bytes, PhotoDecision.TRASHED)
 
         assertEquals(com.kllxx.memorylane.core.domain.model.DeletionOutcome(2, 300), outcome)
     }

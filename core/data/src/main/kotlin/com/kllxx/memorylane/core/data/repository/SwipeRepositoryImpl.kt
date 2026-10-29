@@ -39,6 +39,9 @@ internal class SwipeRepositoryImpl @Inject constructor(
             .mapNotNull { row -> row.toDecisionOrNull()?.let { row.photoId to it } }
             .toMap()
 
+    override suspend fun getPendingDeletes(): Map<LocalDate, Set<Long>> =
+        photoDecisionDao.getPendingDeletes().groupBy({ it.sessionDate }, { it.photoId }).mapValues { it.value.toSet() }
+
     override suspend fun removeDecision(photoId: Long) = photoDecisionDao.deleteById(photoId)
 
     override suspend fun setDecisions(photoIds: Collection<Long>, decision: PhotoDecision) {
@@ -46,8 +49,8 @@ internal class SwipeRepositoryImpl @Inject constructor(
         photoIds.chunked(SQL_VARIABLE_LIMIT).forEach { photoDecisionDao.updateDecisions(it, decision.name, now) }
     }
 
-    override suspend fun confirmDeletion(date: LocalDate, bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome =
-        deletionDao.confirmDeletion(date, bytesById, decision.name, clock.millis(), LocalDate.now(clock))
+    override suspend fun confirmDeletion(bytesById: Map<Long, Long>, decision: PhotoDecision): DeletionOutcome =
+        deletionDao.confirmDeletion(bytesById, decision.name, clock.millis(), LocalDate.now(clock))
 
     override suspend fun saveSession(session: SwipeSession) =
         swipeSessionDao.insert(session.toEntity())

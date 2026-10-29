@@ -22,6 +22,7 @@ import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteState
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteCell
 import com.kllxx.memorylane.feature.swipe.impl.swipe.ui.uriOf
 import kotlinx.collections.immutable.toImmutableList
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -38,13 +39,14 @@ class BeforeDeleteContentTest {
     val composeRule = createComposeRule()
 
     private fun cells(vararg sizes: Long) =
-        sizes.mapIndexed { index, size -> DeleteCell(index + 1L, uriOf(index + 1L), size, marked = true) }
+        sizes.mapIndexed { index, size -> DeleteCell(index + 1L, uriOf(index + 1L), size, marked = true, date = LocalDate.of(2015, 1, 15)) }
 
     private fun initial(vararg sizes: Long, deleting: Boolean = false, dialog: Boolean = false) = BeforeDeleteState(
         isLoading = false,
         cells = cells(*sizes).toImmutableList(),
         isDeleting = deleting,
         showPermanentDialog = dialog,
+        currentDate = LocalDate.of(2015, 1, 15),
     )
 
     private val intents = mutableListOf<BeforeDeleteIntent>()
@@ -109,6 +111,40 @@ class BeforeDeleteContentTest {
         show(initial(150_000_000, deleting = true))
 
         composeRule.onNodeWithTag(BeforeDeleteTags.cell(1)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `marks of earlier days are grouped under a header after the current day`() {
+        val current = LocalDate.of(2015, 1, 15)
+        val earlier = LocalDate.of(2014, 1, 15)
+        val cells = listOf(
+            DeleteCell(1, uriOf(1), 100, marked = true, date = earlier),
+            DeleteCell(2, uriOf(2), 100, marked = true, date = current),
+        )
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDate = current))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(earlier)).assertTextEquals("Отмечено ранее · 15 января")
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(current)).assertTextEquals("15 января")
+        val currentTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(2)).getUnclippedBoundsInRoot().top
+        val earlierTop = composeRule.onNodeWithTag(BeforeDeleteTags.cell(1)).getUnclippedBoundsInRoot().top
+        assertTrue("the current day comes first", currentTop < earlierTop)
+    }
+
+    @Test
+    fun `an earlier day alone still says it was marked earlier`() {
+        val current = LocalDate.of(2015, 1, 15)
+        val earlier = LocalDate.of(2014, 1, 15)
+        val cells = listOf(DeleteCell(1, uriOf(1), 100, marked = true, date = earlier))
+        show(BeforeDeleteState(isLoading = false, cells = cells.toImmutableList(), currentDate = current))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(earlier)).assertTextEquals("Отмечено ранее · 15 января")
+    }
+
+    @Test
+    fun `a single day has no header`() {
+        show(initial(100))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.groupHeader(LocalDate.of(2015, 1, 15))).assertDoesNotExist()
     }
 
     // --- the text and the button ---

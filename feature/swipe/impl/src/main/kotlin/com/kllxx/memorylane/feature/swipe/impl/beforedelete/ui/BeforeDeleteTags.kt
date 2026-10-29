@@ -10,4 +10,6 @@ object BeforeDeleteTags {
     const val DIALOG_DISMISS = "before_delete_dialog_dismiss"
 
     fun cell(photoId: Long) = "before_delete_cell_$photoId"
+
+    fun groupHeader(date: java.time.LocalDate) = "before_delete_group_$date"
 }

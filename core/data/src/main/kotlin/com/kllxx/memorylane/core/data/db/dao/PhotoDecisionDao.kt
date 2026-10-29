@@ -18,6 +18,9 @@ interface PhotoDecisionDao {
     @Query("SELECT * FROM photo_decisions WHERE sessionDate = :date")
     suspend fun getByDate(date: LocalDate): List<PhotoDecisionEntity>
 
+    @Query("SELECT * FROM photo_decisions WHERE decision = 'DELETE'")
+    suspend fun getPendingDeletes(): List<PhotoDecisionEntity>
+
     @Query("SELECT * FROM photo_decisions WHERE photoId = :photoId")
     suspend fun getById(photoId: Long): PhotoDecisionEntity?
 
