@@ -54,13 +54,14 @@ internal fun SwipeTopBar(
             .fillMaxWidth()
             .heightIn(min = SwipeLayout.TopBarHeight)
             .padding(horizontal = SwipeLayout.TopBarGutter),
-        verticalAlignment = Alignment.Top,
+        // The text block and the button share one centre, whatever the font size makes of the bar's height
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val density = LocalDensity.current
         val dateHeight = with(density) { DateLineHeight.toDp() }
         val locationHeight = with(density) { LocationLineHeight.toDp() }
-        Column(modifier = Modifier.weight(1f).padding(top = 4.dp, bottom = 4.dp)) {
+        Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp).testTag(SwipeTags.TOP_BAR_TEXT)) {
             Box(modifier = Modifier.height(dateHeight), contentAlignment = Alignment.CenterStart) {
                 if (!dateText.isNullOrEmpty()) {
                     Text(
@@ -100,7 +101,6 @@ internal fun SwipeTopBar(
         }
         Box(
             modifier = Modifier
-                .padding(top = 8.dp)
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)

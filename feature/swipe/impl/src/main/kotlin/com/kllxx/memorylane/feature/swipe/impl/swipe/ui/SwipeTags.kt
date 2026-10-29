@@ -4,6 +4,7 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 object SwipeTags {
     const val CARD = "swipe_card"
     const val ACTIONS_CARD = "swipe_actions_card"
+    const val TOP_BAR_TEXT = "swipe_top_bar_text"
     const val TOP_BAR_DATE = "swipe_date"
     const val TOP_BAR_LOCATION = "swipe_location"
     const val CLOSE = "swipe_close"
