@@ -20,6 +20,7 @@ sealed interface ProfileIntent {
     data object DismissTimePicker : ProfileIntent
     data class ConfirmTime(val time: LocalTime) : ProfileIntent
     data class SelectTheme(val mode: ThemeMode) : ProfileIntent
+    data class SwipeButtonsToggled(val on: Boolean) : ProfileIntent
     data object ReplayOnboardingClicked : ProfileIntent
     data object ContactSupportClicked : ProfileIntent
 }

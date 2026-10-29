@@ -31,6 +31,7 @@ object ProfileReducer {
         is ProfileIntent.ConfirmTime -> state.copy(isTimePickerVisible = false, reminderTime = intent.time)
         is ProfileIntent.SelectGoal -> state.copy(goal = intent.goal)
         is ProfileIntent.SelectTheme -> state.copy(themeMode = intent.mode)
+        is ProfileIntent.SwipeButtonsToggled -> state.copy(swipeButtonsEnabled = intent.on)
         ProfileIntent.ReplayOnboardingClicked,
         ProfileIntent.ContactSupportClicked -> state
     }
@@ -50,6 +51,7 @@ object ProfileReducer {
 
     private fun ProfileState.Content.withSettings(settings: AppSettings) = copy(
         themeMode = settings.themeMode,
+        swipeButtonsEnabled = settings.swipeButtonsEnabled,
         userNotificationsEnabled = settings.notificationsEnabled,
         goal = settings.streakGoal,
         reminderTime = settings.reminderTime,

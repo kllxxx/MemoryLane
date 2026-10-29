@@ -29,6 +29,10 @@
     <string name="profile_time_picker_confirm">Готово</string>
     <string name="profile_time_picker_cancel">Отмена</string>
 
+    <string name="profile_section_review">Разбор фото</string>
+    <string name="profile_buttons_mode_title">Кнопки на экране свайпа</string>
+    <string name="profile_buttons_mode_subtitle">Показывать ✕ и ✓ на фото вместо одних свайпов</string>
+
     <string name="profile_section_appearance">Оформление</string>
     <string name="profile_theme_title">Тема</string>
     <string name="profile_theme_subtitle">По умолчанию — тёмная</string>

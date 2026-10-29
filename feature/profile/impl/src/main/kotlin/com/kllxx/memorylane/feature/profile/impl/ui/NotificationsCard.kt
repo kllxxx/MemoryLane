@@ -31,6 +31,13 @@ internal const val REMINDER_TIME_ROW_TAG = "reminder-time-row"
 private val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
+internal fun settingsSwitchColors() = SwitchDefaults.colors(
+    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    uncheckedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+    uncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+)
+
+@Composable
 internal fun NotificationsCard(
     state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
@@ -47,11 +54,7 @@ internal fun NotificationsCard(
                 Switch(
                     checked = state.notificationsOn,
                     onCheckedChange = { onIntent(ProfileIntent.NotificationsToggled(it)) },
-                    colors = SwitchDefaults.colors(
-                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        uncheckedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                        uncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    ),
+                    colors = settingsSwitchColors(),
                     modifier = Modifier.testTag(NOTIFICATIONS_SWITCH_TAG),
                 )
             },

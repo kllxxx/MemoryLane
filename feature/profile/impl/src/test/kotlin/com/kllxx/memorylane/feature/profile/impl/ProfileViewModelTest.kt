@@ -147,6 +147,59 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun `SwipeButtonsToggled updates the state and stores the setting`() = runTest(dispatcher) {
+        assertFalse(content.swipeButtonsEnabled)
+
+        viewModel.onIntent(ProfileIntent.SwipeButtonsToggled(true))
+        assertTrue(content.swipeButtonsEnabled)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.setSwipeButtonsEnabled(true) }
+
+        viewModel.onIntent(ProfileIntent.SwipeButtonsToggled(false))
+        advanceUntilIdle()
+
+        assertFalse(content.swipeButtonsEnabled)
+        coVerify(exactly = 1) { repository.setSwipeButtonsEnabled(false) }
+    }
+
+    @Test
+    fun `the stored buttons mode is shown`() = runTest(dispatcher) {
+        settings.value = AppSettings(swipeButtonsEnabled = true)
+        advanceUntilIdle()
+
+        assertTrue(content.swipeButtonsEnabled)
+    }
+
+    @Test
+    fun `the buttons mode changed on the Swipe screen shows up here without a write`() = runTest(dispatcher) {
+        // The Swipe screen writes the same setting, so the shared settings flow reports it
+        settings.value = AppSettings(swipeButtonsEnabled = true)
+        advanceUntilIdle()
+        assertTrue(content.swipeButtonsEnabled)
+
+        settings.value = AppSettings(swipeButtonsEnabled = false)
+        advanceUntilIdle()
+
+        assertFalse(content.swipeButtonsEnabled)
+        coVerify(exactly = 0) { repository.setSwipeButtonsEnabled(any()) }
+    }
+
+    @Test
+    fun `a failed write of the buttons mode puts the stored one back`() = runTest(dispatcher) {
+        coEvery { repository.setSwipeButtonsEnabled(any()) } throws java.io.IOException("disk full")
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.SwipeButtonsToggled(true))
+            assertTrue(content.swipeButtonsEnabled)
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+            assertFalse(content.swipeButtonsEnabled)
+        }
+    }
+
+    @Test
     fun `time picker opens, dismisses and confirms with a stored time`() = runTest(dispatcher) {
         viewModel.onIntent(ProfileIntent.OpenTimePicker)
         assertTrue(content.isTimePickerVisible)

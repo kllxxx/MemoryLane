@@ -5,7 +5,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -126,6 +132,59 @@ class ProfileContentTest {
             listOf(ProfileIntent.ReplayOnboardingClicked, ProfileIntent.ContactSupportClicked),
             intents,
         )
+    }
+
+    @Test
+    fun `the buttons row is a switch that is off by default`() {
+        setContent(ProfileState.Content(swipeButtonsEnabled = false))
+
+        val row = composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).performScrollTo()
+        row.assertIsOff()
+        row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
+        composeRule.onNodeWithTag(BUTTONS_MODE_SWITCH_TAG, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `the buttons row shows the setting that is on`() {
+        setContent(ProfileState.Content(swipeButtonsEnabled = true))
+
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).performScrollTo().assertIsOn()
+        composeRule.onNodeWithTag(BUTTONS_MODE_SWITCH_TAG, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `a tap anywhere on the buttons row toggles it and sends the intent`() {
+        setContent(ProfileState.Content(swipeButtonsEnabled = false))
+
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).performScrollTo().performClick()
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).assertIsOn()
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).performClick()
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).assertIsOff()
+
+        assertEquals(
+            listOf<ProfileIntent>(ProfileIntent.SwipeButtonsToggled(true), ProfileIntent.SwipeButtonsToggled(false)),
+            intents,
+        )
+    }
+
+    @Test
+    fun `the review section sits between notifications and appearance with its texts`() {
+        setContent(ProfileState.Content())
+
+        composeRule.onNodeWithText("РАЗБОР ФОТО").performScrollTo().assertExists()
+        composeRule.onNodeWithText("Кнопки на экране свайпа").assertExists()
+        composeRule.onNodeWithText("Показывать ✕ и ✓ на фото вместо одних свайпов").assertExists()
+        val notifications = composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).getUnclippedBoundsInRoot().bottom
+        val review = composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).getUnclippedBoundsInRoot().top
+        val appearance = composeRule.onNodeWithTag(themeSegmentTag(ThemeMode.Dark)).getUnclippedBoundsInRoot().top
+        assertTrue(notifications < review && review < appearance)
+    }
+
+    @Test
+    fun `the buttons row also renders in the dark theme`() {
+        setContent(ProfileState.Content(swipeButtonsEnabled = true), themeMode = ThemeMode.Dark)
+
+        composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).performScrollTo().assertIsOn()
     }
 
     @Test

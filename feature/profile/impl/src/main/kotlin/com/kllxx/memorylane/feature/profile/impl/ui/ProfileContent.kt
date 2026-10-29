@@ -66,6 +66,8 @@ internal fun ProfileContent(
                     StreakGoalCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_notifications))
                     NotificationsCard(state, onIntent)
+                    SectionHeader(stringResource(R.string.profile_section_review))
+                    ReviewCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_appearance))
                     ThemeCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_about))

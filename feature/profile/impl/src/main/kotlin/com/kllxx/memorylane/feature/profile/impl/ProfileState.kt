@@ -20,6 +20,8 @@ sealed interface ProfileState {
         val permissionRequested: Boolean = false,
         val reminderTime: LocalTime = LocalTime.of(20, 0),
         val themeMode: ThemeMode = ThemeMode.Dark,
+        /** The ✕ and ✓ buttons on the Swipe screen; the setting the Swipe screen shows as its «Кнопки» action. */
+        val swipeButtonsEnabled: Boolean = false,
         val versionName: String = "",
         val isTimePickerVisible: Boolean = false,
     ) : ProfileState {

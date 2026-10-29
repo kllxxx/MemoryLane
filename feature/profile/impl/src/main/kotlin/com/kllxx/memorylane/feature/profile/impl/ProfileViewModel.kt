@@ -69,6 +69,7 @@ class ProfileViewModel @Inject constructor(
             is ProfileIntent.PermissionResult,
             is ProfileIntent.SelectGoal,
             is ProfileIntent.SelectTheme,
+            is ProfileIntent.SwipeButtonsToggled,
             is ProfileIntent.ConfirmTime,
             ProfileIntent.OpenTimePicker,
             ProfileIntent.DismissTimePicker -> Unit
@@ -93,6 +94,9 @@ class ProfileViewModel @Inject constructor(
     private fun persistChanges(before: ProfileState.Content, after: ProfileState.Content) {
         if (after.goal != before.goal) persist("streak goal") { appSettingsRepository.setStreakGoal(after.goal) }
         if (after.themeMode != before.themeMode) persist("theme") { appSettingsRepository.setThemeMode(after.themeMode) }
+        if (after.swipeButtonsEnabled != before.swipeButtonsEnabled) {
+            persist("swipe buttons") { appSettingsRepository.setSwipeButtonsEnabled(after.swipeButtonsEnabled) }
+        }
         if (after.userNotificationsEnabled != before.userNotificationsEnabled) {
             persist("notifications") { appSettingsRepository.setNotificationsEnabled(after.userNotificationsEnabled) }
         }
