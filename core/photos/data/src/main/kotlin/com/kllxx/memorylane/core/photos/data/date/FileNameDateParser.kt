@@ -15,8 +15,9 @@ import java.time.ZoneOffset
  * 1. the start of the name: a known prefix needs a date, a plain name needs a date and a time;
  * 2. a date and a time anywhere in the name, `2016-01-07_10-15-00` (the separators of the time are optional);
  * 3. a compact `20160107_101500` anywhere in the name;
- * 4. a Unix timestamp of 10 digits (seconds) or 13 digits (milliseconds) standing alone between non-alphanumerics;
- *    it is a moment in UTC.
+ * 4. a Unix timestamp, which is a moment in UTC: 10 digits (seconds) only when they are the whole name without the
+ *    extension (`1452191711.jpg`), since a 10-digit number inside a longer name is usually an ID (`vk_1452191711_photo.jpg`);
+ *    13 digits (milliseconds) anywhere, standing alone between non-alphanumerics.
  * A date without a time counts only at the start of the name behind a known prefix, which keeps ordinary numbers from
  * being read as dates. Plausibility (not before 1990, not in the future) is the caller's decision, so it can go on to
  * the next candidate.
@@ -29,7 +30,8 @@ internal object FileNameDateParser {
     )
     private val dashed = Regex("""(?<!\d)(\d{4})-(\d{2})-(\d{2})[_ T-](\d{2})[-.:]?(\d{2})[-.:]?(\d{2})(?!\d)""")
     private val compact = Regex("""(?<!\d)(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})(?!\d)""")
-    private val unixTimestamp = Regex("""(?<![\p{L}\p{N}])(\d{10}|\d{13})(?![\p{L}\p{N}])""")
+    private val secondsName = Regex("""^(\d{10})(?:\.[A-Za-z0-9]{1,5})?$""")
+    private val millisTimestamp = Regex("""(?<![\p{L}\p{N}])(\d{13})(?![\p{L}\p{N}])""")
 
     /** A name without a time gives noon, so that the day does not change with the time zone. */
     private val noon = LocalTime.NOON
@@ -79,10 +81,12 @@ internal object FileNameDateParser {
         }
     }
 
-    private fun timestamps(text: String): Sequence<FileNameDate> = unixTimestamp.findAll(text).map { match ->
-        val digits = match.value
-        val seconds = if (digits.length == 13) digits.toLong() / 1000 else digits.toLong()
-        FileNameDate(LocalDateTime.ofEpochSecond(seconds, 0, ZoneOffset.UTC), hasTime = true, offset = ZoneOffset.UTC)
+    private fun timestamps(text: String): Sequence<FileNameDate> {
+        val seconds = secondsName.find(text)?.let { sequenceOf(it.groupValues[1].toLong()) } ?: emptySequence()
+        val millis = millisTimestamp.findAll(text).map { it.value.toLong() / 1000 }
+        return (seconds + millis).map {
+            FileNameDate(LocalDateTime.ofEpochSecond(it, 0, ZoneOffset.UTC), hasTime = true, offset = ZoneOffset.UTC)
+        }
     }
 }
 

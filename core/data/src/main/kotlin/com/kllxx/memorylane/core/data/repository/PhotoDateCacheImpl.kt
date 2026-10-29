@@ -34,9 +34,9 @@ class PhotoDateCacheImpl @Inject constructor(
             .forEach { dao.deleteByIds(it) }
     }
 
-    override suspend fun forgetUndatedBefore(chainVersion: Int) {
+    override suspend fun forgetGuessedBefore(chainVersion: Int) {
         if ((settings.data.first()[DATE_CHAIN_VERSION] ?: 0) >= chainVersion) return
-        dao.deleteBySource(DateSource.UNDATED.name)
+        dao.deleteBySources(listOf(DateSource.UNDATED.name, DateSource.FILENAME.name))
         settings.edit { it[DATE_CHAIN_VERSION] = chainVersion }
     }
 

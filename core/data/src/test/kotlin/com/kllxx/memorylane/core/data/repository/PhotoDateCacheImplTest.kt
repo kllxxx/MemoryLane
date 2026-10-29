@@ -157,39 +157,39 @@ class PhotoDateCacheImplTest {
     }
 
     @Test
-    fun `forgetUndatedBefore drops the undated entries and keeps the dated ones`() = runTest {
+    fun `forgetGuessedBefore drops the undated and file-name entries and keeps the others`() = runTest {
         cache.putAll(listOf(entry(1, DateSource.UNDATED), entry(2, DateSource.EXIF), entry(3, DateSource.FILENAME), entry(4, DateSource.UNDATED)))
 
-        cache.forgetUndatedBefore(2)
+        cache.forgetGuessedBefore(3)
 
-        assertEquals(setOf(2L, 3L), cache.get(listOf(1, 2, 3, 4)).keys)
+        assertEquals(setOf(2L), cache.get(listOf(1, 2, 3, 4)).keys)
     }
 
     @Test
-    fun `forgetUndatedBefore runs once for a version`() = runTest {
-        cache.forgetUndatedBefore(2)
+    fun `forgetGuessedBefore runs once for a version`() = runTest {
+        cache.forgetGuessedBefore(3)
         cache.putAll(listOf(entry(1, DateSource.UNDATED)))
 
-        cache.forgetUndatedBefore(2)
+        cache.forgetGuessedBefore(3)
 
         assertEquals(setOf(1L), cache.get(listOf(1)).keys)
     }
 
     @Test
-    fun `forgetUndatedBefore runs again for a newer version`() = runTest {
-        cache.forgetUndatedBefore(2)
+    fun `forgetGuessedBefore runs again for a newer version`() = runTest {
+        cache.forgetGuessedBefore(3)
         cache.putAll(listOf(entry(1, DateSource.UNDATED)))
 
-        cache.forgetUndatedBefore(3)
+        cache.forgetGuessedBefore(4)
 
         assertTrue(cache.get(listOf(1)).isEmpty())
     }
 
     @Test
-    fun `forgetUndatedBefore remembers the version in the settings`() = runTest {
-        cache.forgetUndatedBefore(2)
+    fun `forgetGuessedBefore remembers the version in the settings`() = runTest {
+        cache.forgetGuessedBefore(3)
 
-        assertEquals(2, settings.data.first()[intPreferencesKey("date_chain_version")])
+        assertEquals(3, settings.data.first()[intPreferencesKey("date_chain_version")])
     }
 
     @Test
@@ -197,7 +197,7 @@ class PhotoDateCacheImplTest {
         settings.edit { it[intPreferencesKey("date_chain_version")] = 5 }
         cache.putAll(listOf(entry(1, DateSource.UNDATED)))
 
-        cache.forgetUndatedBefore(2)
+        cache.forgetGuessedBefore(3)
 
         assertEquals(setOf(1L), cache.get(listOf(1)).keys)
         assertEquals(5, settings.data.first()[intPreferencesKey("date_chain_version")])

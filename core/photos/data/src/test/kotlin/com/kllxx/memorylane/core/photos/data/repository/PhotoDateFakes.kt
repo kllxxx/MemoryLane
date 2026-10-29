@@ -43,12 +43,12 @@ internal class FakePhotoDateCache : PhotoDateCache {
         entries.keys.retainAll(ids)
     }
 
-    /** The newest chain version the undated entries were forgotten for. */
+    /** The newest chain version the guessed entries were forgotten for. */
     var forgottenFor = 0
 
-    override suspend fun forgetUndatedBefore(chainVersion: Int) {
+    override suspend fun forgetGuessedBefore(chainVersion: Int) {
         if (forgottenFor >= chainVersion) return
-        entries.values.removeAll { it.source == DateSource.UNDATED }
+        entries.values.removeAll { it.source == DateSource.UNDATED || it.source == DateSource.FILENAME }
         forgottenFor = chainVersion
     }
 }

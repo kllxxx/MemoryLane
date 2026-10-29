@@ -147,16 +147,49 @@ class FileNameDateParserTest {
     }
 
     @Test
+    fun `seconds count only as the whole name, with or without an extension`() {
+        val expected = LocalDateTime.of(2016, 1, 7, 18, 35, 11)
+        assertEquals(expected, parse("1452191711.jpg"))
+        assertEquals(expected, parse("1452191711.JPEG"))
+        assertEquals(expected, parse("1452191711.webp"))
+        assertEquals(expected, parse("1452191711"))
+        assertEquals(expected, parse("  1452191711.jpg "))
+    }
+
+    @Test
+    fun `a 10-digit number inside a longer name is an ID, not a date`() {
+        assertNull(parse("vk_1452191711_photo.jpg"))
+        assertNull(parse("IMG_1452191711.jpg"))
+        assertNull(parse("1452191711_1.jpg"))
+        assertNull(parse("1452191711 (2).jpg"))
+        assertNull(parse("photo 1452191711.jpg"))
+        assertNull(parse("1452191711.backup.jpg"))
+        assertNull(parse("1452191711-edit.png"))
+    }
+
+    @Test
+    fun `milliseconds count inside longer names, standing alone`() {
+        val expected = LocalDateTime.of(2016, 1, 7, 18, 35, 11)
+        assertEquals(expected, parse("vk_1452191711123_photo.jpg"))
+        assertEquals(expected, parse("1452191711123.jpg"))
+        assertEquals(expected, parse("photo 1452191711123 (2).jpg"))
+        assertNull(parse("vk1452191711123_photo.jpg"))
+        assertNull(parse("vk_14521917111234_photo.jpg"))
+    }
+
+    @Test
     fun `a timestamp inside a longer number or word is not read`() {
         assertNull(parse("x14521617001.jpg"))
         assertNull(parse("145216170.jpg"))
         assertNull(parse("a1452161700.jpg"))
         assertNull(parse("1452161700a.jpg"))
+        assertNull(parse("a1452161700123.jpg"))
+        assertNull(parse("1452161700123a.jpg"))
     }
 
     @Test
     fun `a timestamp is a candidate after the patterns with a date`() {
-        val names = FileNameDateParser.candidates("1452161700 2017-02-02_11-00-00.jpg").toList()
+        val names = FileNameDateParser.candidates("1452161700000 2017-02-02_11-00-00.jpg").toList()
 
         assertEquals(LocalDateTime.of(2017, 2, 2, 11, 0, 0), names[0].dateTime)
         assertEquals(LocalDateTime.of(2016, 1, 7, 10, 15, 0), names[1].dateTime)

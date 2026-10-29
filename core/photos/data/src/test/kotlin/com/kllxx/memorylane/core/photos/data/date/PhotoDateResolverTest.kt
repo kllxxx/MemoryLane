@@ -280,6 +280,14 @@ class PhotoDateResolverTest {
     }
 
     @Test
+    fun `an ID in a longer name stays undated, the same number as the whole name is a date`() {
+        assertNull(resolver.resolve(photo("vk_1452191711_photo.jpg")))
+        assertNull(resolver.resolve(photo("IMG_1452191711.jpg")))
+        assertEquals(LocalDateTime.of(2016, 1, 7, 18, 35, 11), resolver.resolve(photo("1452191711.jpg"))!!.dateTime)
+        assertEquals(LocalDateTime.of(2016, 1, 7, 18, 35, 11), resolver.resolve(photo("vk_1452191711123_photo.jpg"))!!.dateTime)
+    }
+
+    @Test
     fun `an implausible Unix timestamp is not a date`() {
         assertNull(resolver.resolve(photo("8005551234.jpg")))        // 2223
         assertNull(resolver.resolve(photo("0631151999.jpg")))        // 31 Dec 1989 23:59:59 UTC

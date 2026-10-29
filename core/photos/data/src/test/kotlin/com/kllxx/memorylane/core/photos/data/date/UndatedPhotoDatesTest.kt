@@ -158,6 +158,22 @@ class UndatedPhotoDatesTest {
     }
 
     @Test
+    fun `a date cached from a file name by an older chain is read again and can turn undated`() = runTest {
+        val oldGuess = ResolvedDate(LocalDateTime.of(2016, 1, 7, 18, 35, 11), ZoneOffset.UTC, DateSource.FILENAME)
+        cache.entries[1] = oldGuess.toCached(photo(1, name = "vk_1452191711_photo.jpg"))
+        cache.entries[2] = oldGuess.toCached(photo(2, name = "1452191711.jpg"))
+
+        val lookup = dates.lookup(listOf(photo(1, name = "vk_1452191711_photo.jpg"), photo(2, name = "1452191711.jpg")))
+        val result = dates.resolveMisses(lookup.misses)
+
+        assertTrue(lookup.dates.isEmpty())
+        assertEquals(listOf(1L, 2L), lookup.misses.map { it.id })
+        assertEquals(setOf(2L), result.dates.keys)
+        assertEquals(DateSource.UNDATED, cache.entries.getValue(1).source)
+        assertEquals(DateSource.FILENAME, cache.entries.getValue(2).source)
+    }
+
+    @Test
     fun `a photo that is still undated stays cached as undated after the reset ran`() = runTest {
         cache.entries[1] = ResolvedDate.undatedToCached(photo(1))
         resolveAll(listOf(photo(1, name = "photo.jpg")))

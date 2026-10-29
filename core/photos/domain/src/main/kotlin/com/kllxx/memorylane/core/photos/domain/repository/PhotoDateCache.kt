@@ -17,8 +17,9 @@ interface PhotoDateCache {
     suspend fun retainOnly(ids: Set<Long>)
 
     /**
-     * Forgets the photos found to have no date, once for each [chainVersion] of the date chain: a newer chain may know
-     * a source the older one did not. Entries with a date are kept. Does nothing when this version already ran.
+     * Forgets what the date chain only guessed, once for each [chainVersion] of the chain: the photos found to have no
+     * date (a newer chain may know a source the older one did not) and the dates taken from a file name (a newer chain
+     * may read names more strictly). Dates from EXIF, GPS and XMP are kept. Does nothing when this version already ran.
      */
-    suspend fun forgetUndatedBefore(chainVersion: Int)
+    suspend fun forgetGuessedBefore(chainVersion: Int)
 }

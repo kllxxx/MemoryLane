@@ -91,17 +91,18 @@ class PhotoDateCacheDaoTest {
     }
 
     @Test
-    fun `rows are deleted by source`() = runTest {
+    fun `rows are deleted by sources`() = runTest {
         dao.upsertAll(
             listOf(
                 entity(1, seconds = null, offset = null, source = "UNDATED"),
                 entity(2),
                 entity(3, source = "GPS"),
                 entity(4, seconds = null, offset = null, source = "UNDATED"),
+                entity(5, source = "FILENAME"),
             ),
         )
 
-        dao.deleteBySource("UNDATED")
+        dao.deleteBySources(listOf("UNDATED", "FILENAME"))
 
         assertEquals(listOf(2L, 3L), dao.allIds().sorted())
     }
@@ -110,7 +111,7 @@ class PhotoDateCacheDaoTest {
     fun `deleting a source nobody has changes nothing`() = runTest {
         dao.upsertAll(listOf(entity(1)))
 
-        dao.deleteBySource("XMP")
+        dao.deleteBySources(listOf("XMP"))
 
         assertEquals(listOf(1L), dao.allIds())
     }

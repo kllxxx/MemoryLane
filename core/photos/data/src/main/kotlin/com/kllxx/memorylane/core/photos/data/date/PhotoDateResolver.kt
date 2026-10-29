@@ -59,10 +59,10 @@ internal class PhotoDateResolver(
 
     companion object {
         /**
-         * The version of this chain. Photos found to have no date are remembered as such; when the chain learns a new
-         * source this goes up and those are looked at again, once. Photos with a cached date keep it.
+         * The version of this chain. Photos found to have no date, and dates guessed from a file name, are remembered; when the chain learns a new source or reads names more strictly
+         * this goes up and those are looked at again, once. Dates from EXIF, GPS and XMP are kept.
          */
-        const val DATE_CHAIN_VERSION = 2
+        const val DATE_CHAIN_VERSION = 3
 
         /** Nothing in a phone gallery is older; a smaller year is a camera clock that was never set. */
         private val EARLIEST: LocalDate = LocalDate.of(1990, 1, 1)

@@ -57,7 +57,7 @@ internal class UndatedPhotoDates(
 
     /** What the cache knows. Entries of photos that are no longer undated (deleted, or dated by MediaStore now) are dropped. */
     suspend fun lookup(photos: List<UndatedPhoto>): CacheLookup {
-        cache.forgetUndatedBefore(PhotoDateResolver.DATE_CHAIN_VERSION)
+        cache.forgetGuessedBefore(PhotoDateResolver.DATE_CHAIN_VERSION)
         val cached = cache.get(photos.map { it.id })
         val dates = HashMap<Long, ResolvedDate>()
         val misses = ArrayList<UndatedPhoto>()
