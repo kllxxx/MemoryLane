@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,14 +32,16 @@ import androidx.compose.ui.unit.sp
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.swipe.impl.R
 
-// The line heights of the date and of the place, in sp: they grow with the font size, so the text is never clipped,
-// and they are the same for every photo, so the card below never jumps
+// The line heights of the date and of the place, in sp: they grow with the font size, so the text is never clipped
 private val DateLineHeight = 25.sp
 private val LocationLineHeight = 18.sp
+private val TextPadding = 4.dp
+private val TextGap = 3.dp
 
 /**
- * The date and the place of the photo on top, and the close button. The height is the same for every photo (at least
- * 64dp, more for a large font), so the card below never jumps: a photo without a place leaves its row empty.
+ * The date and the place of the photo on top, and the close button. The bar is as high as the date and the place
+ * together need (at least 56dp), the same for every photo, so the card below never moves. Inside it the text column
+ * holds only what is shown, so a photo without a place has the date alone, and the column is centred on the button.
  */
 @Composable
 internal fun SwipeTopBar(
@@ -49,36 +50,36 @@ internal fun SwipeTopBar(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val density = LocalDensity.current
+    val dateHeight = with(density) { DateLineHeight.toDp() }
+    val locationHeight = with(density) { LocationLineHeight.toDp() }
+    val barHeight = maxOf(SwipeLayout.TopBarHeight, TextPadding * 2 + dateHeight + TextGap + locationHeight)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = SwipeLayout.TopBarHeight)
+            .height(barHeight)
             .padding(horizontal = SwipeLayout.TopBarGutter),
-        // The text block and the button share one centre, whatever the font size makes of the bar's height
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        val density = LocalDensity.current
-        val dateHeight = with(density) { DateLineHeight.toDp() }
-        val locationHeight = with(density) { LocationLineHeight.toDp() }
-        Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp).testTag(SwipeTags.TOP_BAR_TEXT)) {
-            Box(modifier = Modifier.height(dateHeight), contentAlignment = Alignment.CenterStart) {
-                if (!dateText.isNullOrEmpty()) {
-                    Text(
-                        text = dateText,
-                        modifier = Modifier.testTag(SwipeTags.TOP_BAR_DATE),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 18.sp,
-                        lineHeight = DateLineHeight,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+        Column(modifier = Modifier.weight(1f).testTag(SwipeTags.TOP_BAR_TEXT)) {
+            if (!dateText.isNullOrEmpty()) {
+                Text(
+                    text = dateText,
+                    modifier = Modifier.testTag(SwipeTags.TOP_BAR_DATE),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 18.sp,
+                    lineHeight = DateLineHeight,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Spacer(Modifier.height(3.dp))
-            Row(modifier = Modifier.height(locationHeight), verticalAlignment = Alignment.CenterVertically) {
-                if (!location.isNullOrEmpty()) {
+            if (!location.isNullOrEmpty()) {
+                Row(
+                    modifier = Modifier.padding(top = TextGap).height(locationHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(
                         painter = painterResource(UiR.drawable.ic_location_on),
                         contentDescription = stringResource(R.string.swipe_location_icon),
