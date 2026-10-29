@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.mapper
 
+import com.kllxx.memorylane.core.domain.format.formatTakenAt
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.feature.swipe.impl.swipe.DeckPhoto

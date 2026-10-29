@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <plurals name="calendar_streak_days">
-        <item quantity="one">%d день</item>
-        <item quantity="few">%d дня</item>
-        <item quantity="many">%d дней</item>
-        <item quantity="other">%d дня</item>
-    </plurals>
-    <string name="calendar_empty_title">Пока нет фото</string>
-    <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
     <plurals name="before_delete_description">
         <item quantity="one">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
         <item quantity="few">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
@@ -37,11 +29,5 @@
         <item quantity="few">Текущий стрик: %d дня</item>
         <item quantity="many">Текущий стрик: %d дней</item>
         <item quantity="other">Текущий стрик: %d дня</item>
-    </plurals>
-    <plurals name="calendar_today_photos">
-        <item quantity="one">%d фото</item>
-        <item quantity="few">%d фото</item>
-        <item quantity="many">%d фото</item>
-        <item quantity="other">%d фото</item>
     </plurals>
 </resources>

@@ -30,8 +30,10 @@ All processing is local — no network, no cloud, no uploads.
 :app                        — entry point, DI setup, bottom navigation
 :feature:onboarding:api       — onboarding route
 :feature:onboarding:impl      — onboarding screens
-:feature:swipe:api          — swipe/calendar/review routes and contracts
-:feature:swipe:impl         — ViewModel, Composables, MVI implementation
+:feature:calendar:api       — calendar route (CalendarRoute)
+:feature:calendar:impl      — Calendar tab: month list, today banner, scroll anchor, MVI
+:feature:swipe:api          — swipe, review and result routes and contracts
+:feature:swipe:impl         — Swipe, Перед удалением and Итоги: ViewModel, Composables, MVI implementation
 :feature:achievements:api  — achievements route
 :feature:achievements:impl — streak, freed space stats, MVI
 :feature:profile:api       — profile route
@@ -39,7 +41,7 @@ All processing is local — no network, no cloud, no uploads.
 :core:photos:domain         — repository interfaces, photo domain models
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
-:core:domain                — repository interfaces, domain models
+:core:domain                — repository interfaces, domain models, shared formatters (date, size)
 :core:common                — PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
 :lib:lazycardstack          — vendored Tinder-style card stack library
@@ -48,7 +50,7 @@ All processing is local — no network, no cloud, no uploads.
 
 `:app` depends on all `:impl` modules. Features depend only on `:api` modules of other features and core. Features never depend on each other's `:impl`.
 
-Each feature module depends only on :core:\* modules. Features never depend on each other.
+Each feature module depends only on :core:\* modules and its own :api. Features never depend on each other: a feature reaches another one through a callback that :app wires with the other feature's route (Calendar → Swipe, Swipe → Calendar, Achievements → Calendar). Code that two features need goes to a :core module.
 
 ## Architecture and Patterns
 
@@ -96,7 +98,7 @@ Each prefix has its own independent counter:
 Current counters (update as you go):
 - feat: last used MMLN-28
 - fix: last used MMLN-21
-- refactor: last used MMLN-06
+- refactor: last used MMLN-07
 
 **Commit format (Conventional Commits):**
 

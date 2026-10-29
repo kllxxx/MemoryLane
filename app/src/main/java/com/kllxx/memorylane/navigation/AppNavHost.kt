@@ -22,6 +22,8 @@ import com.kllxx.memorylane.R
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsScreen
+import com.kllxx.memorylane.feature.calendar.api.CalendarRoute
+import com.kllxx.memorylane.feature.calendar.impl.CalendarScreen
 import com.kllxx.memorylane.feature.onboarding.api.OnboardingRoute
 import com.kllxx.memorylane.feature.onboarding.impl.OnboardingScreen
 import com.kllxx.memorylane.feature.profile.api.ProfileRoute
@@ -32,7 +34,6 @@ import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteScreen
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultScreen
-import com.kllxx.memorylane.feature.swipe.impl.calendar.CalendarScreen
 import java.time.LocalDate
 import kotlin.reflect.KClass
 import kotlinx.coroutines.flow.Flow

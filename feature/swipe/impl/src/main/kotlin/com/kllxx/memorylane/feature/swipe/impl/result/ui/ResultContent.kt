@@ -41,7 +41,7 @@ import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultIntent
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultState
-import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.formatDayMonth
+import com.kllxx.memorylane.core.domain.format.formatDayMonth
 import java.util.Locale
 
 private val CardShape = RoundedCornerShape(16.dp)

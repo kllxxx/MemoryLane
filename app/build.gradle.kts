@@ -71,6 +71,8 @@ dependencies {
 
     implementation(project(":feature:onboarding:impl"))
     implementation(project(":feature:onboarding:api"))
+    implementation(project(":feature:calendar:impl"))
+    implementation(project(":feature:calendar:api"))
     implementation(project(":feature:swipe:impl"))
     implementation(project(":feature:achievements:impl"))
     implementation(project(":feature:profile:impl"))

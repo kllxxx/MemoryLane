@@ -14,7 +14,7 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
-import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.formatTakenAt
+import com.kllxx.memorylane.core.domain.format.formatTakenAt
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every

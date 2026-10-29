@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import com.kllxx.memorylane.R
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
+import com.kllxx.memorylane.feature.calendar.api.CalendarRoute
 import com.kllxx.memorylane.feature.profile.api.ProfileRoute
 import org.junit.Rule
 import org.junit.Test

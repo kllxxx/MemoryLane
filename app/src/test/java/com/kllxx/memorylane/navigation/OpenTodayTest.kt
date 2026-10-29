@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
+import com.kllxx.memorylane.feature.calendar.api.CalendarRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
