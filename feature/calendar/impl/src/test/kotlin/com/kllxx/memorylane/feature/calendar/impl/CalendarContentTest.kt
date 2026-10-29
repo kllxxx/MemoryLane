@@ -17,6 +17,7 @@ import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.feature.calendar.impl.R
 import com.kllxx.memorylane.feature.calendar.impl.ui.CalendarContent
 import com.kllxx.memorylane.feature.calendar.impl.ui.EMPTY_STATE_TAG
+import com.kllxx.memorylane.feature.calendar.impl.ui.UNDATED_BANNER_TAG
 import com.kllxx.memorylane.feature.calendar.impl.ui.WEEKDAY_HEADER_TAG
 import com.kllxx.memorylane.feature.calendar.impl.ui.dayTestTag
 import com.kllxx.memorylane.feature.calendar.impl.ui.sortedTestTag
@@ -143,6 +144,33 @@ class CalendarContentTest {
         composeRule.onNodeWithTag(WEEKDAY_HEADER_TAG).assertDoesNotExist()
     }
 
+
+    @Test
+    fun `an empty gallery with photos that have no date says there are none from earlier years`() {
+        show(baseState().copy(phase = CalendarPhase.Empty, undatedBanner = UndatedBanner(3)))
+
+        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_body)).assertIsDisplayed()
+        composeRule.onNodeWithText("Пока нет фото", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun `an empty gallery with no photos at all keeps Пока нет фото and has no banner`() {
+        show(baseState().copy(phase = CalendarPhase.Empty, undatedBanner = null))
+
+        composeRule.onNodeWithText("Пока нет фото").assertIsDisplayed()
+        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertDoesNotExist()
+        composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a gallery with photos from earlier years never says there are none`() {
+        show(baseState().copy(undatedBanner = UndatedBanner(3)))
+
+        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertDoesNotExist()
+        composeRule.onNodeWithText("Пока нет фото").assertDoesNotExist()
+    }
     @Test
     fun `a list started on the current month shows it and not January`() {
         show()

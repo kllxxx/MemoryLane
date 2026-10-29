@@ -17,6 +17,8 @@ import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import io.mockk.coEvery
+import io.mockk.every
+import kotlinx.coroutines.flow.MutableStateFlow
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
@@ -80,6 +82,7 @@ private class FakeSwipeRepository(
 
     override suspend fun adoptUndatedDecisions(photoIds: Collection<Long>, date: LocalDate) {
         adopted += photoIds to date
+        photoIds.filter { days[it] == DeckKey.Undated }.forEach { days[it] = DeckKey.Day(date) }
     }
 
     override suspend fun removeDecision(photoId: Long) {
@@ -141,6 +144,9 @@ class BeforeDeleteViewModelTest {
             date,
         )
         photoRepository = mockk()
+        every { photoRepository.hasMediaPermission() } returns true
+        every { photoRepository.onThisDayIndex } returns MutableStateFlow(null)
+        coEvery { photoRepository.getPhotoDates(any()) } returns emptyMap()
         coEvery { photoRepository.getPhotosForDate(date) } answers { photos }
         coEvery { photoRepository.getPhotoSizes(any()) } answers { photos.associate { it.id to it.sizeBytes } }
         coEvery { photoRepository.deletePhotos(any()) } returns DeleteResult.RequiresConfirmation(sender)
@@ -486,6 +492,62 @@ class BeforeDeleteViewModelTest {
             )
         }
         assertTrue(swipeRepository.sessions.isEmpty())
+    }
+
+    // --- a photo that was marked in the undated deck and got a date ---
+
+    private val gotDate = Photo(31, mockk<Uri>(relaxed = true), LocalDateTime.of(2014, 1, 15, 9, 0), sizeBytes = 31_000_000)
+
+    private fun givenMarkedUndatedPhotoThatGotADate() {
+        swipeRepository.decisions[31] = PhotoDecision.DELETE
+        swipeRepository.days[31] = DeckKey.Undated
+        // It is not in the undated deck any more: it is a photo of the day it was taken
+        coEvery { photoRepository.getUndatedPhotos() } returns emptyList()
+        coEvery { photoRepository.getPhotoDates(any()) } returns mapOf(31L to LocalDate.of(2014, 1, 15))
+        coEvery { photoRepository.getPhotosForDate(LocalDate.of(2014, 1, 15)) } returns listOf(gotDate)
+        coEvery { photoRepository.getPhotoSizes(any()) } answers { (photos + gotDate).associate { it.id to it.sizeBytes } }
+    }
+
+    @Test
+    fun `a photo marked in the undated deck that got a date shows up under its day without that day being opened`() = runTest(dispatcher) {
+        givenMarkedUndatedPhotoThatGotADate()
+
+        load()
+
+        assertEquals(listOf(1L, 2L, 31L), marked())
+        assertEquals(listOf(DeckKey.Day(date), DeckKey.Day(LocalDate.of(2014, 1, 15))), state.groups.map { it.deck })
+        assertEquals(listOf(31L), state.groups.last().cells.map { it.photoId })
+        assertEquals(DeckKey.Day(LocalDate.of(2014, 1, 15)), swipeRepository.days[31])
+        // Nothing was decided or removed on the way
+        assertTrue(swipeRepository.removed.isEmpty())
+        assertEquals(PhotoDecision.DELETE, swipeRepository.decisions[31])
+    }
+
+    @Test
+    fun `the mark that moved to its day is deleted with the others, in its own day`() = runTest(dispatcher) {
+        givenMarkedUndatedPhotoThatGotADate()
+        load()
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+            assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
+
+            send(BeforeDeleteIntent.SystemDeleteResult(confirmed = true))
+
+            awaitItem()
+        }
+        coVerify { photoRepository.deletePhotos(listOf(1L, 2L, 31L)) }
+        assertEquals(PhotoDecision.TRASHED, swipeRepository.decisions[31])
+        assertEquals(DeckKey.Day(LocalDate.of(2014, 1, 15)), swipeRepository.days[31])
+    }
+
+    @Test
+    fun `a failure to move the marks does not stop the screen`() = runTest(dispatcher) {
+        givenMarkedUndatedPhotoThatGotADate()
+        coEvery { photoRepository.getPhotoDates(any()) } throws IllegalStateException("db")
+
+        load()
+
+        assertEquals(listOf(1L, 2L), marked())
     }
 
     // --- nothing marked ---

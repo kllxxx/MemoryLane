@@ -390,6 +390,42 @@ internal class PhotoRepositoryImpl @Inject constructor(
             entry != null && entry.dateModified == photo.dateModified && ResolvedDate.fromCached(entry) == null
         }
     }
+
+    /** The day of each photo that has one: `DATE_TAKEN`, else the current date of the date chain; the others are left out. */
+    override suspend fun getPhotoDates(photoIds: Collection<Long>): Map<Long, LocalDate> = withContext(ioDispatcher) {
+        if (photoIds.isEmpty()) return@withContext emptyMap()
+        if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
+        val zone = ZoneId.systemDefault()
+        val distinct = photoIds.distinct()
+        val cached = distinct.chunked(SQL_VARIABLE_LIMIT).fold(emptyMap<Long, CachedPhotoDate>()) { all, chunk ->
+            all + dateCache.get(chunk)
+        }
+        buildMap {
+            distinct.chunked(SQL_VARIABLE_LIMIT).forEach { ids ->
+                val selection = "${MediaStore.Images.Media._ID} IN (${ids.joinToString(",") { "?" }})"
+                val args = ids.map { it.toString() }.toTypedArray()
+                resolver.query(COLLECTION_URI, CACHE_PROJECTION, selection, args, null)?.use {
+                    val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                    val takenColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
+                    val modifiedColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+                    while (it.moveToNext()) {
+                        val id = it.getLong(idColumn)
+                        // The ids are the key: a query answering with other rows must not add photos
+                        if (id !in ids) continue
+                        val taken = if (it.isNull(takenColumn)) 0L else it.getLong(takenColumn)
+                        if (taken > 0) {
+                            put(id, Instant.ofEpochMilli(taken).atZone(zone).toLocalDate())
+                            continue
+                        }
+                        // Only a current answer of the chain counts: the file may have changed since
+                        val modified = if (it.isNull(modifiedColumn)) 0L else it.getLong(modifiedColumn)
+                        val entry = cached[id]?.takeIf { entry -> entry.dateModified == modified }
+                        entry?.let(ResolvedDate::fromCached)?.let { date -> put(id, date.toLocalDate(zone)) }
+                    }
+                }
+            }
+        }
+    }
     /**
      * Starts the first scan of this process in the background when nothing has loaded the index yet, so that the files
      * of undated photos get read and cached even if the user never opens Calendar. Not awaited, and a failure is

@@ -42,6 +42,12 @@ internal const val UNDATED_BANNER_COUNT_TAG = "calendar-undated-banner-count"
 
 private val BannerShape = RoundedCornerShape(16.dp)
 
+internal fun bannerOverlineTag(tag: String) = "$tag-overline"
+
+internal fun bannerTitleTag(tag: String) = "$tag-title"
+
+internal fun bannerChevronTag(tag: String) = "$tag-chevron"
+
 /**
  * The banner of today: «28 ОКТЯБРЯ», «Сегодняшние фото» and how many photos there are. Pinned between the app bar and
  * the list; the item is 92dp high, the card 72dp with 8dp above it and 12dp below, as in the design.
@@ -74,7 +80,7 @@ internal fun UndatedBannerCard(
     modifier: Modifier = Modifier,
 ) {
     CalendarBannerCard(
-        overline = stringResource(R.string.calendar_undated_overline),
+        overline = null,
         title = stringResource(R.string.calendar_undated_title),
         countText = pluralStringResource(R.plurals.calendar_today_photos, count, count),
         onClick = onClick,
@@ -84,10 +90,13 @@ internal fun UndatedBannerCard(
     )
 }
 
-/** The one card of both banners: an overline and a title on the left, the count and a chevron on the right. */
+/**
+ * The one card of both banners: an optional [overline] above the title on the left, the count and a chevron on the right.
+ * Without an overline the title alone is centred on the same line as the trailing count and chevron.
+ */
 @Composable
 internal fun CalendarBannerCard(
-    overline: String,
+    overline: String?,
     title: String,
     countText: String,
     onClick: () -> Unit,
@@ -111,17 +120,21 @@ internal fun CalendarBannerCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = overline,
-                color = colors.onSurfaceVariant,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 0.88.sp,
-                maxLines = 1,
-            )
-            Spacer(Modifier.height(2.dp))
+            if (overline != null) {
+                Text(
+                    text = overline,
+                    modifier = Modifier.testTag(bannerOverlineTag(tag)),
+                    color = colors.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.88.sp,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp))
+            }
             Text(
                 text = title,
+                modifier = Modifier.testTag(bannerTitleTag(tag)),
                 color = colors.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -140,7 +153,7 @@ internal fun CalendarBannerCard(
         Icon(
             painter = painterResource(UiR.drawable.ic_chevron_right),
             contentDescription = null,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(24.dp).testTag(bannerChevronTag(tag)),
             tint = colors.primary,
         )
     }

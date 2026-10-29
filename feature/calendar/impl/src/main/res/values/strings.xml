@@ -13,9 +13,9 @@
     <string name="calendar_error_text">Не удалось загрузить фото</string>
     <string name="calendar_error_retry">Повторить</string>
     <string name="calendar_empty_title">Пока нет фото</string>
+    <string name="calendar_empty_title_undated">Пока нет фото из прошлых лет</string>
     <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
     <string name="calendar_today_title">Сегодняшние фото</string>
-    <string name="calendar_undated_overline">БЕЗ ДАТЫ</string>
     <string name="calendar_undated_title">Фото без даты</string>
     <plurals name="calendar_today_photos">
         <item quantity="one">%d фото</item>

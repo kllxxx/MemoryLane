@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -67,6 +68,8 @@ class CalendarViewModel @Inject constructor(
 
     // The rule of the banner of today, shared with the reminder
     private val photosToReview = PhotosToReview(photoRepository, swipeRepository)
+    // Moves the decisions of photos that got a date to their day
+    private val adoptDatedDecisions = AdoptDatedDecisions(photoRepository, swipeRepository)
     private var todayJob: Job? = null
     private var undatedJob: Job? = null
 
@@ -114,6 +117,7 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
                 refreshUndatedBanner(index)
+                adoptDatedDecisions(index)
                 refreshTodayBanner()
                 val months = yearGrid.withMemories(index, today)
                 onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
@@ -122,6 +126,22 @@ class CalendarViewModel @Inject constructor(
                     photos = index.totalPhotos,
                     days = index.entries.size,
                 )
+            }
+        }
+    }
+
+    /**
+     * A photo that was undated and has a date now takes its decision to its day, so a mark for deletion is a pending
+     * delete of that day at once. A day that is completed by it takes the banner of today away.
+     */
+    private fun adoptDatedDecisions(index: OnThisDayIndex) {
+        viewModelScope.launch {
+            try {
+                if (adoptDatedDecisions(index.undatedIds) > 0) refreshTodayBanner()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not move the decisions of the photos that got a date", e)
             }
         }
     }

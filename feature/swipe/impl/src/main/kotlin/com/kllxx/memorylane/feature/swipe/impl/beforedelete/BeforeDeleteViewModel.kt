@@ -19,6 +19,7 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -105,6 +106,8 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private fun load() = viewModelScope.launch {
         try {
+            // A photo that was marked in the undated deck and has a date now is a mark of its day
+            adoptDatedMarks()
             val pending = swipeRepository.getPendingDeletes()
             // A trash request is open: the marked photos may already be in the trash, so none of them is "stale"
             val awaitingResult = savedStateHandle.contains(PENDING_IDS)
@@ -151,6 +154,19 @@ class BeforeDeleteViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Could not load the marked photos", e)
             _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
+        }
+    }
+
+    /** Without it the grid is still right for everything but a photo that got a date lately, so a failure only logs. */
+    private suspend fun adoptDatedMarks() {
+        try {
+            AdoptDatedDecisions(photoRepository, swipeRepository)(photoRepository.onThisDayIndex.value?.undatedIds.orEmpty())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PermissionDeniedException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not move the decisions of the photos that got a date", e)
         }
     }
 

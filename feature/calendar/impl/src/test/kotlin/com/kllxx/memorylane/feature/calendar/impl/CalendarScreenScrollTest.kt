@@ -199,7 +199,7 @@ class CalendarScreenScrollTest {
         scrollToEnd()
 
         composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("БЕЗ ДАТЫ").assertIsDisplayed()
+        composeRule.onNodeWithText("БЕЗ ДАТЫ").assertDoesNotExist()
         composeRule.onNodeWithText("Фото без даты").assertIsDisplayed()
         composeRule.onNodeWithTag(UNDATED_BANNER_COUNT_TAG, useUnmergedTree = true).assertTextEquals("3 фото")
     }

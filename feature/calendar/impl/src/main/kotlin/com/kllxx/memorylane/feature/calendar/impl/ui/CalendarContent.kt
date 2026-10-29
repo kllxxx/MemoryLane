@@ -73,7 +73,7 @@ internal fun CalendarContent(
             // The photos are not known yet: the top bar only, no spinner
             state.phase == CalendarPhase.Loading -> Unit
             state.phase == CalendarPhase.Empty -> {
-                CalendarEmpty(Modifier.weight(1f))
+                CalendarEmpty(hasUndated = state.undatedBanner != null, modifier = Modifier.weight(1f))
                 // Nothing to look back on, but the photos without a date can still be sorted
                 if (state.undatedBanner != null) {
                     UndatedBannerCard(
@@ -108,10 +108,11 @@ internal fun CalendarContent(
 }
 
 @Composable
-private fun CalendarEmpty(modifier: Modifier = Modifier) {
+private fun CalendarEmpty(hasUndated: Boolean, modifier: Modifier = Modifier) {
     EmptyState(
         icon = painterResource(UiR.drawable.ic_nav_calendar_outlined),
-        title = stringResource(R.string.calendar_empty_title),
+        // With photos that have no date there are photos, only none from earlier years: the banner below says so
+        title = stringResource(if (hasUndated) R.string.calendar_empty_title_undated else R.string.calendar_empty_title),
         body = stringResource(R.string.calendar_empty_body),
         modifier = modifier.testTag(EMPTY_STATE_TAG),
     )

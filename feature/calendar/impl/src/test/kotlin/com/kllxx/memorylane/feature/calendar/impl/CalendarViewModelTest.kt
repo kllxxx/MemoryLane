@@ -18,6 +18,7 @@ import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Clock
@@ -84,6 +85,15 @@ private class FakePhotoRepository : PhotoRepository {
         return todayPhotos
     }
     override suspend fun getUndatedPhotos(): List<Photo> = emptyList()
+
+    /** The days of the photos that have one; a test sets it. */
+    var photoDates: Map<Long, LocalDate> = emptyMap()
+    val datesAsked = mutableListOf<Collection<Long>>()
+
+    override suspend fun getPhotoDates(photoIds: Collection<Long>): Map<Long, LocalDate> {
+        datesAsked += photoIds
+        return photoDates.filterKeys { it in photoIds }
+    }
     override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = emptyList()
     override fun resolveLocations(photos: List<Photo>): Flow<PhotoLocation> = emptyFlow()
     override suspend fun getPhotoSizes(photoIds: Collection<Long>): Map<Long, Long> = emptyMap()
@@ -260,6 +270,64 @@ class CalendarViewModelTest {
 
         assertEquals(TodayBanner(1), viewModel.state.value.todayBanner)
         assertEquals(UndatedBanner(2), viewModel.state.value.undatedBanner)
+    }
+
+    // --- photos that got a date take their decisions to their day ---
+
+    @Test
+    fun `an undated photo marked for deletion that got a date moves to its day when the index says so`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.DELETE, 2L to PhotoDecision.KEEP)
+        showIndex(indexWithUndated(1, 2))
+        // The banner of today moves nothing of its own: an empty list is its call
+        coVerify(exactly = 0) { swipeRepository.adoptUndatedDecisions(match { it.isNotEmpty() }, any()) }
+
+        // Photo 1 got a date: the next index does not have it among the undated photos
+        repository.photoDates = mapOf(1L to LocalDate.of(2021, 6, 22))
+        showIndex(indexWithUndated(2))
+
+        coVerify(exactly = 1) { swipeRepository.adoptUndatedDecisions(listOf(1L), LocalDate.of(2021, 6, 22)) }
+    }
+
+    @Test
+    fun `photos that are still undated are not asked about`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.DELETE)
+
+        showIndex(indexWithUndated(1, 2))
+
+        assertTrue(repository.datesAsked.isEmpty())
+    }
+
+    @Test
+    fun `a photo that is gone is not moved anywhere`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.DELETE)
+        repository.photoDates = emptyMap()
+
+        showIndex(indexWithUndated(2))
+
+        // The banner of today moves nothing of its own: an empty list is its call
+        coVerify(exactly = 0) { swipeRepository.adoptUndatedDecisions(match { it.isNotEmpty() }, any()) }
+    }
+
+    @Test
+    fun `the decisions are moved at start too, for a photo that got a date while the app was closed`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.DELETE)
+        repository.photoDates = mapOf(1L to LocalDate.of(2021, 6, 22))
+
+        showIndex(indexWithUndated(2))
+
+        coVerify(exactly = 1) { swipeRepository.adoptUndatedDecisions(listOf(1L), LocalDate.of(2021, 6, 22)) }
+    }
+
+    @Test
+    fun `a failure to move the decisions does not break the screen`() = runTest(dispatcher) {
+        undatedDecisions = mapOf(1L to PhotoDecision.DELETE)
+        repository.photoDates = mapOf(1L to LocalDate.of(2021, 6, 22))
+        coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } throws IllegalStateException("db")
+
+        showIndex(indexWithUndated(2))
+
+        assertEquals(CalendarPhase.Empty, viewModel.state.value.phase)
+        assertEquals(UndatedBanner(1), viewModel.state.value.undatedBanner)
     }
 
     // --- scroll position ---

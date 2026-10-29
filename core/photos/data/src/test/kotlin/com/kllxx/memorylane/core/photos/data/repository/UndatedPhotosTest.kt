@@ -311,4 +311,71 @@ class UndatedPhotosTest {
         assertTrue(repository.getPhotosForDate(LocalDate.of(2026, 10, 15)).isEmpty())
         assertEquals(listOf(2L), repository.getUndatedPhotos().map { it.id })
     }
+
+    // --- getPhotoDates ---
+
+    @Test
+    fun `a photo with a MediaStore date is on that day`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(1, millis(LocalDate.of(2021, 6, 22))))
+
+        assertEquals(mapOf(1L to LocalDate.of(2021, 6, 22)), repository.getPhotoDates(listOf(1L)))
+    }
+
+    @Test
+    fun `an undated photo that the chain dated is on the day of the chain`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100, name = "photo.jpg"))
+        cache.entries[2] = ResolvedDate(java.time.LocalDateTime.of(2016, 1, 7, 10, 15), null, DateSource.EXIF)
+            .toCached(UndatedPhoto(2, 100, "photo.jpg", null))
+
+        assertEquals(mapOf(2L to LocalDate.of(2016, 1, 7)), repository.getPhotoDates(listOf(2L)))
+    }
+
+    @Test
+    fun `the day of a UTC date is the day in the device zone`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(row(2, null, modified = 100))
+        val utc = java.time.LocalDateTime.of(2016, 1, 7, 23, 30)
+        cache.entries[2] = ResolvedDate(utc, java.time.ZoneOffset.UTC, DateSource.GPS).toCached(UndatedPhoto(2, 100, null, null))
+        val expected = utc.toInstant(java.time.ZoneOffset.UTC).atZone(zone).toLocalDate()
+
+        assertEquals(mapOf(2L to expected), repository.getPhotoDates(listOf(2L)))
+    }
+
+    @Test
+    fun `photos with no date, with an old answer of the chain, or gone have no day`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+        FakeMediaProvider.rows = listOf(
+            row(1, null, name = "a.jpg"),
+            row(2, null, modified = 200, name = "b.jpg"),
+        )
+        cachedUndated(1)
+        // The file changed since the chain dated it
+        cache.entries[2] = ResolvedDate(java.time.LocalDateTime.of(2016, 1, 7, 10, 15), null, DateSource.EXIF)
+            .toCached(UndatedPhoto(2, 100, "b.jpg", null))
+
+        assertTrue(repository.getPhotoDates(listOf(1L, 2L, 3L)).isEmpty())
+    }
+
+    @Test
+    fun `no ids ask for nothing`() = runTest {
+        val repository = repository(StandardTestDispatcher(testScheduler))
+
+        assertTrue(repository.getPhotoDates(emptyList()).isEmpty())
+        assertEquals(0, FakeMediaProvider.queries)
+    }
+
+    @Test
+    fun `without the permission the dates are an error`() = runTest {
+        shadowOf(application).denyPermissions(Manifest.permission.READ_MEDIA_IMAGES)
+        val repository = repository(StandardTestDispatcher(testScheduler))
+
+        try {
+            repository.getPhotoDates(listOf(1L))
+            fail("expected PermissionDeniedException")
+        } catch (e: PermissionDeniedException) {
+            // expected
+        }
+    }
 }

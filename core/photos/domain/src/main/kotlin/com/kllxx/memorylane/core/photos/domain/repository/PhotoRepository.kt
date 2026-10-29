@@ -48,6 +48,16 @@ interface PhotoRepository {
     suspend fun getUndatedPhotos(): List<Photo>
 
     /**
+     * The day each of [photoIds] is on now, for the photos that are in the library and have a date: the `DATE_TAKEN`
+     * of MediaStore, or the date the date chain found in the file. A photo without any date, or that is gone, is
+     * missing from the result.
+     *
+     * @throws com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+     * if the media permission is not granted.
+     */
+    suspend fun getPhotoDates(photoIds: Collection<Long>): Map<Long, LocalDate>
+
+    /**
      * The photos among [ids] that are in the system trash (API 30+), oldest first. Empty below API 30, where
      * there is no trash. An id whose photo has been purged from the trash is simply missing.
      */
