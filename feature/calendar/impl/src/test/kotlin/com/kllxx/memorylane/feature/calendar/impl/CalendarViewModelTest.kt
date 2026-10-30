@@ -1,5 +1,8 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
+import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import app.cash.turbine.test
@@ -23,6 +26,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.MonthDay
@@ -30,6 +34,8 @@ import java.time.YearMonth
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,6 +122,7 @@ class CalendarViewModelTest {
     private lateinit var swipeRepository: SwipeRepository
     private lateinit var statsRepository: StatsRepository
     private lateinit var viewModel: CalendarViewModel
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     // What the completed days and the stored decisions of today are; a test changes them and emits the sessions again
     private val sessions = MutableSharedFlow<List<SwipeSession>>(replay = 1)
@@ -139,7 +146,7 @@ class CalendarViewModelTest {
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), todayProvider)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), todayProvider, errorHandler)
 
     @After
     fun tearDown() {
@@ -953,5 +960,49 @@ class CalendarViewModelTest {
 
             assertEquals(CalendarEffect.NavigateToSwipe(today), awaitItem())
         }
+    }
+
+    // --- failures are handed to the error handler, a cancellation is not one ---
+
+    @Test
+    fun `a failed load is logged with what failed`() = runTest(dispatcher) {
+        repository.failure = IllegalStateException("boom")
+
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+
+        verify { errorHandler.handle(any<IllegalStateException>(), "load the photos of the calendar") }
+    }
+
+    @Test
+    fun `a failing streak is logged with what failed`() = runTest(dispatcher) {
+        every { statsRepository.streaks } returns flow { throw IllegalStateException("db") }
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        verify { errorHandler.handle(any<IllegalStateException>(), "load the streak") }
+    }
+
+    @Test
+    fun `a failure to read the decisions of the undated photos is logged`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getDecisions(DeckKey.Undated) } throws IllegalStateException("db")
+
+        showIndex(indexWithUndated(1, 2))
+
+        verify { errorHandler.handle(any<IllegalStateException>(), "work out the banner of the undated photos") }
+    }
+
+    @Test
+    fun `a cancelled collection is neither an error nor a failed load`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flow { awaitCancellation() }
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.error)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }

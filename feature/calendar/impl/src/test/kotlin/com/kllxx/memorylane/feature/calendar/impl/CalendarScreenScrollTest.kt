@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import androidx.compose.runtime.getValue
@@ -68,6 +70,7 @@ class CalendarScreenScrollTest {
     private var decisions = emptyMap<Long, PhotoDecision>()
     private var undatedDecisions = emptyMap<Long, PhotoDecision>()
     private var undatedOpened = 0
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     private fun viewModel(withTodayPhotos: Boolean = false, undatedIds: Set<Long> = emptySet()): CalendarViewModel {
         val repository = mockk<PhotoRepository>()
@@ -89,7 +92,7 @@ class CalendarScreenScrollTest {
         coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } returns Unit
         val stats = mockk<StatsRepository>()
         every { stats.streaks } returns flowOf(Streaks.None)
-        return CalendarViewModel(repository, swipeRepository, stats, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), ClockTodayProvider(clock))
+        return CalendarViewModel(repository, swipeRepository, stats, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), ClockTodayProvider(clock), errorHandler)
     }
 
     private fun show(viewModel: CalendarViewModel, visible: () -> Boolean = { true }) {

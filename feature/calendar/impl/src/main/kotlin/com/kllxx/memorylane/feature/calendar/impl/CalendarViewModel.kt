@@ -1,8 +1,8 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
-import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.model.DeckKey
@@ -17,16 +17,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The first visible list item and how far it is scrolled off, in pixels. */
@@ -40,16 +32,13 @@ class CalendarViewModel @Inject constructor(
     private val photosToReview: PhotosToReview,
     private val adoptDatedDecisions: AdoptDatedDecisions,
     private val todayProvider: TodayProvider,
-) : ViewModel() {
-
+    errorHandler: ErrorHandler,
+) : MviViewModel<CalendarState, CalendarIntent, CalendarEvent, CalendarEffect>(
     // The grid depends on dates only, so it is there from the start; the photos are added when they are known
-    private val _state = MutableStateFlow(
-        todayProvider.now().let { today -> CalendarState(months = buildYearGrid(today.year), today = today) },
-    )
-    val state: StateFlow<CalendarState> = _state.asStateFlow()
-
-    private val _effects = Channel<CalendarEffect>(Channel.BUFFERED)
-    val effects: Flow<CalendarEffect> = _effects.receiveAsFlow()
+    initialState = todayProvider.now().let { today -> CalendarState(months = buildYearGrid(today.year), today = today) },
+    reducer = CalendarReducer::reduce,
+    errorHandler = errorHandler,
+) {
 
     /**
      * Where the list is scrolled to. It starts on the current month and then follows the user, so a list that is
@@ -65,7 +54,7 @@ class CalendarViewModel @Inject constructor(
 
     /** The list position of the current month, for scrolling back to it. */
     val currentMonthIndex: Int
-        get() = _state.value.let { listIndexOfMonth(it.months, YearMonth.from(it.today)) }
+        get() = currentState.let { listIndexOfMonth(it.months, YearMonth.from(it.today)) }
 
     private var lastIndex: OnThisDayIndex? = null
     private var todayJob: Job? = null
@@ -74,41 +63,37 @@ class CalendarViewModel @Inject constructor(
     init {
         CalendarPerf.onViewModelCreated()
         // The real permission state decides whether to load, so a revoked permission never leaves a blank screen
-        _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(photoRepository.hasMediaPermission())) }
+        update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(photoRepository.hasMediaPermission())) }
         observeToday()
         observePhotoIndex()
         observeSortedDays()
         observeStreak()
     }
 
-    fun onIntent(intent: CalendarIntent) {
-        _state.update { CalendarReducer.reduce(it, intent) }
+    override fun onIntent(intent: CalendarIntent) {
+        update { CalendarReducer.reduce(it, intent) }
 
         when (intent) {
             CalendarIntent.ScreenEntered -> {
                 // The permission may have been revoked while the app was away
                 val granted = photoRepository.hasMediaPermission()
-                _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
+                update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
                 // Photos may have been decided in a day or in the undated deck that was open meanwhile
                 refreshUndatedBanner(photoRepository.onThisDayIndex.value)
                 refreshTodayBanner()
                 if (granted) refresh()
             }
-            CalendarIntent.LoadDays -> if (_state.value.hasPermission) refresh()
+            CalendarIntent.LoadDays -> if (currentState.hasPermission) refresh()
             CalendarIntent.RequestPermission ->
-                _effects.trySend(CalendarEffect.RequestPermissionLauncher)
+                sendEffect(CalendarEffect.RequestPermissionLauncher)
             is CalendarIntent.PermissionResult -> if (intent.granted) refresh()
-            CalendarIntent.OpenUndated -> _effects.trySend(CalendarEffect.NavigateToUndated)
+            CalendarIntent.OpenUndated -> sendEffect(CalendarEffect.NavigateToUndated)
             is CalendarIntent.OpenDay ->
                 // A day that has not happened yet has no photos to sort
                 if (!intent.date.isAfter(todayProvider.now())) {
-                    _effects.trySend(CalendarEffect.NavigateToSwipe(intent.date))
+                    sendEffect(CalendarEffect.NavigateToSwipe(intent.date))
                 }
         }
-    }
-
-    private fun onEvent(event: CalendarEvent) {
-        _state.update { CalendarReducer.reduce(it, event) }
     }
 
     /**
@@ -118,11 +103,11 @@ class CalendarViewModel @Inject constructor(
     private fun observeToday() {
         viewModelScope.launch {
             todayProvider.today.collect { today ->
-                val current = _state.value
+                val current = currentState
                 if (today == current.today) return@collect
                 val newYear = today.year != current.today.year
                 val base = if (newYear) buildYearGrid(today.year) else current.months
-                onEvent(CalendarEvent.TodayChanged(today, base.withMemories(lastIndex, today)))
+                reduce(CalendarEvent.TodayChanged(today, base.withMemories(lastIndex, today)))
                 if (newYear) scrollAnchor = ScrollAnchor(currentMonthIndex, offset = 0)
                 refreshTodayBanner()
             }
@@ -137,8 +122,8 @@ class CalendarViewModel @Inject constructor(
                 refreshUndatedBanner(index)
                 adoptDatedDecisions(index)
                 refreshTodayBanner()
-                val months = _state.value.let { it.months.withMemories(index, it.today) }
-                onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
+                val months = currentState.let { it.months.withMemories(index, it.today) }
+                reduce(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
                 CalendarPerf.onIndexShown(
                     isEmpty = index.isEmpty,
                     photos = index.totalPhotos,
@@ -153,43 +138,25 @@ class CalendarViewModel @Inject constructor(
      * delete of that day at once. A day that is completed by it takes the banner of today away.
      */
     private fun adoptDatedDecisions(index: OnThisDayIndex) {
-        viewModelScope.launch {
-            try {
-                if (adoptDatedDecisions(index.undatedIds) > 0) refreshTodayBanner()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not move the decisions of the photos that got a date", e)
-            }
+        launchSafe("move the decisions of the photos that got a date") {
+            if (adoptDatedDecisions(index.undatedIds) > 0) refreshTodayBanner()
         }
     }
 
     private fun observeSortedDays() {
-        viewModelScope.launch {
-            try {
-                swipeRepository.getCompletedSessions().collect { sessions ->
-                    onEvent(CalendarEvent.SortedDatesLoaded(sessions.map { it.date }.toSet()))
-                    // A day may have just been completed, which takes today's banner away
-                    refreshTodayBanner()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not load sorted days", e)
+        launchSafe("load sorted days") {
+            swipeRepository.getCompletedSessions().collect { sessions ->
+                reduce(CalendarEvent.SortedDatesLoaded(sessions.map { it.date }.toSet()))
+                // A day may have just been completed, which takes today's banner away
+                refreshTodayBanner()
             }
         }
     }
 
     /** The streak is the same for every screen: it comes from the [StatsRepository]. */
     private fun observeStreak() {
-        viewModelScope.launch {
-            try {
-                statsRepository.streaks.collect { onEvent(CalendarEvent.StreakLoaded(it.current)) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not load the streak", e)
-            }
+        launchSafe("load the streak") {
+            statsRepository.streaks.collect { reduce(CalendarEvent.StreakLoaded(it.current)) }
         }
     }
 
@@ -201,23 +168,16 @@ class CalendarViewModel @Inject constructor(
      */
     private fun refreshTodayBanner() {
         todayJob?.cancel()
-        todayJob = viewModelScope.launch {
-            val banner = try {
-                loadTodayBanner()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // Without the photos of today there is nothing to point at
-                Log.e(TAG, "Could not work out the banner of today", e)
-                null
-            }
-            onEvent(CalendarEvent.TodayBannerChanged(banner))
+        todayJob = launchSafe("refresh the banner of today") {
+            // Without the photos of today there is nothing to point at
+            val banner = runSafe("work out the banner of today", fallback = { null }) { loadTodayBanner() }
+            reduce(CalendarEvent.TodayBannerChanged(banner))
         }
     }
 
     private suspend fun loadTodayBanner(): TodayBanner? {
         val startedAt = PerfLog.nanoTime()
-        val today = _state.value.today
+        val today = currentState.today
         val count = photosToReview(today)
         PerfLog.d { "todayBanner date=$today photosToReview=$count query=${PerfLog.sinceMs(startedAt)}ms" }
         return if (count > 0) TodayBanner(count) else null
@@ -231,16 +191,11 @@ class CalendarViewModel @Inject constructor(
      */
     private fun refreshUndatedBanner(index: OnThisDayIndex?) {
         undatedJob?.cancel()
-        undatedJob = viewModelScope.launch {
-            val banner = try {
+        undatedJob = launchSafe("refresh the banner of the undated photos") {
+            val banner = runSafe("work out the banner of the undated photos", fallback = { null }) {
                 loadUndatedBanner(index)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not work out the banner of the undated photos", e)
-                null
             }
-            onEvent(CalendarEvent.UndatedBannerChanged(banner))
+            reduce(CalendarEvent.UndatedBannerChanged(banner))
         }
     }
 
@@ -254,24 +209,15 @@ class CalendarViewModel @Inject constructor(
 
     /** One gallery query; the result arrives through [observePhotoIndex]. */
     private fun refresh() {
-        viewModelScope.launch {
+        launchSafe("load the photos of the calendar", onError = { reduce(CalendarEvent.LoadFailed) }) {
             CalendarPerf.onRefreshStarted()
             try {
                 photoRepository.refreshOnThisDayIndex()
-                onEvent(CalendarEvent.LoadSucceeded)
-            } catch (e: CancellationException) {
-                throw e
+                reduce(CalendarEvent.LoadSucceeded)
             } catch (e: PermissionDeniedException) {
                 // Not an empty gallery: the prompt takes over
-                _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(false)) }
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not load the photos of the calendar", e)
-                onEvent(CalendarEvent.LoadFailed)
+                update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(false)) }
             }
         }
-    }
-
-    private companion object {
-        const val TAG = "CalendarViewModel"
     }
 }
