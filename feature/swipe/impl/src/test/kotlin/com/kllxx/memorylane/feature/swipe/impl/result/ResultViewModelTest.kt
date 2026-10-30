@@ -3,7 +3,10 @@ package com.kllxx.memorylane.feature.swipe.impl.result
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.format.FormattedSize
 import com.kllxx.memorylane.core.domain.format.SizeUnit
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -19,7 +22,10 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -46,6 +52,7 @@ class ResultViewModelTest {
     private val swipeRepository = mockk<SwipeRepository>()
     private val statsRepository = mockk<StatsRepository>()
     private val streaks = MutableStateFlow(Streaks.None)
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     @Before
     fun setUp() {
@@ -76,7 +83,7 @@ class ResultViewModelTest {
                 "totalCount" to total,
             ),
         )
-        return ResultViewModel(swipeRepository, statsRepository, clock, handle)
+        return ResultViewModel(swipeRepository, statsRepository, clock, handle, errorHandler)
     }
 
     private fun session(date: LocalDate, completedAt: LocalDate) =
@@ -189,6 +196,20 @@ class ResultViewModelTest {
 
         assertNull(viewModel.state.value.streakDays)
         assertEquals(11, viewModel.state.value.deletedCount)
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "read the streak") }
+    }
+
+    @Test
+    fun `a cancelled streak read is not an error and shows no chip`() = runTest(dispatcher) {
+        every { swipeRepository.getCompletedSessions() } returns flow { awaitCancellation() }
+        val viewModel = create()
+        advanceUntilIdle()
+
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.streakDays)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     @Test
