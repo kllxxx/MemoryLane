@@ -1,6 +1,9 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AppInfo
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
@@ -13,12 +16,15 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -46,6 +52,7 @@ class ProfileViewModelTest {
     private lateinit var settings: MutableStateFlow<AppSettings>
     private lateinit var streaks: MutableStateFlow<Streaks>
     private lateinit var viewModel: ProfileViewModel
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     private val content: ProfileState.Content get() = viewModel.state.value as ProfileState.Content
 
@@ -60,7 +67,7 @@ class ProfileViewModelTest {
         every { notificationStatus.areNotificationsEnabled() } returns true
         every { repository.getSettings() } returns settings
         every { statsRepository.streaks } returns streaks
-        viewModel = ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION))
+        viewModel = ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION), errorHandler)
         dispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -194,7 +201,7 @@ class ProfileViewModelTest {
             assertTrue(content.swipeButtonsEnabled)
             advanceUntilIdle()
 
-            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+            assertEquals(ProfileEffect.ShowError(UiError(R.string.profile_settings_error)), awaitItem())
             assertFalse(content.swipeButtonsEnabled)
         }
     }
@@ -404,7 +411,7 @@ class ProfileViewModelTest {
             assertEquals(ThemeMode.Light, content.themeMode)
             advanceUntilIdle()
 
-            assertEquals(ProfileEffect.ShowSettingsError, awaitItem())
+            assertEquals(ProfileEffect.ShowError(UiError(R.string.profile_settings_error)), awaitItem())
             assertEquals(ThemeMode.Dark, content.themeMode)
         }
     }
@@ -413,7 +420,7 @@ class ProfileViewModelTest {
 
     private fun newViewModel(streakFlow: kotlinx.coroutines.flow.Flow<Streaks> = streaks): ProfileViewModel {
         every { statsRepository.streaks } returns streakFlow
-        return ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION))
+        return ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION), errorHandler)
     }
 
     @Test
@@ -522,6 +529,40 @@ class ProfileViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, (vm.state.value as ProfileState.Content).currentStreak)
+    }
+
+    @Test
+    fun `a failing streak is logged with what failed`() = runTest(dispatcher) {
+        newViewModel(kotlinx.coroutines.flow.flow { throw IllegalStateException("db closed") })
+        advanceUntilIdle()
+
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the streak") }
+    }
+
+    @Test
+    fun `a failed write is logged with the setting that failed`() = runTest(dispatcher) {
+        coEvery { repository.setThemeMode(any()) } throws java.io.IOException("disk full")
+
+        viewModel.onIntent(ProfileIntent.SelectTheme(ThemeMode.Light))
+        advanceUntilIdle()
+
+        verify(exactly = 1) { errorHandler.handle(any<java.io.IOException>(), "store the theme setting") }
+    }
+
+    @Test
+    fun `a cancelled write is neither an error nor a reverted setting`() = runTest(dispatcher) {
+        coEvery { repository.setThemeMode(any()) } coAnswers { awaitCancellation() }
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.SelectTheme(ThemeMode.Light))
+            advanceUntilIdle()
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+        assertEquals(ThemeMode.Light, content.themeMode)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     private companion object {

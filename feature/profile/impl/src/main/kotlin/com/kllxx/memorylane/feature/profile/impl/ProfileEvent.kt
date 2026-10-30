@@ -2,7 +2,7 @@ package com.kllxx.memorylane.feature.profile.impl
 
 import com.kllxx.memorylane.core.domain.model.AppSettings
 
-internal sealed interface ProfileEvent {
+sealed interface ProfileEvent {
     /** Everything the screen shows, read once; turns [ProfileState.Loading] into content. */
     data class Loaded(
         val settings: AppSettings,

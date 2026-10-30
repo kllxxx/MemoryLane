@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import com.kllxx.memorylane.core.common.UiError
+
 sealed interface ProfileEffect {
     data object RequestNotificationPermission : ProfileEffect
     data object OpenNotificationSettings : ProfileEffect
@@ -7,5 +9,5 @@ sealed interface ProfileEffect {
     data class ContactSupport(val versionName: String) : ProfileEffect
 
     /** A setting could not be stored; the state keeps following the stored value. */
-    data object ShowSettingsError : ProfileEffect
+    data class ShowError(val error: UiError) : ProfileEffect
 }

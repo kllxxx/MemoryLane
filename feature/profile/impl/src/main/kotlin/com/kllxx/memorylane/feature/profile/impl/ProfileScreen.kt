@@ -77,8 +77,8 @@ fun ProfileScreen(
                         snackbarHostState.showSnackbar(resources.getString(R.string.profile_no_mail_app))
                     }
                 }
-                ProfileEffect.ShowSettingsError ->
-                    snackbarHostState.showSnackbar(resources.getString(R.string.profile_settings_error))
+                is ProfileEffect.ShowError ->
+                    snackbarHostState.showSnackbar(resources.getString(effect.error.message))
             }
         }
     }

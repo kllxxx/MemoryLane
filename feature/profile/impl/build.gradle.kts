@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(project(":feature:profile:api"))
     implementation(project(":core:ui"))
+    implementation(project(":core:common"))
     implementation(project(":core:photos:domain"))
     implementation(project(":core:domain"))
 
