@@ -7,9 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -79,6 +81,16 @@ abstract class MviViewModel<S : Any, I : Any, Ev : Any, Ef : Any>(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
+        fallback(errorHandler.handle(e, what))
+    }
+
+    /** For a Flow operator chain: a failure upstream is logged, and [fallback] may emit a stand-in value or rethrow. */
+    protected fun <T> Flow<T>.catchSafe(
+        what: String,
+        fallback: suspend FlowCollector<T>.(UiError) -> Unit,
+    ): Flow<T> = catch { e ->
+        // Only failures are handled: neither a cancellation nor an Error is ours to swallow
+        if (e is CancellationException || e !is Exception) throw e
         fallback(errorHandler.handle(e, what))
     }
 }

@@ -5,10 +5,13 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -46,6 +49,9 @@ class MviViewModelTest {
             what = what,
             onError = { update { s -> s.copy(error = it) } },
         ) { block() }
+
+        fun <T> catching(source: Flow<T>, fallback: T): Flow<T> =
+            source.catchSafe("read the source") { emit(fallback) }
 
         suspend fun <T> safely(what: String, fallback: T, block: suspend () -> T): T =
             runSafe(what, { fallback }, block)
@@ -152,5 +158,30 @@ class MviViewModelTest {
         assertEquals("value", ok)
         assertEquals("fallback", failed)
         verify(exactly = 1) { errorHandler.handle(boom, "broken") }
+    }
+
+    @Test
+    fun `catchSafe logs an upstream failure and lets the fallback emit`() = runTest(dispatcher) {
+        val vm = TestViewModel(errorHandler)
+        val boom = IllegalStateException("boom")
+
+        vm.catching(flow { emit(1); throw boom }, fallback = 0).test {
+            assertEquals(1, awaitItem())
+            assertEquals(0, awaitItem())
+            awaitComplete()
+        }
+
+        verify(exactly = 1) { errorHandler.handle(boom, "read the source") }
+    }
+
+    @Test
+    fun `catchSafe does not swallow a cancellation`() = runTest(dispatcher) {
+        val vm = TestViewModel(errorHandler)
+
+        vm.catching(flow<Int> { throw CancellationException("cancelled") }, fallback = 0).test {
+            assertEquals(CancellationException::class, awaitError()::class)
+        }
+
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }
