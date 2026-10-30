@@ -1,15 +1,23 @@
 package com.kllxx.memorylane.core.data.repository
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.data.datastore.AppSettingsDataStore
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 import com.kllxx.memorylane.core.domain.model.AchievementStats
+import com.kllxx.memorylane.core.domain.permission.PermissionsState
+import com.kllxx.memorylane.core.domain.repository.PermissionsRepository
 import com.kllxx.memorylane.core.domain.streak.Streaks
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Clock
 import java.time.LocalDate
@@ -20,6 +28,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -35,7 +45,14 @@ class StatsRepositoryImplTest {
     private val directExecutor = Executor { it.run() }
     private lateinit var database: AppDatabase
     private lateinit var repository: StatsRepositoryImpl
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private val photoRepository = mockk<PhotoRepository>()
+    private val permissions = MutableStateFlow(PermissionsState())
+    private val permissionsRepository = mockk<PermissionsRepository> { every { state } returns permissions }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private lateinit var store: AppSettingsDataStore
 
     // The photo index, which tells the empty days; null is "not read yet"
     private val index = MutableStateFlow<OnThisDayIndex?>(null)
@@ -48,11 +65,15 @@ class StatsRepositoryImplTest {
             .setTransactionExecutor(directExecutor)
             .build()
         every { photoRepository.onThisDayIndex } returns index
-        repository = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), photoRepository, clock)
+        store = AppSettingsDataStore(PreferenceDataStoreFactory.create(scope = scope) { tmp.root.resolve("settings.preferences_pb") })
+        repository = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), photoRepository, permissionsRepository, store, clock)
     }
 
     @After
-    fun tearDown() = database.close()
+    fun tearDown() {
+        database.close()
+        scope.cancel()
+    }
 
     private suspend fun session(completedAt: LocalDate, savedBytes: Long = 0, deletedCount: Int = 0, dateOffset: Long = 0) =
         database.swipeSessionDao().insert(
@@ -171,5 +192,91 @@ class StatsRepositoryImplTest {
             assertEquals(1, awaitItem().viewedPhotos)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // --- without access to the photos ---
+
+    private fun emptyIndex() = OnThisDayIndex(currentYear = 2026, entries = emptyMap(), photoYears = emptyMap())
+
+    @Test
+    fun `without access the stored streaks stay, nothing is worked out`() = runTest {
+        store.saveStreaks(Streaks(current = 5, best = 9))
+        permissions.value = PermissionsState(photos = false)
+        // A real day that would make a different streak, and an index that would extend it
+        realDay(today.minusDays(3))
+        index.value = emptyIndex()
+
+        assertEquals(Streaks(current = 5, best = 9), repository.streaks.first())
+    }
+
+    @Test
+    fun `without access and nothing stored there is no streak`() = runTest {
+        permissions.value = PermissionsState(photos = false)
+
+        assertEquals(Streaks.None, repository.streaks.first())
+    }
+
+    @Test
+    fun `the stats show the stored streaks while access is missing`() = runTest {
+        store.saveStreaks(Streaks(current = 5, best = 9))
+        permissions.value = PermissionsState(photos = false)
+
+        val stats = repository.stats.first()
+
+        assertEquals(5, stats.currentStreak)
+        assertEquals(9, stats.bestStreak)
+    }
+
+    @Test
+    fun `with access and the index the streaks are worked out and stored`() = runTest {
+        realDay(today.minusDays(3))
+        index.value = emptyIndex()
+
+        assertEquals(Streaks(current = 4, best = 4), repository.streaks.first())
+        assertEquals(Streaks(current = 4, best = 4), store.lastStreaks())
+    }
+
+    @Test
+    fun `before the index is read the stored streaks stand in and a guess is not stored`() = runTest {
+        store.saveStreaks(Streaks(current = 4, best = 4))
+        realDay(today.minusDays(3))
+
+        // Not read yet: worked out on its own the streak would be 0 and 1
+        assertEquals(Streaks(current = 4, best = 4), repository.streaks.first())
+        assertEquals(Streaks(current = 4, best = 4), store.lastStreaks())
+    }
+
+    @Test
+    fun `losing access keeps the streak and getting it back works it out again`() = runTest {
+        realDay(today.minusDays(3))
+        index.value = emptyIndex()
+
+        repository.streaks.test {
+            assertEquals(Streaks(4, 4), awaitItem())
+
+            permissions.value = PermissionsState(photos = false)
+            // The same values: nothing new is emitted, and the unreadable gallery changed nothing
+            expectNoEvents()
+
+            // A day completed meanwhile (the day before the run) is not counted before the gallery can say which are empty
+            realDay(today.minusDays(4))
+            expectNoEvents()
+
+            permissions.value = PermissionsState(photos = true)
+            assertEquals(Streaks(5, 5), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(Streaks(5, 5), store.lastStreaks())
+    }
+
+    @Test
+    fun `a streak that was zero is stored as zero, not forgotten`() = runTest {
+        index.value = emptyIndex()
+        assertEquals(Streaks.None, repository.streaks.first())
+
+        permissions.value = PermissionsState(photos = false)
+
+        assertEquals(Streaks.None, repository.streaks.first())
+        assertEquals(Streaks.None, store.lastStreaks())
     }
 }

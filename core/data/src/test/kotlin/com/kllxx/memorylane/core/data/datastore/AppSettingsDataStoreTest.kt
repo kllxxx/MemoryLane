@@ -10,6 +10,7 @@ import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -231,5 +232,19 @@ class AppSettingsDataStoreTest {
         prefs.edit { it[androidx.datastore.preferences.core.stringSetPreferencesKey("requested_permissions")] = setOf("Photos", "Gone") }
 
         assertEquals(setOf(AppPermission.Photos), store.settings.first().requestedPermissions)
+    }
+
+    @Test
+    fun `no streaks are stored until they are saved`() = runTest {
+        assertEquals(null, store.lastStreaks())
+    }
+
+    @Test
+    fun `saved streaks come back, zeros included`() = runTest {
+        store.saveStreaks(Streaks(current = 3, best = 8))
+        assertEquals(Streaks(3, 8), store.lastStreaks())
+
+        store.saveStreaks(Streaks.None)
+        assertEquals(Streaks.None, store.lastStreaks())
     }
 }

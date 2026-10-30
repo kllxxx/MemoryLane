@@ -1,11 +1,15 @@
 package com.kllxx.memorylane.core.data.repository
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.data.datastore.AppSettingsDataStore
 import com.kllxx.memorylane.core.data.db.AppDatabase
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
+import com.kllxx.memorylane.core.domain.permission.PermissionsState
+import com.kllxx.memorylane.core.domain.repository.PermissionsRepository
 import com.kllxx.memorylane.core.domain.streak.Streaks
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
@@ -16,6 +20,10 @@ import java.time.LocalDate
 import java.time.MonthDay
 import java.time.ZoneId
 import java.util.concurrent.Executor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -24,6 +32,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,7 +53,14 @@ class UndatedDeckIsNotADayTest {
     private lateinit var database: AppDatabase
     private lateinit var swipe: SwipeRepositoryImpl
     private lateinit var stats: StatsRepositoryImpl
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private val photoRepository = mockk<PhotoRepository>()
+    private val permissions = MutableStateFlow(PermissionsState())
+    private val permissionsRepository = mockk<PermissionsRepository> { every { state } returns permissions }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private lateinit var store: AppSettingsDataStore
     private val index = MutableStateFlow<OnThisDayIndex?>(null)
 
     @Before
@@ -54,12 +71,16 @@ class UndatedDeckIsNotADayTest {
             .setTransactionExecutor(directExecutor)
             .build()
         every { photoRepository.onThisDayIndex } returns index
+        store = AppSettingsDataStore(PreferenceDataStoreFactory.create(scope = scope) { tmp.root.resolve("settings.preferences_pb") })
         swipe = SwipeRepositoryImpl(database.photoDecisionDao(), database.swipeSessionDao(), database.deletionDao(), clock)
-        stats = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), photoRepository, clock)
+        stats = StatsRepositoryImpl(database.reviewedPhotoDao(), database.swipeSessionDao(), photoRepository, permissionsRepository, store, clock)
     }
 
     @After
-    fun tearDown() = database.close()
+    fun tearDown() {
+        database.close()
+        scope.cancel()
+    }
 
     private val undatedMarks = mapOf(21L to 4_000L, 22L to 6_000L)
 

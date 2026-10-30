@@ -12,8 +12,10 @@ import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.streak.Streaks
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import java.time.LocalTime
@@ -81,6 +83,31 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[SWIPE_BUTTONS_ENABLED] = enabled }
     }
 
+    /** The streaks last computed with access to the photos, null while none were stored. */
+    suspend fun lastStreaks(): Streaks? {
+        val prefs = try {
+            dataStore.data.first()
+        } catch (e: IOException) {
+            Timber.e(e, "Could not read the stored streaks")
+            return null
+        }
+        val current = prefs[CURRENT_STREAK] ?: return null
+        val best = prefs[BEST_STREAK] ?: return null
+        return Streaks(current, best)
+    }
+
+    /** Best effort: the streaks shown are the computed ones, a write that fails only costs the stand-in for later. */
+    suspend fun saveStreaks(streaks: Streaks) {
+        try {
+            dataStore.edit {
+                it[CURRENT_STREAK] = streaks.current
+                it[BEST_STREAK] = streaks.best
+            }
+        } catch (e: IOException) {
+            Timber.e(e, "Could not store the streaks")
+        }
+    }
+
     suspend fun markPermissionsRequested(permissions: Set<AppPermission>) {
         dataStore.edit { prefs ->
             prefs[REQUESTED_PERMISSIONS] = (prefs[REQUESTED_PERMISSIONS].orEmpty()) + permissions.map { it.name }
@@ -114,6 +141,8 @@ internal class AppSettingsDataStore @Inject constructor(
         val NOTIFICATION_PERMISSION_REQUESTED = booleanPreferencesKey("notification_permission_requested")
         val SWIPE_BUTTONS_ENABLED = booleanPreferencesKey("swipe_buttons_enabled")
         val LOCATION_GRANT_SEEN = booleanPreferencesKey("location_grant_seen")
+        val CURRENT_STREAK = intPreferencesKey("last_current_streak")
+        val BEST_STREAK = intPreferencesKey("last_best_streak")
         val REQUESTED_PERMISSIONS = stringSetPreferencesKey("requested_permissions")
     }
 }
