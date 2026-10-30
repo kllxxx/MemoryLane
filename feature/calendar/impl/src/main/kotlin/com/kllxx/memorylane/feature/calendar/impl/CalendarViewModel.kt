@@ -4,6 +4,9 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.common.PerfLog
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
+import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
@@ -19,6 +22,7 @@ import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** The first visible list item and how far it is scrolled off, in pixels. */
@@ -28,6 +32,7 @@ data class ScrollAnchor(val index: Int, val offset: Int)
 class CalendarViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
+    private val appSettingsRepository: AppSettingsRepository,
     private val statsRepository: StatsRepository,
     private val photosToReview: PhotosToReview,
     private val adoptDatedDecisions: AdoptDatedDecisions,
@@ -57,6 +62,9 @@ class CalendarViewModel @Inject constructor(
         get() = currentState.let { listIndexOfMonth(it.months, YearMonth.from(it.today)) }
 
     private var lastIndex: OnThisDayIndex? = null
+    // What the screen last saw of the photo permission: whether the system can still show its prompt
+    private var shouldShowRationale = false
+    private var partialAccess = false
     private var todayJob: Job? = null
     private var undatedJob: Job? = null
 
@@ -84,8 +92,8 @@ class CalendarViewModel @Inject constructor(
                 if (granted) refresh()
             }
             CalendarIntent.LoadDays -> if (currentState.hasPermission) refresh()
-            CalendarIntent.RequestPermission ->
-                sendEffect(CalendarEffect.RequestPermissionLauncher)
+            CalendarIntent.RequestPermission -> requestPermission()
+            is CalendarIntent.PermissionChecked -> onPermissionChecked(intent)
             is CalendarIntent.PermissionResult -> if (intent.granted) refresh()
             CalendarIntent.OpenUndated -> sendEffect(CalendarEffect.NavigateToUndated)
             is CalendarIntent.OpenDay ->
@@ -94,6 +102,45 @@ class CalendarViewModel @Inject constructor(
                     sendEffect(CalendarEffect.NavigateToSwipe(intent.date))
                 }
         }
+    }
+
+    /**
+     * The system prompt while it can still be shown, otherwise the settings of the app. It can be shown when the access
+     * was never asked for, when the system wants a rationale, and after "select photos", which is no access.
+     */
+    private fun requestPermission() {
+        launchSafe("ask for the photo permission") {
+            val asked = runSafe("read the asked permissions", fallback = { emptySet() }) {
+                appSettingsRepository.getSettings().first().requestedPermissions
+            }
+            val canRequest = PermissionRules.canRequest(
+                granted = false,
+                requestedBefore = AppPermission.Photos in asked,
+                shouldShowRationale = shouldShowRationale,
+                partial = partialAccess,
+            )
+            if (canRequest) {
+                runSafe("store the asked permissions", fallback = {}) {
+                    appSettingsRepository.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location))
+                }
+                sendEffect(CalendarEffect.RequestPermissionLauncher)
+            } else {
+                sendEffect(CalendarEffect.OpenAppSettings)
+            }
+        }
+    }
+
+    /**
+     * Back from a dialog or the system settings the photos may be readable, or not any more: the screen follows, and a
+     * grant given outside the app loads the photos.
+     */
+    private fun onPermissionChecked(intent: CalendarIntent.PermissionChecked) {
+        shouldShowRationale = intent.shouldShowRationale
+        partialAccess = intent.partial
+        val granted = photoRepository.hasMediaPermission()
+        if (granted == currentState.hasPermission) return
+        update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(granted)) }
+        if (granted) refresh()
     }
 
     /**

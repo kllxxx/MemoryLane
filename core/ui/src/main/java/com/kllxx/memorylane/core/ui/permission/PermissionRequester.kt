@@ -45,8 +45,20 @@ class PermissionRequester internal constructor(
  */
 fun PermissionRequester.canRequest(permission: AppPermission, sdkInt: Int, requestedBefore: Boolean): Boolean {
     val name = PermissionRules.permissionOf(permission, sdkInt) ?: return false
-    return PermissionRules.canRequest(isGranted(name), requestedBefore, shouldShowRationale(name))
+    return PermissionRules.canRequest(
+        granted = isGranted(name),
+        requestedBefore = requestedBefore,
+        shouldShowRationale = shouldShowRationale(name),
+        partial = permission == AppPermission.Photos && isPartialPhotoAccess(sdkInt),
+    )
 }
+
+/** "Select photos" was chosen in the system dialog (API 34+): treated as no access, see `PermissionRules`. */
+fun PermissionRequester.isPartialPhotoAccess(sdkInt: Int): Boolean = PermissionRules.isPartialPhotoAccess(
+    sdkInt = sdkInt,
+    imagesGranted = isGranted(PermissionRules.READ_MEDIA_IMAGES),
+    selectedGranted = isGranted(PermissionRules.READ_MEDIA_VISUAL_USER_SELECTED),
+)
 
 /** [onResult] gets, per permission, whether it was granted. */
 @Composable

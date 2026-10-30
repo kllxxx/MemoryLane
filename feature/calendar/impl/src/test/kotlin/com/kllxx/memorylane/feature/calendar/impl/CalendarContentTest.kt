@@ -114,6 +114,7 @@ class CalendarContentTest {
     fun `without permission a prompt replaces the grid`() {
         show(baseState().copy(hasPermission = false))
         composeRule.onNodeWithTag(WEEKDAY_HEADER_TAG).assertDoesNotExist()
+        composeRule.onNodeWithText("Нужен доступ ко всем фото").assertExists()
         composeRule.onNodeWithText(string(R.string.calendar_permission_button)).performClick()
         assertEquals(listOf<CalendarIntent>(CalendarIntent.RequestPermission), intents)
     }

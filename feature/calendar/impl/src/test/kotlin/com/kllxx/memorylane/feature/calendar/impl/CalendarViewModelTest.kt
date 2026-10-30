@@ -4,6 +4,9 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
+import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import android.net.Uri
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.common.PerfLog
@@ -120,6 +123,8 @@ class CalendarViewModelTest {
     private val uri = mockk<Uri>(relaxed = true)
     private lateinit var repository: FakePhotoRepository
     private lateinit var swipeRepository: SwipeRepository
+    private lateinit var appSettingsRepository: AppSettingsRepository
+    private val appSettings = MutableStateFlow(AppSettings())
     private lateinit var statsRepository: StatsRepository
     private lateinit var viewModel: CalendarViewModel
     private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
@@ -136,6 +141,7 @@ class CalendarViewModelTest {
         repository = FakePhotoRepository()
         swipeRepository = mockk()
         statsRepository = mockk()
+        appSettingsRepository = mockk(relaxUnitFun = true) { every { getSettings() } returns appSettings }
         sessions.tryEmit(emptyList())
         every { swipeRepository.getCompletedSessions() } returns sessions
         coEvery { swipeRepository.getDecisions(any()) } answers {
@@ -146,7 +152,7 @@ class CalendarViewModelTest {
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), todayProvider, errorHandler)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, appSettingsRepository, statsRepository, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), todayProvider, errorHandler)
 
     @After
     fun tearDown() {
@@ -656,6 +662,103 @@ class CalendarViewModelTest {
             viewModel.onIntent(CalendarIntent.RequestPermission)
             assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
         }
+    }
+
+    @Test
+    fun `RequestPermission asked before and not allowed to ask again opens the settings`() = runTest(dispatcher) {
+        appSettings.value = AppSettings(requestedPermissions = setOf(AppPermission.Photos))
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = false, partial = false))
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            assertEquals(CalendarEffect.OpenAppSettings, awaitItem())
+        }
+        coVerify(exactly = 0) { appSettingsRepository.markPermissionsRequested(any()) }
+    }
+
+    @Test
+    fun `RequestPermission asked before with a rationale due asks again`() = runTest(dispatcher) {
+        appSettings.value = AppSettings(requestedPermissions = setOf(AppPermission.Photos))
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = true, partial = false))
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
+        }
+    }
+
+    @Test
+    fun `RequestPermission after select photos asks again, it is no access`() = runTest(dispatcher) {
+        appSettings.value = AppSettings(requestedPermissions = setOf(AppPermission.Photos))
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = false, partial = true))
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
+        }
+    }
+
+    @Test
+    fun `asking marks the photos and the location as asked`() = runTest(dispatcher) {
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            awaitItem()
+        }
+
+        coVerify(exactly = 1) {
+            appSettingsRepository.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location))
+        }
+    }
+
+    @Test
+    fun `settings that cannot be read still let the person ask`() = runTest(dispatcher) {
+        every { appSettingsRepository.getSettings() } returns flow { throw IllegalStateException("db closed") }
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.RequestPermission)
+            assertEquals(CalendarEffect.RequestPermissionLauncher, awaitItem())
+        }
+    }
+
+    @Test
+    fun `a grant given outside the app loads the photos when the screen resumes`() = runTest(dispatcher) {
+        repository.permission = false
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+        assertFalse(viewModel.state.value.hasPermission)
+        val queriesBefore = repository.queries
+
+        repository.permission = true
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = false, partial = false))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.hasPermission)
+        assertEquals(queriesBefore + 1, repository.queries)
+    }
+
+    @Test
+    fun `a resume that changes nothing loads nothing`() = runTest(dispatcher) {
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        advanceUntilIdle()
+        val queriesBefore = repository.queries
+
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = false, partial = false))
+        advanceUntilIdle()
+
+        assertEquals(queriesBefore, repository.queries)
+        assertTrue(viewModel.state.value.hasPermission)
+    }
+
+    @Test
+    fun `a partial grant is no access, the prompt stays`() = runTest(dispatcher) {
+        // The repository answers false for select photos: only READ_MEDIA_IMAGES is access
+        repository.permission = false
+        viewModel.onIntent(CalendarIntent.ScreenEntered)
+        viewModel.onIntent(CalendarIntent.PermissionChecked(shouldShowRationale = false, partial = true))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.hasPermission)
+        assertEquals(0, repository.queries)
     }
 
     @Test

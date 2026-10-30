@@ -20,6 +20,7 @@ object PermissionRules {
 
     private const val API_Q = 29
     private const val API_TIRAMISU = 33
+    private const val API_UPSIDE_DOWN_CAKE = 34
 
     /** The permission that gives the app all the photos. */
     fun mediaRead(sdkInt: Int): String = if (sdkInt >= API_TIRAMISU) READ_MEDIA_IMAGES else READ_EXTERNAL_STORAGE
@@ -55,7 +56,19 @@ object PermissionRules {
     /**
      * Whether the system can still show its prompt: never asked before, or it still wants a rationale shown. Once the
      * permission was asked for and no rationale is due, it is permanently denied and only the settings can change it.
+     * A partial photo grant ([partial]) can always be asked again.
      */
-    fun canRequest(granted: Boolean, requestedBefore: Boolean, shouldShowRationale: Boolean): Boolean =
-        !granted && (!requestedBefore || shouldShowRationale)
+    fun canRequest(
+        granted: Boolean,
+        requestedBefore: Boolean,
+        shouldShowRationale: Boolean,
+        partial: Boolean = false,
+    ): Boolean = !granted && (partial || !requestedBefore || shouldShowRationale)
+
+    /**
+     * API 34+: the person chose "select photos", which grants a part of the gallery without READ_MEDIA_IMAGES. The app
+     * only works with all the photos, so this is no access; the system shows its prompt again on the next request.
+     */
+    fun isPartialPhotoAccess(sdkInt: Int, imagesGranted: Boolean, selectedGranted: Boolean): Boolean =
+        sdkInt >= API_UPSIDE_DOWN_CAKE && !imagesGranted && selectedGranted
 }

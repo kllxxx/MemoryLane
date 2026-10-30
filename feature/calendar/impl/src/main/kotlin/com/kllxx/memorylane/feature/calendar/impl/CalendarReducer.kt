@@ -8,6 +8,7 @@ object CalendarReducer {
         CalendarIntent.LoadDays -> state.copy(error = null)
         CalendarIntent.ScreenEntered,
         CalendarIntent.RequestPermission,
+        is CalendarIntent.PermissionChecked,
         is CalendarIntent.OpenDay -> state
         CalendarIntent.OpenUndated -> state
         is CalendarIntent.PermissionResult -> state.copy(hasPermission = intent.granted)

@@ -8,7 +8,7 @@
     <string name="calendar_streak_icon">Стрик</string>
     <string name="calendar_empty_day">Нет фото</string>
     <string name="calendar_photo_count">Фото: %d</string>
-    <string name="calendar_permission_text">Чтобы показать календарь, нужен доступ к галерее.</string>
+    <string name="calendar_permission_text">Нужен доступ ко всем фото</string>
     <string name="calendar_permission_button">Разрешить доступ</string>
     <string name="calendar_error_text">Не удалось загрузить фото</string>
     <string name="calendar_error_retry">Повторить</string>

@@ -90,6 +90,28 @@ class PermissionRulesTest {
         assertFalse(PermissionRules.canRequest(granted = true, requestedBefore = false, shouldShowRationale = false))
     }
 
+    // --- select photos ---
+
+    @Test
+    fun `select photos is a partial grant on API 34 and later only`() {
+        assertTrue(PermissionRules.isPartialPhotoAccess(sdkInt = 34, imagesGranted = false, selectedGranted = true))
+        assertTrue(PermissionRules.isPartialPhotoAccess(sdkInt = 35, imagesGranted = false, selectedGranted = true))
+        assertFalse(PermissionRules.isPartialPhotoAccess(sdkInt = 33, imagesGranted = false, selectedGranted = true))
+    }
+
+    @Test
+    fun `all the photos or no photos at all are not partial`() {
+        assertFalse(PermissionRules.isPartialPhotoAccess(sdkInt = 34, imagesGranted = true, selectedGranted = true))
+        assertFalse(PermissionRules.isPartialPhotoAccess(sdkInt = 34, imagesGranted = false, selectedGranted = false))
+    }
+
+    @Test
+    fun `a partial grant can be asked again whatever was asked before`() {
+        assertTrue(
+            PermissionRules.canRequest(granted = false, requestedBefore = true, shouldShowRationale = false, partial = true),
+        )
+    }
+
     // --- the state ---
 
     @Test

@@ -66,4 +66,15 @@ class OnboardingPermissionsTest {
     fun `media access is denied for an empty result`() {
         assertFalse(OnboardingPermissions.isMediaAccessGranted(emptyMap(), sdkInt = 30))
     }
+
+    @Test
+    fun `select photos is not media access, the app works with all the photos`() {
+        val result = mapOf(
+            Manifest.permission.READ_MEDIA_IMAGES to false,
+            "android.permission.READ_MEDIA_VISUAL_USER_SELECTED" to true,
+            Manifest.permission.ACCESS_MEDIA_LOCATION to true,
+        )
+
+        assertFalse(OnboardingPermissions.isMediaAccessGranted(result, sdkInt = 34))
+    }
 }

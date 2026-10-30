@@ -3,6 +3,8 @@ package com.kllxx.memorylane.feature.calendar.impl
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
+import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,7 +94,7 @@ class CalendarScreenScrollTest {
         coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } returns Unit
         val stats = mockk<StatsRepository>()
         every { stats.streaks } returns flowOf(Streaks.None)
-        return CalendarViewModel(repository, swipeRepository, stats, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), ClockTodayProvider(clock), errorHandler)
+        return CalendarViewModel(repository, swipeRepository, mockk<AppSettingsRepository>(relaxUnitFun = true) { every { getSettings() } returns flowOf(AppSettings()) }, stats, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), ClockTodayProvider(clock), errorHandler)
     }
 
     private fun show(viewModel: CalendarViewModel, visible: () -> Boolean = { true }) {

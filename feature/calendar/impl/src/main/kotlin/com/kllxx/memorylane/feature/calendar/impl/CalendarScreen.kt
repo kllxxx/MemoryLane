@@ -8,8 +8,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.snapshotFlow
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.core.domain.permission.PermissionRules
+import com.kllxx.memorylane.core.ui.permission.isPartialPhotoAccess
 import com.kllxx.memorylane.core.ui.permission.rememberPermissionRequester
 import com.kllxx.memorylane.feature.calendar.impl.ui.CalendarContent
 import java.time.LocalDate
@@ -53,6 +56,16 @@ fun CalendarScreen(
         viewModel.onIntent(CalendarIntent.PermissionResult(result[PermissionRules.mediaRead(Build.VERSION.SDK_INT)] == true))
     }
 
+    // Back from the permission dialog or the system settings: the photos may be readable now, or the prompt out of reach
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.onIntent(
+            CalendarIntent.PermissionChecked(
+                shouldShowRationale = permissionRequester.shouldShowRationale(PermissionRules.mediaRead(Build.VERSION.SDK_INT)),
+                partial = permissionRequester.isPartialPhotoAccess(Build.VERSION.SDK_INT),
+            ),
+        )
+    }
+
     LaunchedEffect(Unit) {
         CalendarPerf.onRouteEntered()
         viewModel.onIntent(CalendarIntent.ScreenEntered)
@@ -64,6 +77,7 @@ fun CalendarScreen(
                 is CalendarEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
                 CalendarEffect.NavigateToUndated -> onNavigateToUndated()
                 CalendarEffect.RequestPermissionLauncher -> permissionRequester.request(PermissionRules.photoRequest(Build.VERSION.SDK_INT))
+                CalendarEffect.OpenAppSettings -> permissionRequester.openAppSettings()
             }
         }
     }
