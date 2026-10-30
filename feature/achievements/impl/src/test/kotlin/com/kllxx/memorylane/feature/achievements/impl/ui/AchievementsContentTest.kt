@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.feature.achievements.impl.AchievementsIntent
@@ -79,6 +80,16 @@ class AchievementsContentTest {
 
         composeRule.onNodeWithTag(FREED_UNIT_TAG).assertTextEquals("МБ")
         composeRule.onNodeWithTag(EMPTY_STATE_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the error state shows a retry button that sends the retry intent`() {
+        setContent(AchievementsState.Error(UiError.Generic))
+
+        composeRule.onNodeWithTag(ERROR_STATE_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(RETRY_TAG).performClick()
+
+        assertEquals(listOf<AchievementsIntent>(AchievementsIntent.Retry), intents)
     }
 
     @Test

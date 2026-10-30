@@ -5,9 +5,11 @@ object AchievementsReducer {
     /** The calendar click only leads to an effect, so the state stays as it is. */
     fun reduce(state: AchievementsState, intent: AchievementsIntent): AchievementsState = when (intent) {
         AchievementsIntent.GoToCalendarClicked -> state
+        AchievementsIntent.Retry -> AchievementsState.Loading
     }
 
     internal fun reduce(state: AchievementsState, event: AchievementsEvent): AchievementsState = when (event) {
         is AchievementsEvent.StatsLoaded -> event.stats.toState()
+        is AchievementsEvent.LoadFailed -> AchievementsState.Error(event.error)
     }
 }

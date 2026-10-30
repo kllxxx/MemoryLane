@@ -1,9 +1,13 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.format.FormattedSize
 
 sealed interface AchievementsState {
     data object Loading : AchievementsState
+
+    /** The statistic could not be read; [AchievementsIntent.Retry] starts over. */
+    data class Error(val error: UiError) : AchievementsState
 
     /** Nothing has been swiped yet: there is no statistic to show. */
     data object Empty : AchievementsState

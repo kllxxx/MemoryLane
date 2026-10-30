@@ -23,4 +23,7 @@
     <string name="achievements_empty_title">Здесь появится твоя статистика</string>
     <string name="achievements_empty_body">Разбери первый день в календаре — и здесь появятся стрик, просмотренные фото и освобождённое место.</string>
     <string name="achievements_empty_button">Перейти в календарь</string>
+
+    <string name="achievements_error_title">Не удалось загрузить статистику</string>
+    <string name="achievements_error_retry">Повторить</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.achievements.impl
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AchievementStats
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -41,5 +42,20 @@ class AchievementsReducerTest {
             AchievementsState.Loading,
             AchievementsReducer.reduce(AchievementsState.Loading, AchievementsIntent.GoToCalendarClicked),
         )
+    }
+
+    @Test
+    fun `a failed load shows the error and the next stats replace it`() {
+        val failed = AchievementsReducer.reduce(AchievementsState.Loading, AchievementsEvent.LoadFailed(UiError.Generic))
+
+        assertEquals(AchievementsState.Error(UiError.Generic), failed)
+        assertEquals(stats.toState(), AchievementsReducer.reduce(failed, AchievementsEvent.StatsLoaded(stats)))
+    }
+
+    @Test
+    fun `retry goes back to loading`() {
+        val state = AchievementsReducer.reduce(AchievementsState.Error(UiError.Generic), AchievementsIntent.Retry)
+
+        assertEquals(AchievementsState.Loading, state)
     }
 }

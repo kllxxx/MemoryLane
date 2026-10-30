@@ -5,6 +5,7 @@ import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 
 @HiltViewModel
 class AchievementsViewModel @Inject constructor(
@@ -16,6 +17,8 @@ class AchievementsViewModel @Inject constructor(
     errorHandler = errorHandler,
 ) {
 
+    private var statsJob: Job? = null
+
     init {
         observeStats()
     }
@@ -25,11 +28,13 @@ class AchievementsViewModel @Inject constructor(
 
         when (intent) {
             AchievementsIntent.GoToCalendarClicked -> sendEffect(AchievementsEffect.NavigateToCalendar)
+            AchievementsIntent.Retry -> observeStats()
         }
     }
 
     private fun observeStats() {
-        launchSafe("load the achievements") {
+        statsJob?.cancel()
+        statsJob = launchSafe("load the achievements", onError = { reduce(AchievementsEvent.LoadFailed(it)) }) {
             statsRepository.stats.collect { reduce(AchievementsEvent.StatsLoaded(it)) }
         }
     }

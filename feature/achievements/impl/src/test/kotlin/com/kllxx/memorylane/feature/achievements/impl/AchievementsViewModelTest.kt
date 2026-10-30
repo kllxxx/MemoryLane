@@ -124,13 +124,29 @@ class AchievementsViewModelTest {
     }
 
     @Test
-    fun `a failing stats flow leaves the state as it was`() = runTest(dispatcher) {
+    fun `a failing stats flow shows the error`() = runTest(dispatcher) {
         every { statsRepository.stats } returns flow { throw IllegalStateException("db closed") }
         val vm = viewModel()
         advanceUntilIdle()
 
-        assertEquals(AchievementsState.Loading, vm.state.value)
+        assertEquals(AchievementsState.Error(UiError.Generic), vm.state.value)
         verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the achievements") }
+    }
+
+    @Test
+    fun `retry loads the stats again`() = runTest(dispatcher) {
+        every { statsRepository.stats } returns flow { throw IllegalStateException("db closed") }
+        val vm = viewModel()
+        advanceUntilIdle()
+        statsFlow.tryEmit(stats(viewed = 0))
+        every { statsRepository.stats } returns statsFlow
+
+        vm.state.test {
+            assertEquals(AchievementsState.Error(UiError.Generic), awaitItem())
+            vm.onIntent(AchievementsIntent.Retry)
+            assertEquals(AchievementsState.Loading, awaitItem())
+            assertEquals(AchievementsState.Empty, awaitItem())
+        }
     }
 
     @Test

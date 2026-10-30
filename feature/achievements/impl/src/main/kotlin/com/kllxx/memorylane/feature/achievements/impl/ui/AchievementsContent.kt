@@ -58,6 +58,8 @@ internal const val VIEWED_TAG = "viewed-photos"
 internal const val DELETED_TAG = "deleted-photos"
 internal const val EMPTY_STATE_TAG = "achievements-empty"
 internal const val GO_TO_CALENDAR_TAG = "go-to-calendar"
+internal const val ERROR_STATE_TAG = "achievements-error"
+internal const val RETRY_TAG = "achievements-retry"
 
 internal fun streakUnitTag(valueTag: String) = "$valueTag-unit"
 
@@ -83,6 +85,7 @@ internal fun AchievementsContent(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             when (state) {
                 AchievementsState.Loading -> Box(Modifier.weight(1f))
+                is AchievementsState.Error -> AchievementsError(state, onIntent, Modifier.weight(1f))
                 AchievementsState.Empty -> AchievementsEmpty(onIntent, Modifier.weight(1f))
                 is AchievementsState.Stats -> AchievementsStats(state, Modifier.weight(1f))
             }
@@ -219,6 +222,27 @@ private fun AchievementsEmpty(onIntent: (AchievementsIntent) -> Unit, modifier: 
                 text = stringResource(R.string.achievements_empty_button),
                 onClick = { onIntent(AchievementsIntent.GoToCalendarClicked) },
                 modifier = Modifier.testTag(GO_TO_CALENDAR_TAG),
+            )
+        },
+    )
+}
+
+@Composable
+private fun AchievementsError(
+    state: AchievementsState.Error,
+    onIntent: (AchievementsIntent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    EmptyState(
+        icon = painterResource(UiR.drawable.ic_best_streak),
+        title = stringResource(R.string.achievements_error_title),
+        body = stringResource(state.error.message),
+        modifier = modifier.testTag(ERROR_STATE_TAG),
+        action = {
+            PrimaryButton(
+                text = stringResource(R.string.achievements_error_retry),
+                onClick = { onIntent(AchievementsIntent.Retry) },
+                modifier = Modifier.testTag(RETRY_TAG),
             )
         },
     )
