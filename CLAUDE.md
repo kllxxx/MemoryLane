@@ -42,7 +42,7 @@ All processing is local — no network, no cloud, no uploads.
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
 :core:domain                — repository interfaces, domain models, shared formatters (date, size)
-:core:common                — PerfLog, the performance logging (CalendarPerf), a no-op in release
+:core:common                — MviViewModel, ErrorHandler and UiError, PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
 :lib:lazycardstack          — vendored Tinder-style card stack library
 :build-logic                — convention plugins (shared Gradle config)
@@ -61,9 +61,29 @@ Intent → ViewModel → State → UI
 ```
 
 - `Intent` — user actions (SwipeLeft, SwipeRight, ConfirmDelete)
-- `ViewModel` — processes intents, emits new State via StateFlow
+- `ViewModel` — extends `MviViewModel<S, I, Ev, Ef>` from `:core:common`; processes intents, emits new State via StateFlow
 - `State` — single immutable data class, UI renders from it
-- Side effects (navigation, system dialogs) — sent via `Channel<Effect>(Channel.BUFFERED)` and exposed with `receiveAsFlow()` as `Effect`
+- `Event` — a result the ViewModel itself produces (a load finished, a write failed); the UI never sends it. A ViewModel without events uses `Nothing`
+- Side effects (navigation, system dialogs, errors) — `sendEffect(effect)`; the base keeps a `Channel<Effect>(Channel.BUFFERED)` and exposes it with `receiveAsFlow()` as `effects`
+
+**MviViewModel:**
+
+- The state changes only through the feature's Reducer: `reduce(event)` applies `Reducer.reduce(state, event)`.
+- `update { }` exists only to apply an existing reducer to an intent: `update { FooReducer.reduce(it, intent) }`. State is never changed by hand through it.
+- Work goes through `launchSafe(what) { }` (a coroutine), `runSafe(what, fallback) { }` (a step inside one) and `catchSafe(what) { }` (a Flow chain). They rethrow `CancellationException` and hand every other exception to the injected `ErrorHandler`. Never write `catch (e: Exception)` by hand around suspend calls; `PermissionDeniedException` stays an explicit `catch` inside the block, it is flow control, not an error.
+- `ErrorHandler` is injected (bound in `:app`), never inherited: it logs with Timber and maps a `Throwable` to a `UiError` (a string resource).
+
+**Errors, one convention for the whole app:**
+
+| Failure | What happens |
+| --- | --- |
+| Load (the screen cannot show its content) | An error in State with a Retry intent. Leaving stays possible through the screen's own close/back button. |
+| Write / action (the user asked for something) | A one-shot `ShowError(UiError)` effect: snackbar or toast, text from resources. |
+| Best-effort (the screen is complete without it, or the user is already leaving) | Logged and falls back; nothing is shown. |
+
+A failed load is never a silent navigation away and never an endless spinner. Settings that cannot be read fall back to the defaults.
+
+**Logging:** Timber only, never `android.util.Log` (lint `LogNotTimber`). Debug and perf builds plant `DebugTree`; release plants `ReleaseTree`, which logs warnings and errors to Logcat. There is no crash reporter.
 
 **Photo deletion flow:**
 
@@ -97,8 +117,8 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-29
-- fix: last used MMLN-30
-- refactor: last used MMLN-09
+- fix: last used MMLN-34
+- refactor: last used MMLN-20
 
 **Commit format (Conventional Commits):**
 
@@ -155,9 +175,10 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 
 - One ViewModel per screen
 - State is a single immutable data class; never mutate it directly
-- All side effects (navigation, system dialogs, toasts) go through the `Effect` Channel (`receiveAsFlow()`)
+- All side effects (navigation, system dialogs, toasts) go through `sendEffect` of `MviViewModel` (the `Effect` Channel, `receiveAsFlow()`)
 - No business logic in Composables — only UI
 - No runBlocking in production code — tests only.
+- No `android.util.Log` — Timber only; no hand-written `catch (e: Exception)` around suspend calls, see "MviViewModel" above
 - Repository interfaces live in `:core:domain`, implementations in `:core:data`
 - `:core:photos:data` is the only module allowed to touch MediaStore
 
@@ -171,7 +192,7 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 ## Testing
 
 **Unit tests (JUnit4 + MockK + Turbine) — mandatory for:**
-- Every ViewModel: state transitions, intent handling, effect emission
+- Every ViewModel: state transitions, intent handling, effect emission, and a cancellation test: a cancelled coroutine neither reports an error nor emits a state or an effect
 - Every UseCase
 - Every Repository implementation (mock DAOs and MediaStore)
 - All mapper functions
