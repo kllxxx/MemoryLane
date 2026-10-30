@@ -32,7 +32,7 @@ object ReminderConstants {
 /**
  * The daily reminder as a notification: «Фото ждут разбора», with how many photos of today there are. A tap opens the
  * app with [ReminderConstants.ACTION_OPEN_TODAY], which the app turns into Swipe for today when there is something to
- * review (see `AppViewModel.onReminderOpened`).
+ * review (see `AppIntent.ReminderOpened`).
  */
 class ReminderNotifier @Inject constructor(
     @ApplicationContext private val context: Context,

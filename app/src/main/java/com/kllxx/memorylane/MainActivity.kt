@@ -25,12 +25,12 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         // The first frame is drawn only with the stored theme and start destination, never a default
-        splashScreen.setKeepOnScreenCondition { viewModel.uiState.value is AppUiState.Loading }
+        splashScreen.setKeepOnScreenCondition { viewModel.state.value is AppUiState.Loading }
         enableEdgeToEdge()
         // A start from the reminder; a recreation (rotation) is not a new tap, the intent was handled the first time
         if (savedInstanceState == null) handleReminderIntent(intent)
         setContent {
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val uiState by viewModel.state.collectAsStateWithLifecycle()
 
             (uiState as? AppUiState.Ready)?.let { ready ->
                 MemoryLaneTheme(themeMode = ready.themeMode) {
@@ -56,6 +56,6 @@ class MainActivity : ComponentActivity() {
         if (intent?.action != ReminderConstants.ACTION_OPEN_TODAY) return
         // Taken, so that it is not taken again by a recreation of the activity
         intent.action = null
-        viewModel.onReminderOpened()
+        viewModel.onIntent(AppIntent.ReminderOpened)
     }
 }

@@ -2,6 +2,9 @@ package com.kllxx.memorylane
 
 import android.app.Application
 import app.cash.turbine.test
+import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
@@ -11,13 +14,18 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -38,6 +46,7 @@ class AppViewModelTest {
     private val today = LocalDate.of(2026, 10, 15)
     private val clock = MutableClock(Instant.parse("2026-10-15T12:00:00Z"))
     private val todayProvider = ClockTodayProvider(clock)
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
     private val appSettingsRepository = mockk<AppSettingsRepository>()
     private val todayReview = mockk<TodayReview> {
         coEvery { photosToReview(any()) } returns 4
@@ -57,10 +66,10 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = completed))
     }
 
-    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, todayProvider)
+    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, todayProvider, errorHandler)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
-        viewModel().uiState.test {
+        viewModel().state.test {
             assertEquals(AppUiState.Loading, awaitItem())
             assertEquals(expected, (awaitItem() as AppUiState.Ready).startDestination)
             cancelAndIgnoreRemainingEvents()
@@ -73,7 +82,7 @@ class AppViewModelTest {
         val settings = MutableSharedFlow<AppSettings>(replay = 1)
         every { appSettingsRepository.getSettings() } returns settings
 
-        viewModel().uiState.test {
+        viewModel().state.test {
             assertEquals(AppUiState.Loading, awaitItem())
             expectNoEvents()
             settings.emit(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
@@ -88,7 +97,7 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns
             flowOf(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
 
-        viewModel().uiState.test {
+        viewModel().state.test {
             assertEquals(AppUiState.Loading, awaitItem())
             assertEquals(ThemeMode.Light, (awaitItem() as AppUiState.Ready).themeMode)
             cancelAndIgnoreRemainingEvents()
@@ -100,7 +109,7 @@ class AppViewModelTest {
         val settings = MutableStateFlow(AppSettings(onboardingCompleted = true, themeMode = ThemeMode.Light))
         every { appSettingsRepository.getSettings() } returns settings
 
-        viewModel().uiState.test {
+        viewModel().state.test {
             assertEquals(AppUiState.Loading, awaitItem())
             assertEquals(ThemeMode.Light, (awaitItem() as AppUiState.Ready).themeMode)
             settings.value = settings.value.copy(themeMode = ThemeMode.System)
@@ -130,11 +139,37 @@ class AppViewModelTest {
     }
 
     @Test
+    fun `the failure to resolve is logged with what failed`() = runTest {
+        every { appSettingsRepository.getSettings() } throws IllegalStateException("db closed")
+
+        viewModel().state.test {
+            assertEquals(AppUiState.Loading, awaitItem())
+            awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        verify { errorHandler.handle(any<IllegalStateException>(), "resolve the start destination") }
+    }
+
+    @Test
+    fun `a cancelled start is not an error and the app stays on the splash screen`() = runTest {
+        every { appSettingsRepository.getSettings() } returns flow { awaitCancellation() }
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        runCurrent()
+
+        assertEquals(AppUiState.Loading, viewModel.state.value)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
+    }
+
+    @Test
     fun `reminder tap with photos to review opens today`() = runTest {
         givenOnboarding(completed = true)
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             assertEquals(AppEffect.OpenToday(today), awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
@@ -146,7 +181,7 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns settings
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             expectNoEvents()
             settings.emit(AppSettings(onboardingCompleted = true))
             assertEquals(AppEffect.OpenToday(today), awaitItem())
@@ -159,7 +194,7 @@ class AppViewModelTest {
         givenOnboarding(completed = false)
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
@@ -173,7 +208,7 @@ class AppViewModelTest {
         givenOnboarding(completed = true)
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
@@ -184,9 +219,9 @@ class AppViewModelTest {
         givenOnboarding(completed = true)
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             assertEquals(AppEffect.OpenToday(today), awaitItem())
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             assertEquals(AppEffect.OpenToday(today), awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
@@ -197,12 +232,12 @@ class AppViewModelTest {
         givenOnboarding(completed = true)
         val viewModel = viewModel()
         viewModel.effects.test {
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
             assertEquals(AppEffect.OpenToday(today), awaitItem())
 
             // The process survived the night
             clock.set(Instant.parse("2026-10-16T00:05:00Z"))
-            viewModel.onReminderOpened()
+            viewModel.onIntent(AppIntent.ReminderOpened)
 
             assertEquals(AppEffect.OpenToday(LocalDate.of(2026, 10, 16)), awaitItem())
             cancelAndIgnoreRemainingEvents()
