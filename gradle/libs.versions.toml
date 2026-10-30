@@ -21,6 +21,7 @@ desugarJdkLibs = "2.1.5"
 
 # DI
 hilt = "2.60.1"
+javaxInject = "1"
 
 # Images
 coil = "3.6.3"
@@ -74,6 +75,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 
 # Hilt
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "javaxInject" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
 

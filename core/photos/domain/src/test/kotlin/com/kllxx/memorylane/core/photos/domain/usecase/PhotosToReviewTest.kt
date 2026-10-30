@@ -24,9 +24,8 @@ class PhotosToReviewTest {
     private val photoRepository = mockk<PhotoRepository> {
         every { hasMediaPermission() } returns true
     }
-    private val swipeRepository = mockk<SwipeRepository> {
-        coEvery { adoptUndatedDecisions(any(), any()) } returns Unit
-    }
+    // Strict: a call that is not stubbed fails, so any write would fail the test
+    private val swipeRepository = mockk<SwipeRepository>()
 
     private val review = PhotosToReview(photoRepository, swipeRepository)
 
@@ -41,14 +40,23 @@ class PhotosToReviewTest {
 
 
     @Test
-    fun `photos that got a date since they were decided as undated keep their decision on their day`() = runTest {
+    fun `counting writes nothing, whatever the decisions are`() = runTest {
         givenPhotos(1, 2)
         givenDecisions(1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE)
 
-        assertEquals(0, review(date))
+        review(date)
+        givenDecisions()
+        review(date)
 
-        coVerify { swipeRepository.adoptUndatedDecisions(listOf(1L, 2L), date) }
+        // Reading the banner or the reminder count must never change the database
+        coVerify(exactly = 0) { swipeRepository.adoptUndatedDecisions(any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.removeDecision(any()) }
+        coVerify(exactly = 0) { swipeRepository.setDecisions(any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+        coVerify(exactly = 0) { swipeRepository.confirmDeletion(any(), any()) }
     }
+
     @Test
     fun `photos without any decision are all waiting`() = runTest {
         givenPhotos(1, 2, 3)

@@ -30,6 +30,8 @@ import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -87,7 +89,7 @@ class CalendarScreenScrollTest {
         coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } returns Unit
         val stats = mockk<StatsRepository>()
         every { stats.streaks } returns flowOf(Streaks.None)
-        return CalendarViewModel(repository, swipeRepository, stats, ClockTodayProvider(clock))
+        return CalendarViewModel(repository, swipeRepository, stats, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), ClockTodayProvider(clock))
     }
 
     private fun show(viewModel: CalendarViewModel, visible: () -> Boolean = { true }) {

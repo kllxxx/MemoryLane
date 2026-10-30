@@ -1,9 +1,9 @@
 package com.kllxx.memorylane.reminder
 
 import android.util.Log
-import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.domain.time.TodayProvider
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import java.time.LocalDate
 import javax.inject.Inject
@@ -14,18 +14,21 @@ import kotlinx.coroutines.CancellationException
  * years that are not completed yet. The rule is [PhotosToReview], the same one the banner of today in Calendar uses.
  */
 class TodayReview @Inject constructor(
-    photoRepository: PhotoRepository,
-    swipeRepository: SwipeRepository,
+    private val photoRepository: PhotoRepository,
+    private val adoptDatedDecisions: AdoptDatedDecisions,
+    private val review: PhotosToReview,
     private val todayProvider: TodayProvider,
 ) {
-
-    private val review = PhotosToReview(photoRepository, swipeRepository)
 
     /** How many photos of today are waiting, or 0 when there is nothing to review or it cannot be told. */
     suspend fun photosToReview(): Int = photosToReview(todayProvider.now())
 
     /** The same for [date]: a caller that acts on the answer asks for the date it will act on. */
     suspend fun photosToReview(date: LocalDate): Int = try {
+        if (photoRepository.hasMediaPermission()) {
+            // A photo decided as undated that has a date now is decided on its day; counting is only reading
+            adoptDatedDecisions.forDay(date, photoRepository.getPhotosForDate(date).map { it.id })
+        }
         review(date)
     } catch (e: CancellationException) {
         throw e

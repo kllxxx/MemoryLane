@@ -15,6 +15,7 @@ import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.toDeckPhoto
@@ -41,6 +42,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SwipeViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
+    private val adoptDatedDecisions: AdoptDatedDecisions,
     private val swipeRepository: SwipeRepository,
     private val statsRepository: StatsRepository,
     private val appSettingsRepository: AppSettingsRepository,
@@ -127,7 +129,7 @@ class SwipeViewModel @Inject constructor(
             val event = try {
                 val photos = photoRepository.getPhotos(deckKey)
                 // Photos that got a date since they were decided in the undated deck keep their decision on their day
-                if (deckKey is DeckKey.Day) swipeRepository.adoptUndatedDecisions(photos.map { it.id }, deckKey.date)
+                if (deckKey is DeckKey.Day) adoptDatedDecisions.forDay(deckKey.date, photos.map { it.id })
                 val decisions = swipeRepository.getDecisions(deckKey)
                 val trashed = loadTrashed(photos, decisions)
                 val locale = Locale.getDefault()

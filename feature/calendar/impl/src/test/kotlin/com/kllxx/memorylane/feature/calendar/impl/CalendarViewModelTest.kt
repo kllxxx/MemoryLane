@@ -17,6 +17,8 @@ import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -137,7 +139,7 @@ class CalendarViewModelTest {
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, todayProvider)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), todayProvider)
 
     @After
     fun tearDown() {

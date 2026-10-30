@@ -104,4 +104,18 @@ class AdoptDatedDecisionsTest {
             // expected
         }
     }
+
+    @Test
+    fun `the photos of a day take their decisions from the undated deck to that day`() = runTest {
+        adopt.forDay(day, listOf(1L, 2L))
+
+        coVerify(exactly = 1) { swipeRepository.adoptUndatedDecisions(listOf(1L, 2L), day) }
+    }
+
+    @Test
+    fun `a day without photos moves nothing`() = runTest {
+        adopt.forDay(day, emptyList())
+
+        coVerify(exactly = 0) { swipeRepository.adoptUndatedDecisions(any(), any()) }
+    }
 }

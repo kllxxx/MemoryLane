@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 class BeforeDeleteViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val photoRepository: PhotoRepository,
+    private val adoptDatedDecisions: AdoptDatedDecisions,
     private val clock: Clock,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
@@ -160,7 +161,7 @@ class BeforeDeleteViewModel @Inject constructor(
     /** Without it the grid is still right for everything but a photo that got a date lately, so a failure only logs. */
     private suspend fun adoptDatedMarks() {
         try {
-            AdoptDatedDecisions(photoRepository, swipeRepository)(photoRepository.onThisDayIndex.value?.undatedIds.orEmpty())
+            adoptDatedDecisions(photoRepository.onThisDayIndex.value?.undatedIds.orEmpty())
         } catch (e: CancellationException) {
             throw e
         } catch (e: PermissionDeniedException) {

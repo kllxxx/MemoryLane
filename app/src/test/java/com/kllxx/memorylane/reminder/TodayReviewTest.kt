@@ -7,7 +7,10 @@ import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import com.kllxx.memorylane.ClockTodayProvider
@@ -39,7 +42,12 @@ class TodayReviewTest {
         coEvery { adoptUndatedDecisions(any(), any()) } returns Unit
     }
 
-    private fun review() = TodayReview(photoRepository, swipeRepository, ClockTodayProvider(clock))
+    private fun review() = TodayReview(
+        photoRepository,
+        AdoptDatedDecisions(photoRepository, swipeRepository),
+        PhotosToReview(photoRepository, swipeRepository),
+        ClockTodayProvider(clock),
+    )
 
     @Test
     fun `undecided photos are all waiting`() = runTest {
@@ -82,5 +90,12 @@ class TodayReviewTest {
     fun `a failed lookup is nothing to review`() = runTest {
         coEvery { photoRepository.getPhotosForDate(today) } throws IllegalStateException("query failed")
         assertEquals(0, review().photosToReview())
+    }
+
+    @Test
+    fun `the photos of the day get their decisions from the undated deck before they are counted`() = runTest {
+        review().photosToReview()
+
+        coVerify(exactly = 1) { swipeRepository.adoptUndatedDecisions(listOf(1L, 2L, 3L), today) }
     }
 }

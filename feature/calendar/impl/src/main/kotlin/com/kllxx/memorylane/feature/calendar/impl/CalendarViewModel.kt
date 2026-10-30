@@ -37,6 +37,8 @@ class CalendarViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
     private val statsRepository: StatsRepository,
+    private val photosToReview: PhotosToReview,
+    private val adoptDatedDecisions: AdoptDatedDecisions,
     private val todayProvider: TodayProvider,
 ) : ViewModel() {
 
@@ -65,10 +67,6 @@ class CalendarViewModel @Inject constructor(
     val currentMonthIndex: Int
         get() = _state.value.let { listIndexOfMonth(it.months, YearMonth.from(it.today)) }
 
-    // The rule of the banner of today, shared with the reminder
-    private val photosToReview = PhotosToReview(photoRepository, swipeRepository)
-    // Moves the decisions of photos that got a date to their day
-    private val adoptDatedDecisions = AdoptDatedDecisions(photoRepository, swipeRepository)
     private var lastIndex: OnThisDayIndex? = null
     private var todayJob: Job? = null
     private var undatedJob: Job? = null
