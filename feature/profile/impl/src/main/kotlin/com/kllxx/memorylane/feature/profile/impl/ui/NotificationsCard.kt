@@ -17,18 +17,19 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kllxx.memorylane.feature.profile.impl.ProfileIntent
 import com.kllxx.memorylane.feature.profile.impl.ProfileState
 import com.kllxx.memorylane.feature.profile.impl.R
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 internal const val NOTIFICATIONS_SWITCH_TAG = "notifications-switch"
 internal const val REMINDER_TIME_ROW_TAG = "reminder-time-row"
-
-private val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
 internal fun settingsSwitchColors() = SwitchDefaults.colors(
@@ -41,6 +42,7 @@ internal fun settingsSwitchColors() = SwitchDefaults.colors(
 internal fun NotificationsCard(
     state: ProfileState.Content,
     onIntent: (ProfileIntent) -> Unit,
+    is24Hour: Boolean,
     modifier: Modifier = Modifier,
 ) {
     RowsCard(modifier) {
@@ -71,7 +73,7 @@ internal fun NotificationsCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    RowValue(state.reminderTime.format(TimeFormat))
+                    RowValue(formatReminderTime(state.reminderTime, is24Hour, LocalConfiguration.current.locales[0]))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
@@ -82,3 +84,7 @@ internal fun NotificationsCard(
         )
     }
 }
+
+/** The time the way the picker shows it: «19:30» on a 24-hour clock, «7:30 PM» on a 12-hour one. */
+internal fun formatReminderTime(time: LocalTime, is24Hour: Boolean, locale: Locale): String =
+    DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", locale).format(time)

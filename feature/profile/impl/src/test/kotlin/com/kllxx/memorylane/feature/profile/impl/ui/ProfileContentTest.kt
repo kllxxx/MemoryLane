@@ -24,6 +24,8 @@ import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.feature.profile.impl.ProfileIntent
 import com.kllxx.memorylane.feature.profile.impl.ProfileReducer
 import com.kllxx.memorylane.feature.profile.impl.ProfileState
+import java.time.LocalTime
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,7 +42,11 @@ class ProfileContentTest {
 
     private val intents = mutableListOf<ProfileIntent>()
 
-    private fun setContent(initial: ProfileState.Content = ProfileState.Content(), themeMode: ThemeMode = ThemeMode.Light) {
+    private fun setContent(
+        initial: ProfileState.Content = ProfileState.Content(),
+        themeMode: ThemeMode = ThemeMode.Light,
+        is24Hour: Boolean = true,
+    ) {
         composeRule.setContent {
             var state by remember { mutableStateOf(initial) }
             MemoryLaneTheme(themeMode = themeMode) {
@@ -51,7 +57,7 @@ class ProfileContentTest {
                         state = ProfileReducer.reduce(state, it)
                     },
                     snackbarHostState = SnackbarHostState(),
-                    is24Hour = true,
+                    is24Hour = is24Hour,
                 )
             }
         }
@@ -88,6 +94,23 @@ class ProfileContentTest {
         assertEquals(listOf<ProfileIntent>(ProfileIntent.OpenTimePicker), intents)
     }
 
+
+    @Test
+    fun `time row shows the time on a 24-hour clock like the picker does`() {
+        setContent(ProfileState.Content(reminderTime = LocalTime.of(19, 30)), is24Hour = true)
+
+        composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).performScrollTo()
+        composeRule.onNodeWithText("19:30").assertExists()
+    }
+
+    @Test
+    fun `time row shows the time on a 12-hour clock like the picker does`() {
+        setContent(ProfileState.Content(reminderTime = LocalTime.of(19, 30)), is24Hour = false)
+
+        composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).performScrollTo()
+        composeRule.onNodeWithText(formatReminderTime(LocalTime.of(19, 30), is24Hour = false, Locale.US)).assertExists()
+        composeRule.onNodeWithText("19:30").assertDoesNotExist()
+    }
     @Test
     fun `time row is not clickable while notifications are off`() {
         setContent(ProfileState.Content(userNotificationsEnabled = false))
