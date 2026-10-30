@@ -18,6 +18,7 @@ object CalendarReducer {
             months = event.months,
             phase = if (event.isEmpty) CalendarPhase.Empty else CalendarPhase.Content,
         )
+        is CalendarEvent.TodayChanged -> state.copy(today = event.today, months = event.months)
         is CalendarEvent.SortedDatesLoaded -> state.copy(sortedDates = event.sortedDates.toImmutableSet())
         is CalendarEvent.StreakLoaded -> state.copy(currentStreak = event.currentStreak)
         is CalendarEvent.TodayBannerChanged -> state.copy(todayBanner = event.banner)

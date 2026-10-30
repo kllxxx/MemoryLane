@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
+import com.kllxx.memorylane.core.domain.time.TodayProvider
 import com.kllxx.memorylane.navigation.StartDestination
 import com.kllxx.memorylane.reminder.TodayReview
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -32,8 +32,6 @@ sealed interface AppUiState {
     data class Ready(
         val themeMode: ThemeMode,
         val startDestination: StartDestination,
-        // The one "today" of the navigation graph, taken from the injected clock when the start is resolved
-        val today: LocalDate,
     ) : AppUiState
 }
 
@@ -47,7 +45,7 @@ sealed interface AppEffect {
 class AppViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val todayReview: TodayReview,
-    private val clock: Clock,
+    private val todayProvider: TodayProvider,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<AppUiState>(AppUiState.Loading)
@@ -58,7 +56,6 @@ class AppViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val currentDay = LocalDate.now(clock)
             // Used only if the settings cannot be read, otherwise the stored theme wins
             var themeMode = AppSettings().themeMode
             val startDestination = try {
@@ -73,7 +70,7 @@ class AppViewModel @Inject constructor(
                 Log.e(TAG, "Could not resolve the start destination", e)
                 StartDestination.Onboarding
             }
-            _uiState.value = AppUiState.Ready(themeMode, startDestination, currentDay)
+            _uiState.value = AppUiState.Ready(themeMode, startDestination)
             followThemeChanges()
         }
     }
@@ -87,7 +84,9 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch {
             val ready = _uiState.first { it is AppUiState.Ready } as AppUiState.Ready
             if (ready.startDestination != StartDestination.Main) return@launch
-            if (todayReview.photosToReview() > 0) _effects.send(AppEffect.OpenToday(ready.today))
+            // The date at the moment of the tap: the process may have been alive since yesterday
+            val today = todayProvider.now()
+            if (todayReview.photosToReview(today) > 0) _effects.send(AppEffect.OpenToday(today))
         }
     }
 

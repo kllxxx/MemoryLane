@@ -27,10 +27,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
@@ -38,10 +36,11 @@ import java.time.ZoneOffset
 class AppViewModelTest {
 
     private val today = LocalDate.of(2026, 10, 15)
-    private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
+    private val clock = MutableClock(Instant.parse("2026-10-15T12:00:00Z"))
+    private val todayProvider = ClockTodayProvider(clock)
     private val appSettingsRepository = mockk<AppSettingsRepository>()
     private val todayReview = mockk<TodayReview> {
-        coEvery { photosToReview() } returns 4
+        coEvery { photosToReview(any()) } returns 4
     }
 
     @Before
@@ -58,7 +57,7 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = completed))
     }
 
-    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, clock)
+    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, todayProvider)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
         viewModel().uiState.test {
@@ -68,15 +67,6 @@ class AppViewModelTest {
         }
     }
 
-    @Test
-    fun `today comes from the injected clock`() = runTest {
-        givenOnboarding(completed = true)
-        viewModel().uiState.test {
-            assertEquals(AppUiState.Loading, awaitItem())
-            assertEquals(today, (awaitItem() as AppUiState.Ready).today)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
 
     @Test
     fun `not ready until the settings have been emitted`() = runTest {
@@ -130,7 +120,7 @@ class AppViewModelTest {
         givenOnboarding(completed = true)
         assertResolvesTo(StartDestination.Main)
         // The start does not look at the photos at all: that is Calendar's job
-        coVerify(exactly = 0) { todayReview.photosToReview() }
+        coVerify(exactly = 0) { todayReview.photosToReview(any()) }
     }
 
     @Test
@@ -173,13 +163,13 @@ class AppViewModelTest {
             expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
-        coVerify(exactly = 0) { todayReview.photosToReview() }
+        coVerify(exactly = 0) { todayReview.photosToReview(any()) }
     }
 
     @Test
     fun `reminder tap with nothing to review stays on calendar`() = runTest {
         // No access to the photos, no photos today or a completed day all come back as 0
-        coEvery { todayReview.photosToReview() } returns 0
+        coEvery { todayReview.photosToReview(any()) } returns 0
         givenOnboarding(completed = true)
         val viewModel = viewModel()
         viewModel.effects.test {
@@ -200,5 +190,24 @@ class AppViewModelTest {
             assertEquals(AppEffect.OpenToday(today), awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `a reminder tap after midnight opens the new day, not the day the app started on`() = runTest {
+        givenOnboarding(completed = true)
+        val viewModel = viewModel()
+        viewModel.effects.test {
+            viewModel.onReminderOpened()
+            assertEquals(AppEffect.OpenToday(today), awaitItem())
+
+            // The process survived the night
+            clock.set(Instant.parse("2026-10-16T00:05:00Z"))
+            viewModel.onReminderOpened()
+
+            assertEquals(AppEffect.OpenToday(LocalDate.of(2026, 10, 16)), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        // The count and the destination are for the same day
+        coVerify { todayReview.photosToReview(LocalDate.of(2026, 10, 16)) }
     }
 }

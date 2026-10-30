@@ -21,7 +21,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.MonthDay
@@ -79,9 +78,11 @@ private class FakePhotoRepository : PhotoRepository {
 
     var todayPhotos: List<Photo> = emptyList()
     var todayFailure: Exception? = null
+    val photosDatesQueried = mutableListOf<LocalDate>()
 
     override suspend fun getPhotosForDate(date: LocalDate): List<Photo> {
         todayFailure?.let { throw it }
+        photosDatesQueried += date
         return todayPhotos
     }
     override suspend fun getUndatedPhotos(): List<Photo> = emptyList()
@@ -106,7 +107,8 @@ class CalendarViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val today = LocalDate.of(2026, 10, 15)
-    private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+    private val clock = MutableClock(today.atStartOfDay().toInstant(ZoneOffset.UTC))
+    private val todayProvider = ClockTodayProvider(clock)
     private val uri = mockk<Uri>(relaxed = true)
     private lateinit var repository: FakePhotoRepository
     private lateinit var swipeRepository: SwipeRepository
@@ -135,7 +137,7 @@ class CalendarViewModelTest {
         viewModel = createViewModel()
     }
 
-    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, clock)
+    private fun createViewModel() = CalendarViewModel(repository, swipeRepository, statsRepository, todayProvider)
 
     @After
     fun tearDown() {
@@ -272,6 +274,72 @@ class CalendarViewModelTest {
         assertEquals(UndatedBanner(2), viewModel.state.value.undatedBanner)
     }
 
+
+    // --- the day changes while the screen is open ---
+
+    private fun TestScope.passMidnight(to: LocalDate) {
+        clock.set(to.atStartOfDay().toInstant(ZoneOffset.UTC))
+        todayProvider.tick()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `after midnight today, the highlight and the banner move to the new day`() = runTest(dispatcher) {
+        repository.todayPhotos = listOf(Photo(10, uri, LocalDateTime.of(2020, 10, 15, 9, 0), sizeBytes = 1))
+        showIndex(indexWith(MonthDay.of(10, 16) to 2))
+        assertEquals(TodayBanner(1), viewModel.state.value.todayBanner)
+        // A day that has not happened yet shows no photos
+        assertNull(viewModel.state.value.days().first { it.date == today.plusDays(1) }.memory)
+
+        passMidnight(today.plusDays(1))
+
+        assertEquals(today.plusDays(1), viewModel.state.value.today)
+        assertEquals(today.plusDays(1), repository.photosDatesQueried.last())
+        assertNotNull(viewModel.state.value.days().first { it.date == today.plusDays(1) }.memory)
+    }
+
+    @Test
+    fun `after midnight a day is opened by the new today, not the old one`() = runTest(dispatcher) {
+        passMidnight(today.plusDays(1))
+
+        viewModel.effects.test {
+            viewModel.onIntent(CalendarIntent.OpenDay(today.plusDays(1)))
+            assertEquals(CalendarEffect.NavigateToSwipe(today.plusDays(1)), awaitItem())
+            viewModel.onIntent(CalendarIntent.OpenDay(today.plusDays(2)))
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a plain day change keeps where the user scrolled`() = runTest(dispatcher) {
+        viewModel.onScrolled(index = 5, offset = 20)
+
+        passMidnight(today.plusDays(1))
+
+        assertEquals(ScrollAnchor(5, 20), viewModel.scrollAnchor)
+    }
+
+    @Test
+    fun `new year builds the grid of the new year and goes to its current month`() = runTest(dispatcher) {
+        val newYearsEve = LocalDate.of(2026, 12, 31)
+        clock.set(newYearsEve.atStartOfDay().toInstant(ZoneOffset.UTC))
+        todayProvider.tick()
+        viewModel = createViewModel()
+        showIndex(indexWith(MonthDay.of(1, 1) to 3))
+        assertEquals(2026, viewModel.state.value.months.first().yearMonth.year)
+        viewModel.onScrolled(index = 40, offset = 0)
+
+        passMidnight(LocalDate.of(2027, 1, 1))
+
+        val state = viewModel.state.value
+        assertEquals(LocalDate.of(2027, 1, 1), state.today)
+        assertTrue(state.months.all { it.yearMonth.year == 2027 })
+        assertEquals(12, state.months.size)
+        // The memories of the index are on the new grid, and January 1st has already happened
+        assertEquals(3, state.days().first { it.date == LocalDate.of(2027, 1, 1) }.memory?.count)
+        assertEquals(ScrollAnchor(viewModel.currentMonthIndex, 0), viewModel.scrollAnchor)
+        assertEquals(LocalDate.of(2027, 1, 1), repository.photosDatesQueried.last())
+    }
     // --- photos that got a date take their decisions to their day ---
 
     @Test

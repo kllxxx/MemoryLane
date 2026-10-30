@@ -87,7 +87,7 @@ class CalendarScreenScrollTest {
         coEvery { swipeRepository.adoptUndatedDecisions(any(), any()) } returns Unit
         val stats = mockk<StatsRepository>()
         every { stats.streaks } returns flowOf(Streaks.None)
-        return CalendarViewModel(repository, swipeRepository, stats, clock)
+        return CalendarViewModel(repository, swipeRepository, stats, ClockTodayProvider(clock))
     }
 
     private fun show(viewModel: CalendarViewModel, visible: () -> Boolean = { true }) {

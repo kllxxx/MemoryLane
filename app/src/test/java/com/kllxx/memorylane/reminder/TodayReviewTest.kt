@@ -10,10 +10,10 @@ import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
-import java.time.Clock
+import com.kllxx.memorylane.ClockTodayProvider
+import com.kllxx.memorylane.MutableClock
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
 class TodayReviewTest {
 
     private val today = LocalDate.of(2026, 10, 15)
-    private val clock = Clock.fixed(Instant.parse("2026-10-15T12:00:00Z"), ZoneOffset.UTC)
+    private val clock = MutableClock(Instant.parse("2026-10-15T12:00:00Z"))
     private val photos = listOf(1L, 2L, 3L).map {
         Photo(it, mockk<Uri>(relaxed = true), LocalDate.of(2024, 10, 15).atStartOfDay(), sizeBytes = 100)
     }
@@ -39,7 +39,7 @@ class TodayReviewTest {
         coEvery { adoptUndatedDecisions(any(), any()) } returns Unit
     }
 
-    private fun review() = TodayReview(photoRepository, swipeRepository, clock)
+    private fun review() = TodayReview(photoRepository, swipeRepository, ClockTodayProvider(clock))
 
     @Test
     fun `undecided photos are all waiting`() = runTest {

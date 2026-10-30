@@ -7,13 +7,13 @@ import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
+import com.kllxx.memorylane.core.domain.time.TodayProvider
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
@@ -37,15 +37,13 @@ class CalendarViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val swipeRepository: SwipeRepository,
     private val statsRepository: StatsRepository,
-    private val clock: Clock,
+    private val todayProvider: TodayProvider,
 ) : ViewModel() {
 
-    private val today = LocalDate.now(clock)
-
     // The grid depends on dates only, so it is there from the start; the photos are added when they are known
-    private val yearGrid = buildYearGrid(today.year)
-
-    private val _state = MutableStateFlow(CalendarState(months = yearGrid, today = today))
+    private val _state = MutableStateFlow(
+        todayProvider.now().let { today -> CalendarState(months = buildYearGrid(today.year), today = today) },
+    )
     val state: StateFlow<CalendarState> = _state.asStateFlow()
 
     private val _effects = Channel<CalendarEffect>(Channel.BUFFERED)
@@ -54,9 +52,9 @@ class CalendarViewModel @Inject constructor(
     /**
      * Where the list is scrolled to. It starts on the current month and then follows the user, so a list that is
      * created again (back from a day, from another tab, after a rotation) opens where it was left. It is not part of
-     * [state] because scrolling must not emit states.
+     * [state] because scrolling must not emit states. A new year is a new list, so it goes back to the current month.
      */
-    var scrollAnchor = ScrollAnchor(listIndexOfMonth(yearGrid, YearMonth.from(today)), offset = 0)
+    var scrollAnchor = ScrollAnchor(currentMonthIndex, offset = 0)
         private set
 
     fun onScrolled(index: Int, offset: Int) {
@@ -64,12 +62,14 @@ class CalendarViewModel @Inject constructor(
     }
 
     /** The list position of the current month, for scrolling back to it. */
-    val currentMonthIndex: Int = scrollAnchor.index
+    val currentMonthIndex: Int
+        get() = _state.value.let { listIndexOfMonth(it.months, YearMonth.from(it.today)) }
 
     // The rule of the banner of today, shared with the reminder
     private val photosToReview = PhotosToReview(photoRepository, swipeRepository)
     // Moves the decisions of photos that got a date to their day
     private val adoptDatedDecisions = AdoptDatedDecisions(photoRepository, swipeRepository)
+    private var lastIndex: OnThisDayIndex? = null
     private var todayJob: Job? = null
     private var undatedJob: Job? = null
 
@@ -77,6 +77,7 @@ class CalendarViewModel @Inject constructor(
         CalendarPerf.onViewModelCreated()
         // The real permission state decides whether to load, so a revoked permission never leaves a blank screen
         _state.update { CalendarReducer.reduce(it, CalendarIntent.PermissionResult(photoRepository.hasMediaPermission())) }
+        observeToday()
         observePhotoIndex()
         observeSortedDays()
         observeStreak()
@@ -102,7 +103,7 @@ class CalendarViewModel @Inject constructor(
             CalendarIntent.OpenUndated -> _effects.trySend(CalendarEffect.NavigateToUndated)
             is CalendarIntent.OpenDay ->
                 // A day that has not happened yet has no photos to sort
-                if (!intent.date.isAfter(LocalDate.now(clock))) {
+                if (!intent.date.isAfter(todayProvider.now())) {
                     _effects.trySend(CalendarEffect.NavigateToSwipe(intent.date))
                 }
         }
@@ -112,14 +113,33 @@ class CalendarViewModel @Inject constructor(
         _state.update { CalendarReducer.reduce(it, event) }
     }
 
+    /**
+     * The day changed under a screen that stayed open: the highlight, the days that count as past, the banner and,
+     * in a new year, the whole grid follow it.
+     */
+    private fun observeToday() {
+        viewModelScope.launch {
+            todayProvider.today.collect { today ->
+                val current = _state.value
+                if (today == current.today) return@collect
+                val newYear = today.year != current.today.year
+                val base = if (newYear) buildYearGrid(today.year) else current.months
+                onEvent(CalendarEvent.TodayChanged(today, base.withMemories(lastIndex, today)))
+                if (newYear) scrollAnchor = ScrollAnchor(currentMonthIndex, offset = 0)
+                refreshTodayBanner()
+            }
+        }
+    }
+
     /** The last loaded index is shown at once; every new one replaces it in a single state update. */
     private fun observePhotoIndex() {
         viewModelScope.launch {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
+                lastIndex = index
                 refreshUndatedBanner(index)
                 adoptDatedDecisions(index)
                 refreshTodayBanner()
-                val months = yearGrid.withMemories(index, today)
+                val months = _state.value.let { it.months.withMemories(index, it.today) }
                 onEvent(CalendarEvent.IndexLoaded(months, isEmpty = index.isEmpty))
                 CalendarPerf.onIndexShown(
                     isEmpty = index.isEmpty,
@@ -199,6 +219,7 @@ class CalendarViewModel @Inject constructor(
 
     private suspend fun loadTodayBanner(): TodayBanner? {
         val startedAt = PerfLog.nanoTime()
+        val today = _state.value.today
         val count = photosToReview(today)
         PerfLog.d { "todayBanner date=$today photosToReview=$count query=${PerfLog.sinceMs(startedAt)}ms" }
         return if (count > 0) TodayBanner(count) else null
