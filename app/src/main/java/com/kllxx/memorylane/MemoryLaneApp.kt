@@ -1,7 +1,6 @@
 package com.kllxx.memorylane
 
 import android.app.Application
-import android.util.Log
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.reminder.ReminderScheduler
@@ -26,10 +25,12 @@ class MemoryLaneApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Release stays silent; the perf build is release-like but logs for measurements
+        // The perf build is release-like but logs everything for measurements; release keeps warnings and errors
         if (BuildConfig.DEBUG || BuildConfig.PERF_LOGGING) {
             Timber.plant(Timber.DebugTree())
             PerfLog.enable()
+        } else {
+            Timber.plant(ReleaseTree())
         }
         followReminderSettings()
     }
@@ -44,12 +45,8 @@ class MemoryLaneApp : Application() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not follow the reminder settings", e)
+                Timber.e(e, "Could not follow the reminder settings")
             }
         }
-    }
-
-    private companion object {
-        const val TAG = "MemoryLaneApp"
     }
 }

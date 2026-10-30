@@ -5,7 +5,6 @@ import android.content.Context
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
@@ -16,6 +15,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /** What the geocoder said about a position. Only [Failure] is worth asking again later. */
 internal sealed interface GeocodeResult {
@@ -65,7 +65,7 @@ internal class LocationGeocoder internal constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.e(TAG, "Could not geocode a location", e)
+        Timber.e(e, "Could not geocode a location")
         GeocodeResult.Failure
     }
 
@@ -109,6 +109,5 @@ internal class LocationGeocoder internal constructor(
     internal companion object {
         /** How missing GPS data is commonly stored: a position of exactly 0/0. */
         const val INVALID_COORDINATE = 0.0
-        private const val TAG = "LocationGeocoder"
     }
 }

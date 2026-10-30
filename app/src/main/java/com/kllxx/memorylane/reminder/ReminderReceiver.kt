@@ -3,7 +3,6 @@ package com.kllxx.memorylane.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -13,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * The time of the daily reminder has come. The next alarm is set first, so a failure below never ends the reminders,
@@ -40,14 +40,10 @@ class ReminderReceiver : BroadcastReceiver() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not remind", e)
+                Timber.e(e, "Could not remind")
             } finally {
                 pending.finish()
             }
         }
-    }
-
-    private companion object {
-        const val TAG = "ReminderReceiver"
     }
 }

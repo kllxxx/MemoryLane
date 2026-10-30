@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.reminder
 
-import android.util.Log
 import com.kllxx.memorylane.core.domain.time.TodayProvider
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
@@ -8,6 +7,7 @@ import com.kllxx.memorylane.core.photos.domain.usecase.PhotosToReview
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import timber.log.Timber
 
 /**
  * Whether today has something to review, which is what the reminder is for and where its tap goes: photos from earlier
@@ -34,11 +34,7 @@ class TodayReview @Inject constructor(
         throw e
     } catch (e: Exception) {
         // Not knowing is not a reason to send someone to a screen: Calendar is where they land
-        Log.e(TAG, "Could not look up the photos of today", e)
+        Timber.e(e, "Could not look up the photos of today")
         0
-    }
-
-    private companion object {
-        const val TAG = "TodayReview"
     }
 }

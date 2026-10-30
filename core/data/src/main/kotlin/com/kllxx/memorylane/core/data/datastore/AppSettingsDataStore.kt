@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.core.data.datastore
 
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import java.io.IOException
 import java.time.LocalTime
 import javax.inject.Inject
+import timber.log.Timber
 
 internal class AppSettingsDataStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
@@ -25,7 +25,7 @@ internal class AppSettingsDataStore @Inject constructor(
     val settings: Flow<AppSettings> = dataStore.data
         .catch { e ->
             if (e !is IOException) throw e
-            Log.e(TAG, "Could not read the settings, using the defaults", e)
+            Timber.e(e, "Could not read the settings, using the defaults")
             emit(emptyPreferences())
         }
         .map { prefs ->
@@ -76,7 +76,6 @@ internal class AppSettingsDataStore @Inject constructor(
     }
 
     private companion object {
-        const val TAG = "AppSettingsDataStore"
         const val MINUTES_PER_HOUR = 60
         const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
 

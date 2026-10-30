@@ -10,7 +10,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
@@ -62,6 +61,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import timber.log.Timber
 
 @Singleton
 internal class PhotoRepositoryImpl @Inject constructor(
@@ -273,7 +273,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             throw e
         } catch (e: Exception) {
             // The index stays as it was; the next refresh tries again with whatever reached the cache
-            Log.e(TAG, "Could not date the photos without a MediaStore date", e)
+            Timber.e(e, "Could not date the photos without a MediaStore date")
         }
     }
 
@@ -439,7 +439,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Could not load the photo index in the background", e)
+                Timber.e(e, "Could not load the photo index in the background")
             }
         }
     }
@@ -569,7 +569,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not read the location cache", e)
+            Timber.e(e, "Could not read the location cache")
             emptyMap()
         }
         val unresolved = mutableListOf<Photo>()
@@ -610,7 +610,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             throw e
         } catch (e: Exception) {
             // The place is still shown this time; it is only looked up again next time
-            Log.e(TAG, "Could not cache the location of photo ${entry.photoId}", e)
+            Timber.e(e, "Could not cache the location of photo ${entry.photoId}")
         }
     }
 
@@ -684,7 +684,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
             ExifInterface(stream).latLong?.let { it[0] to it[1] }
         }
     } catch (e: Exception) {
-        Log.e(TAG, "Could not read the EXIF coordinates", e)
+        Timber.e(e, "Could not read the EXIF coordinates")
         null
     }
 
@@ -754,8 +754,6 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private class CachedDay(val takenAt: LocalDateTime, val hasTime: Boolean, val dateModified: Long)
 
     private companion object {
-        const val TAG = "PhotoRepositoryImpl"
-
         // DATE_MODIFIED and DISPLAY_NAME are for the photos without DATE_TAKEN: the cache key and the file-name date
         val INDEX_PROJECTION = listOf(
             MediaStore.Images.Media._ID,
