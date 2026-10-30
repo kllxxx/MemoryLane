@@ -921,4 +921,57 @@ class BeforeDeleteViewModelTest {
         }
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
+
+    // --- a load that failed is an error with a retry, not a silent exit ---
+
+    @Test
+    fun `a failed load shows the error and stays on the screen`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws IllegalStateException("db")
+        create()
+
+        viewModel.effects.test {
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+        assertFalse(state.isLoading)
+        assertEquals(UiError(R.string.before_delete_load_error), state.loadError)
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the marked photos") }
+    }
+
+    @Test
+    fun `retry loads the marked photos again`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws IllegalStateException("db")
+        load()
+        coEvery { photoRepository.getPhotosForDate(date) } answers { photos }
+
+        send(BeforeDeleteIntent.Retry)
+
+        assertNull(state.loadError)
+        assertEquals(listOf(1L, 2L), state.cells.map { it.photoId })
+    }
+
+    @Test
+    fun `retry shows the spinner again until the photos arrive`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws IllegalStateException("db")
+        load()
+
+        viewModel.onIntent(BeforeDeleteIntent.Retry)
+
+        assertTrue(state.isLoading)
+        assertNull(state.loadError)
+    }
+
+    @Test
+    fun `the button does nothing while the load error is shown, it cannot finish the day`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws IllegalStateException("db")
+        load()
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            expectNoEvents()
+        }
+        assertTrue(swipeRepository.confirmed.isEmpty())
+    }
 }

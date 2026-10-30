@@ -1,11 +1,15 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui
 
+import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.feature.swipe.impl.common.LOAD_ERROR_RETRY_TAG
+import com.kllxx.memorylane.feature.swipe.impl.common.LOAD_ERROR_TAG
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -290,5 +294,26 @@ class BeforeDeleteContentTest {
         show(initial(1, 2))
 
         composeRule.onNodeWithTag(BeforeDeleteTags.DIALOG_CONFIRM).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a load error shows a retry that sends the intent, and the button cannot be used`() {
+        show(BeforeDeleteState(isLoading = false, loadError = UiError.Generic))
+
+        composeRule.onNodeWithTag(LOAD_ERROR_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(BeforeDeleteTags.INTRO).assertDoesNotExist()
+        button().assertIsNotEnabled()
+        composeRule.onNodeWithTag(LOAD_ERROR_RETRY_TAG).performClick()
+
+        assertEquals(listOf<BeforeDeleteIntent>(BeforeDeleteIntent.Retry), intents)
+    }
+
+    @Test
+    fun `the back button is still there to leave a load error`() {
+        show(BeforeDeleteState(isLoading = false, loadError = UiError.Generic))
+
+        composeRule.onNodeWithTag(BeforeDeleteTags.BACK).performClick()
+
+        assertEquals(1, backs)
     }
 }

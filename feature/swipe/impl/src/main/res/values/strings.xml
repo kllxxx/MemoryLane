@@ -3,6 +3,8 @@
     <string name="swipe_close">Закрыть</string>
     <string name="swipe_location_icon">Место съёмки</string>
     <string name="swipe_loading">Загрузка фото</string>
+    <string name="swipe_load_error">Не удалось загрузить фото</string>
+    <string name="load_error_retry">Повторить</string>
     <string name="swipe_card_description">Фото, %1$s</string>
     <string name="swipe_card_description_undated">Фото</string>
     <string name="swipe_badge_delete">УДАЛИТЬ</string>
@@ -43,6 +45,7 @@
     <string name="before_delete_cell_marked">Фото %1$d, отмечено на удаление</string>
     <string name="before_delete_cell_unmarked">Фото %1$d, оставлено</string>
     <string name="before_delete_loading">Загрузка фото</string>
+    <string name="before_delete_load_error">Не удалось загрузить фото</string>
     <plurals name="before_delete_dialog_title">
         <item quantity="one">Удалить %d фото безвозвратно?</item>
         <item quantity="other">Удалить %d фото безвозвратно?</item>

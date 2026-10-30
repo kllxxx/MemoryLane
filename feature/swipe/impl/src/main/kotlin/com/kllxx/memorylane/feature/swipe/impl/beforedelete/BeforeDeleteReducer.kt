@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.common.UiError
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentList
 
@@ -8,6 +9,7 @@ object BeforeDeleteReducer {
     fun reduce(state: BeforeDeleteState, intent: BeforeDeleteIntent): BeforeDeleteState = when (intent) {
         is BeforeDeleteIntent.Toggle -> toggle(state, intent.photoId)
         BeforeDeleteIntent.PermanentDeleteDismissed -> state.copy(showPermanentDialog = false)
+        BeforeDeleteIntent.Retry -> state.copy(isLoading = true, loadError = null)
         // Handled by the ViewModel, which does the work and reports it with an event
         BeforeDeleteIntent.DeleteClicked,
         BeforeDeleteIntent.PermanentDeleteConfirmed,
@@ -18,6 +20,7 @@ object BeforeDeleteReducer {
 
     internal fun reduce(state: BeforeDeleteState, event: BeforeDeleteEvent): BeforeDeleteState = when (event) {
         is BeforeDeleteEvent.CellsLoaded -> state.copy(cells = event.cells.toImmutableList(), isLoading = false)
+        is BeforeDeleteEvent.LoadFailed -> state.copy(isLoading = false, loadError = event.error)
         is BeforeDeleteEvent.DeletingChanged -> state.copy(isDeleting = event.deleting)
         is BeforeDeleteEvent.PermanentDialogChanged -> state.copy(showPermanentDialog = event.shown)
     }
@@ -35,6 +38,7 @@ object BeforeDeleteReducer {
 /** Results produced by [BeforeDeleteViewModel] itself. The UI never sends these. */
 sealed interface BeforeDeleteEvent {
     data class CellsLoaded(val cells: List<DeleteCell>) : BeforeDeleteEvent
+    data class LoadFailed(val error: UiError) : BeforeDeleteEvent
     data class DeletingChanged(val deleting: Boolean) : BeforeDeleteEvent
     data class PermanentDialogChanged(val shown: Boolean) : BeforeDeleteEvent
 }

@@ -14,6 +14,9 @@ sealed interface BeforeDeleteIntent {
     /** The answer to the request for the permission to write (API 24–29). */
     data class WritePermissionResult(val granted: Boolean) : BeforeDeleteIntent
 
+    /** Retry after the photos could not be loaded. */
+    data object Retry : BeforeDeleteIntent
+
     /** The system dialog of the trash request closed: [confirmed] is `RESULT_OK`, anything else is a cancel. */
     data class SystemDeleteResult(val confirmed: Boolean) : BeforeDeleteIntent
 }

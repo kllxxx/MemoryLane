@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
 import android.net.Uri
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import java.time.LocalDate
 import kotlinx.collections.immutable.ImmutableList
@@ -24,6 +25,8 @@ data class DeleteCell(
  */
 data class BeforeDeleteState(
     val isLoading: Boolean = true,
+    /** The photos could not be read: [BeforeDeleteIntent.Retry] starts over, the back button leaves. */
+    val loadError: UiError? = null,
     val cells: ImmutableList<DeleteCell> = persistentListOf(),
     val isDeleting: Boolean = false,
     val showPermanentDialog: Boolean = false,

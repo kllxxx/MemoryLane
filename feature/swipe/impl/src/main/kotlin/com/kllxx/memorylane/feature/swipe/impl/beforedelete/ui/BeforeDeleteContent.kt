@@ -57,6 +57,7 @@ import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteIntro
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toButton
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toIntro
 import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
+import com.kllxx.memorylane.feature.swipe.impl.common.LoadError
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
 import com.kllxx.memorylane.core.domain.format.formatDayMonth
 
@@ -77,10 +78,12 @@ fun BeforeDeleteContent(
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier.fillMaxSize().background(colors.surface)) {
         TopBar(onBack)
-        Intro(state)
+        if (state.loadError == null) Intro(state)
         Spacer(Modifier.height(14.dp))
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (state.isLoading) {
+            if (state.loadError != null) {
+                LoadError(state.loadError, onRetry = { onIntent(BeforeDeleteIntent.Retry) }, modifier = Modifier.align(Alignment.Center))
+            } else if (state.isLoading) {
                 val loading = stringResource(R.string.before_delete_loading)
                 CircularProgressIndicator(
                     Modifier.align(Alignment.Center).semantics { contentDescription = loading },
@@ -258,7 +261,7 @@ private fun DeleteActionButton(state: BeforeDeleteState, onIntent: (BeforeDelete
         contentColor = content,
         onClick = { onIntent(BeforeDeleteIntent.DeleteClicked) },
         modifier = Modifier.padding(16.dp).testTag(BeforeDeleteTags.BUTTON),
-        enabled = !state.isDeleting && !state.isLoading,
+        enabled = !state.isDeleting && !state.isLoading && state.loadError == null,
     )
 }
 

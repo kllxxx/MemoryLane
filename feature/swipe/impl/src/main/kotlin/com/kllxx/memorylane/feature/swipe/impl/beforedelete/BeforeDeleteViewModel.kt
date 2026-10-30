@@ -82,6 +82,10 @@ class BeforeDeleteViewModel @Inject constructor(
             BeforeDeleteIntent.DeleteClicked -> onDeleteClicked(before)
             BeforeDeleteIntent.PermanentDeleteConfirmed -> onPermanentDeleteConfirmed(before)
             BeforeDeleteIntent.PermanentDeleteDismissed -> Unit
+            BeforeDeleteIntent.Retry -> {
+                loadJob?.cancel()
+                loadJob = load()
+            }
             is BeforeDeleteIntent.WritePermissionResult ->
                 if (intent.granted) {
                     deletePermanently(before.marked)
@@ -95,7 +99,10 @@ class BeforeDeleteViewModel @Inject constructor(
 
     // --- loading ---
 
-    private fun load() = launchSafe("load the marked photos", onError = { sendEffect(BeforeDeleteEffect.NavigateToCalendar) }) {
+    private fun load() = launchSafe(
+        what = "load the marked photos",
+        onError = { reduce(BeforeDeleteEvent.LoadFailed(UiError(R.string.before_delete_load_error))) },
+    ) {
         try {
             // A photo that was marked in the undated deck and has a date now is a mark of its day
             adoptDatedMarks()
@@ -177,7 +184,7 @@ class BeforeDeleteViewModel @Inject constructor(
     // --- deleting ---
 
     private fun onDeleteClicked(before: BeforeDeleteState) {
-        if (before.isDeleting || before.isLoading || finished) return
+        if (before.isDeleting || before.isLoading || before.loadError != null || finished) return
         val marked = before.marked
         when {
             marked.isEmpty() -> finishWithoutDeleting()

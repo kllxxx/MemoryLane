@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.kllxx.memorylane.core.domain.format.FormattedSize
@@ -110,5 +111,25 @@ class BeforeDeleteReducerTest {
     fun `the intro counts the marked photos and says so when there are none`() {
         assertEquals(DeleteIntro.Marked(2), state(cell(1), cell(2), cell(3, marked = false)).toIntro())
         assertEquals(DeleteIntro.NothingMarked, state(cell(1, marked = false)).toIntro())
+    }
+
+    // --- load error ---
+
+    @Test
+    fun `a failed load shows the error instead of the spinner`() {
+        val result = BeforeDeleteReducer.reduce(BeforeDeleteState(), BeforeDeleteEvent.LoadFailed(UiError.Generic))
+
+        assertFalse(result.isLoading)
+        assertEquals(UiError.Generic, result.loadError)
+    }
+
+    @Test
+    fun `retry clears the error and shows the spinner`() {
+        val failed = BeforeDeleteState(isLoading = false, loadError = UiError.Generic)
+
+        val result = BeforeDeleteReducer.reduce(failed, BeforeDeleteIntent.Retry)
+
+        assertTrue(result.isLoading)
+        assertEquals(null, result.loadError)
     }
 }
