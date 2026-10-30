@@ -98,6 +98,8 @@ A failed load is never a silent navigation away and never an endless spinner. Se
 
 **Theme:** Dark by default. User can override in Profile. Stored in DataStore.
 
+**Permissions:** `PermissionsRepository` (`:core:domain`) is the one source of what the system allows; `PermissionRules` says which permission exists on which API level and whether the system can still show its prompt. Screens ask through `rememberPermissionRequester` (`:core:ui`): photos and their location (API 29+) always together. Photo access is all-or-nothing: "select photos" (API 34+) counts as no access. While the gallery is unreadable the last streaks computed with access are shown; they are never recomputed without it. Profile lists the permissions in «Разрешения».
+
 ## Git Conventions
 
 **Branch naming:**
@@ -116,9 +118,9 @@ Each prefix has its own independent counter:
 - chore, test, docs — no ticket number
 
 Current counters (update as you go):
-- feat: last used MMLN-29
-- fix: last used MMLN-34
-- refactor: last used MMLN-20
+- feat: last used MMLN-30
+- fix: last used MMLN-37
+- refactor: last used MMLN-21
 
 **Commit format (Conventional Commits):**
 
