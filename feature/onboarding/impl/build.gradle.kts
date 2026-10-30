@@ -7,6 +7,7 @@ plugins {
 dependencies {
     implementation(project(":feature:onboarding:api"))
     implementation(project(":core:ui"))
+    implementation(project(":core:common"))
     implementation(project(":core:domain"))
 
     implementation(libs.bundles.lifecycle)

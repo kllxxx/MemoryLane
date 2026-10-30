@@ -1,13 +1,20 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -30,13 +37,14 @@ class OnboardingViewModelTest {
     private lateinit var repository: AppSettingsRepository
     private lateinit var viewModel: OnboardingViewModel
     private lateinit var savedStateHandle: SavedStateHandle
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         repository = mockk(relaxed = true)
         savedStateHandle = SavedStateHandle()
-        viewModel = OnboardingViewModel(repository, savedStateHandle)
+        viewModel = OnboardingViewModel(repository, savedStateHandle, errorHandler)
     }
 
     @After
@@ -146,7 +154,7 @@ class OnboardingViewModelTest {
     @Test
     fun `a restored denial makes the next one reach the rationale`() = runTest(dispatcher) {
         savedStateHandle = SavedStateHandle(mapOf(OnboardingViewModel.PERMISSION_DENIALS_KEY to 1))
-        viewModel = OnboardingViewModel(repository, savedStateHandle)
+        viewModel = OnboardingViewModel(repository, savedStateHandle, errorHandler)
 
         viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
         assertTrue(viewModel.state.value.showPermissionRationale)
@@ -189,6 +197,31 @@ class OnboardingViewModelTest {
             advanceUntilIdle()
             assertEquals(OnboardingEffect.NavigateToSwipe, awaitItem())
         }
+    }
+
+    @Test
+    fun `a failing flag write is logged with what failed`() = runTest(dispatcher) {
+        coEvery { repository.setOnboardingCompleted(true) } throws IllegalStateException("disk full")
+
+        viewModel.onIntent(OnboardingIntent.Skip)
+        advanceUntilIdle()
+
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "store that onboarding is completed") }
+    }
+
+    @Test
+    fun `a cancelled flag write neither navigates nor counts as an error`() = runTest(dispatcher) {
+        coEvery { repository.setOnboardingCompleted(true) } coAnswers { awaitCancellation() }
+        viewModel.effects.test {
+            viewModel.onIntent(OnboardingIntent.Skip)
+            advanceUntilIdle()
+
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     @Test
