@@ -2,6 +2,7 @@ package com.kllxx.memorylane.feature.profile.impl
 
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import java.time.LocalTime
 
 sealed interface ProfileIntent {
@@ -16,6 +17,12 @@ sealed interface ProfileIntent {
     ) : ProfileIntent
 
     data class PermissionResult(val granted: Boolean) : ProfileIntent
+
+    /** A row of «Разрешения» was tapped. */
+    data class PermissionRowClicked(val permission: AppPermission) : ProfileIntent
+
+    /** Sent on ON_RESUME, which also follows a permission dialog: the permissions the system can still ask for. */
+    data class PermissionsChecked(val canRequest: Set<AppPermission>) : ProfileIntent
     data object OpenTimePicker : ProfileIntent
     data object DismissTimePicker : ProfileIntent
     data class ConfirmTime(val time: LocalTime) : ProfileIntent

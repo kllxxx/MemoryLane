@@ -9,6 +9,7 @@ import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -205,5 +206,30 @@ class AppSettingsDataStoreTest {
             assertEquals(false, awaitItem().locationGrantSeen)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `no permission counts as asked until it was marked`() = runTest {
+        store.settings.test {
+            assertEquals(emptySet<AppPermission>(), awaitItem().requestedPermissions)
+            store.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location))
+            assertEquals(setOf(AppPermission.Photos, AppPermission.Location), awaitItem().requestedPermissions)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `marking a permission keeps the ones marked before`() = runTest {
+        store.markPermissionsRequested(setOf(AppPermission.Photos))
+        store.markPermissionsRequested(setOf(AppPermission.Delete))
+
+        assertEquals(setOf(AppPermission.Photos, AppPermission.Delete), store.settings.first().requestedPermissions)
+    }
+
+    @Test
+    fun `a stored name the app does not know is ignored`() = runTest {
+        prefs.edit { it[androidx.datastore.preferences.core.stringSetPreferencesKey("requested_permissions")] = setOf("Photos", "Gone") }
+
+        assertEquals(setOf(AppPermission.Photos), store.settings.first().requestedPermissions)
     }
 }

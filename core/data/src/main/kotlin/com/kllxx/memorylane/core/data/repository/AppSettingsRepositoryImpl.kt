@@ -4,6 +4,7 @@ import com.kllxx.memorylane.core.data.datastore.AppSettingsDataStore
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalTime
@@ -33,4 +34,7 @@ internal class AppSettingsRepositoryImpl @Inject constructor(
     override suspend fun setSwipeButtonsEnabled(enabled: Boolean) = dataStore.setSwipeButtonsEnabled(enabled)
 
     override suspend fun setLocationGrantSeen(granted: Boolean) = dataStore.setLocationGrantSeen(granted)
+
+    override suspend fun markPermissionsRequested(permissions: Set<AppPermission>) =
+        dataStore.markPermissionsRequested(permissions)
 }

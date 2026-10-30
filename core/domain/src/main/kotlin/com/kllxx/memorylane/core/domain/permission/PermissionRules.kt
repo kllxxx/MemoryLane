@@ -15,6 +15,9 @@ object PermissionRules {
     const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
     const val WRITE_EXTERNAL_STORAGE = "android.permission.WRITE_EXTERNAL_STORAGE"
 
+    /** The newest API level the rules know; the default of a state that was not read from a device. */
+    const val LATEST_API = 36
+
     private const val API_Q = 29
     private const val API_TIRAMISU = 33
 

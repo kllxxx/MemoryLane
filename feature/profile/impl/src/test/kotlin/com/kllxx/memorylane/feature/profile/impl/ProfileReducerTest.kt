@@ -3,6 +3,8 @@ package com.kllxx.memorylane.feature.profile.impl
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.permission.PermissionsState
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -209,5 +211,50 @@ class ProfileReducerTest {
             ProfileState.Loading,
             ProfileReducer.reduce(ProfileState.Loading, ProfileEvent.AwaitingSystemSettings),
         )
+    }
+
+    // --- «Разрешения» ---
+
+    @Test
+    fun `the permissions changing replace the permissions of the content only`() {
+        val changed = PermissionsState(photos = false, sdkInt = 34)
+
+        assertEquals(
+            initial.copy(permissions = changed),
+            ProfileReducer.reduce(initial, ProfileEvent.PermissionsChanged(changed)),
+        )
+        assertEquals(ProfileState.Loading, ProfileReducer.reduce(ProfileState.Loading, ProfileEvent.PermissionsChanged(changed)))
+    }
+
+    @Test
+    fun `the first frame carries the permissions and the requested ones come from the settings`() {
+        val permissions = PermissionsState(location = false, sdkInt = 33)
+        val settings = AppSettings(requestedPermissions = setOf(AppPermission.Photos, AppPermission.Location))
+
+        val loaded = ProfileReducer.reduce(
+            ProfileState.Loading,
+            ProfileEvent.Loaded(settings, currentStreak = 2, systemNotificationsEnabled = true, versionName = "1", permissions = permissions),
+        ) as ProfileState.Content
+
+        assertEquals(permissions, loaded.permissions)
+        assertEquals(setOf(AppPermission.Photos, AppPermission.Location), loaded.requestedPermissions)
+    }
+
+    @Test
+    fun `the rows are the permissions of the API level`() {
+        assertEquals(
+            listOf(AppPermission.Photos, AppPermission.Location, AppPermission.Notifications),
+            initial.copy(permissions = PermissionsState(sdkInt = 34)).permissionRows,
+        )
+        assertEquals(
+            listOf(AppPermission.Photos, AppPermission.Location, AppPermission.Delete),
+            initial.copy(permissions = PermissionsState(sdkInt = 29)).permissionRows,
+        )
+    }
+
+    @Test
+    fun `tapping a row or checking the permissions changes no state`() {
+        assertEquals(initial, ProfileReducer.reduce(initial, ProfileIntent.PermissionRowClicked(AppPermission.Photos)))
+        assertEquals(initial, ProfileReducer.reduce(initial, ProfileIntent.PermissionsChecked(setOf(AppPermission.Photos))))
     }
 }

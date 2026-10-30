@@ -16,6 +16,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
 
 /**
  * Asks for permissions and opens the system settings of the app: the one place the screens do it, so a request is the
@@ -35,6 +37,15 @@ class PermissionRequester internal constructor(
 
     /** True while the system still wants a rationale: the permission was denied, but not for good. */
     fun shouldShowRationale(permission: String): Boolean = context.shouldShowRationale(permission)
+}
+
+/**
+ * Whether the system can still show its prompt for [permission]: false for a permission that is granted, or that does not
+ * exist on [sdkInt]. [requestedBefore] is whether the app asked for it already; see `PermissionRules.canRequest`.
+ */
+fun PermissionRequester.canRequest(permission: AppPermission, sdkInt: Int, requestedBefore: Boolean): Boolean {
+    val name = PermissionRules.permissionOf(permission, sdkInt) ?: return false
+    return PermissionRules.canRequest(isGranted(name), requestedBefore, shouldShowRationale(name))
 }
 
 /** [onResult] gets, per permission, whether it was granted. */

@@ -33,6 +33,7 @@ internal class PermissionsRepositoryImpl @Inject constructor(
             // A permission the API level does not have is not missing
             PermissionRules.permissionOf(permission, sdkInt)?.let(::isGranted) ?: true
         return PermissionsState(
+            sdkInt = sdkInt,
             // Only the permission for all photos counts: "select photos" grants READ_MEDIA_VISUAL_USER_SELECTED alone,
             // and the app does not work with a part of the gallery
             photos = granted(AppPermission.Photos),

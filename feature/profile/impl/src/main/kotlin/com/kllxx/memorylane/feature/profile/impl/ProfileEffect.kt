@@ -5,6 +5,10 @@ import com.kllxx.memorylane.core.common.UiError
 sealed interface ProfileEffect {
     data object RequestNotificationPermission : ProfileEffect
     data object OpenNotificationSettings : ProfileEffect
+
+    /** Shows the system prompt for all of [permissions] at once. */
+    data class RequestPermissions(val permissions: List<String>) : ProfileEffect
+    data object OpenAppSettings : ProfileEffect
     data object NavigateToOnboarding : ProfileEffect
     data class ContactSupport(val versionName: String) : ProfileEffect
 

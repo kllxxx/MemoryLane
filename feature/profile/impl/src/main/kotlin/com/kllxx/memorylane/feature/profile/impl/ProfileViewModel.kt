@@ -6,7 +6,9 @@ import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AppInfo
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
+import com.kllxx.memorylane.core.domain.repository.PermissionsRepository
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -19,6 +21,7 @@ class ProfileViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val statsRepository: StatsRepository,
     private val notificationStatusProvider: NotificationStatusProvider,
+    private val permissionsRepository: PermissionsRepository,
     appInfo: AppInfo,
     errorHandler: ErrorHandler,
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEvent, ProfileEffect>(
@@ -33,13 +36,22 @@ class ProfileViewModel @Inject constructor(
     private var storedSettings: AppSettings? = null
     private var canRequestPermission = false
 
+    // The missing permissions the system can still show its prompt for, reported by the screen on every resume
+    private var canRequestPermissions: Set<AppPermission> = emptySet()
+
     init {
         observeProfile()
+        observePermissions()
     }
 
     override fun onIntent(intent: ProfileIntent) {
         // Remembered even while loading: the first resume check can arrive before the content does
         if (intent is ProfileIntent.SystemNotificationsChecked) canRequestPermission = intent.canRequestPermission
+        if (intent is ProfileIntent.PermissionsChecked) {
+            canRequestPermissions = intent.canRequest
+            // A permission may have been changed in the system settings or in a dialog
+            permissionsRepository.refresh()
+        }
         // Nothing is shown while loading, so there is nothing to act on
         val before = currentState as? ProfileState.Content ?: return
         update { ProfileReducer.reduce(it as ProfileState.Content, intent) }
@@ -51,10 +63,12 @@ class ProfileViewModel @Inject constructor(
             is ProfileIntent.NotificationsToggled -> if (intent.on && !before.systemNotificationsEnabled) {
                 turnOnWithoutSystemAccess()
             }
+            is ProfileIntent.PermissionRowClicked -> onPermissionRowClicked(intent.permission, before)
             ProfileIntent.ReplayOnboardingClicked -> sendEffect(ProfileEffect.NavigateToOnboarding)
             ProfileIntent.ContactSupportClicked ->
                 sendEffect(ProfileEffect.ContactSupport(after.versionName))
             is ProfileIntent.SystemNotificationsChecked,
+            is ProfileIntent.PermissionsChecked,
             is ProfileIntent.PermissionResult,
             is ProfileIntent.SelectGoal,
             is ProfileIntent.SelectTheme,
@@ -62,6 +76,29 @@ class ProfileViewModel @Inject constructor(
             is ProfileIntent.ConfirmTime,
             ProfileIntent.OpenTimePicker,
             ProfileIntent.DismissTimePicker -> Unit
+        }
+    }
+
+    /**
+     * A row of «Разрешения»: a missing permission is asked for while the system can still show its prompt, otherwise the
+     * person is sent to the settings of the app, where a granted one can be taken back. Photos and location are asked for
+     * together.
+     */
+    private fun onPermissionRowClicked(permission: AppPermission, before: ProfileState.Content) {
+        val granted = before.permissions.isGranted(permission)
+        when {
+            permission == AppPermission.Notifications -> if (!granted && canRequestPermission) {
+                persist("notification permission") { appSettingsRepository.markNotificationPermissionRequested() }
+                sendEffect(ProfileEffect.RequestNotificationPermission)
+            } else {
+                sendEffect(ProfileEffect.OpenNotificationSettings)
+            }
+            !granted && permission in canRequestPermissions -> {
+                val asked = if (permission == AppPermission.Delete) setOf(permission) else setOf(AppPermission.Photos, AppPermission.Location)
+                persist("requested permissions") { appSettingsRepository.markPermissionsRequested(asked) }
+                sendEffect(ProfileEffect.RequestPermissions(before.permissions.requestFor(permission)))
+            }
+            else -> sendEffect(ProfileEffect.OpenAppSettings)
         }
     }
 
@@ -113,6 +150,13 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /** The rows follow the permissions: a change made in the system settings arrives here after the next refresh. */
+    private fun observePermissions() {
+        launchSafe("follow the permissions") {
+            permissionsRepository.state.collect { reduce(ProfileEvent.PermissionsChanged(it)) }
+        }
+    }
+
     private fun showProfile(settings: AppSettings, streak: Int) {
         storedSettings = settings
         if (currentState is ProfileState.Loading) {
@@ -121,6 +165,7 @@ class ProfileViewModel @Inject constructor(
                     settings = settings,
                     currentStreak = streak,
                     systemNotificationsEnabled = notificationStatusProvider.areNotificationsEnabled(),
+                    permissions = permissionsRepository.state.value,
                     versionName = versionName,
                 ),
             )

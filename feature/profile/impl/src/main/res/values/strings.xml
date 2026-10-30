@@ -33,6 +33,16 @@
     <string name="profile_buttons_mode_title">Кнопки на экране свайпа</string>
     <string name="profile_buttons_mode_subtitle">Показывать ✕ и ✓ на фото вместо одних свайпов</string>
 
+    <string name="profile_section_permissions">Разрешения</string>
+    <string name="profile_permission_photos">Доступ к фото</string>
+    <string name="profile_permission_location">Место съёмки</string>
+    <string name="profile_permission_notifications">Уведомления</string>
+    <string name="profile_permission_delete">Удаление фото</string>
+    <string name="profile_permission_on">Включено</string>
+    <string name="profile_permission_off">Выключено</string>
+    <string name="profile_permission_allowed">Разрешено</string>
+    <string name="profile_permission_denied">Нет</string>
+
     <string name="profile_section_appearance">Оформление</string>
     <string name="profile_theme_title">Тема</string>
     <string name="profile_theme_subtitle">По умолчанию — тёмная</string>

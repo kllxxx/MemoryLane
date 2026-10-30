@@ -9,7 +9,11 @@ import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
+import com.kllxx.memorylane.core.domain.permission.PermissionsState
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
+import com.kllxx.memorylane.core.domain.repository.PermissionsRepository
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.streak.Streaks
 import io.mockk.coEvery
@@ -49,6 +53,8 @@ class ProfileViewModelTest {
     private lateinit var repository: AppSettingsRepository
     private lateinit var statsRepository: StatsRepository
     private lateinit var notificationStatus: NotificationStatusProvider
+    private lateinit var permissionsRepository: PermissionsRepository
+    private lateinit var permissions: MutableStateFlow<PermissionsState>
     private lateinit var settings: MutableStateFlow<AppSettings>
     private lateinit var streaks: MutableStateFlow<Streaks>
     private lateinit var viewModel: ProfileViewModel
@@ -64,10 +70,12 @@ class ProfileViewModelTest {
         repository = mockk(relaxUnitFun = true)
         statsRepository = mockk()
         notificationStatus = mockk()
+        permissions = MutableStateFlow(PermissionsState())
+        permissionsRepository = mockk(relaxUnitFun = true) { every { state } returns permissions }
         every { notificationStatus.areNotificationsEnabled() } returns true
         every { repository.getSettings() } returns settings
         every { statsRepository.streaks } returns streaks
-        viewModel = ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION), errorHandler)
+        viewModel = ProfileViewModel(repository, statsRepository, notificationStatus, permissionsRepository, AppInfo(VERSION), errorHandler)
         dispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -420,7 +428,7 @@ class ProfileViewModelTest {
 
     private fun newViewModel(streakFlow: kotlinx.coroutines.flow.Flow<Streaks> = streaks): ProfileViewModel {
         every { statsRepository.streaks } returns streakFlow
-        return ProfileViewModel(repository, statsRepository, notificationStatus, AppInfo(VERSION), errorHandler)
+        return ProfileViewModel(repository, statsRepository, notificationStatus, permissionsRepository, AppInfo(VERSION), errorHandler)
     }
 
     @Test
@@ -615,6 +623,189 @@ class ProfileViewModelTest {
         advanceUntilIdle()
 
         assertEquals(ThemeMode.Light, (vm.state.value as ProfileState.Content).themeMode)
+    }
+
+    // --- «Разрешения» ---
+
+    private fun givenPermissions(state: PermissionsState, canRequest: Set<AppPermission> = emptySet()) {
+        permissions.value = state
+        viewModel.onIntent(ProfileIntent.PermissionsChecked(canRequest))
+        dispatcher.scheduler.advanceUntilIdle()
+    }
+
+    @Test
+    fun `the rows follow the permissions of the system`() = runTest(dispatcher) {
+        permissions.value = PermissionsState(photos = true, location = false, notifications = false, sdkInt = 34)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(AppPermission.Photos, AppPermission.Location, AppPermission.Notifications),
+            content.permissionRows,
+        )
+        assertTrue(content.permissions.isGranted(AppPermission.Photos))
+        assertFalse(content.permissions.isGranted(AppPermission.Location))
+        assertFalse(content.permissions.isGranted(AppPermission.Notifications))
+    }
+
+    @Test
+    fun `the rows depend on the API level`() = runTest(dispatcher) {
+        permissions.value = PermissionsState(sdkInt = 29)
+        advanceUntilIdle()
+        assertEquals(listOf(AppPermission.Photos, AppPermission.Location, AppPermission.Delete), content.permissionRows)
+
+        permissions.value = PermissionsState(sdkInt = 28)
+        advanceUntilIdle()
+        assertEquals(listOf(AppPermission.Photos, AppPermission.Delete), content.permissionRows)
+    }
+
+    @Test
+    fun `the permissions are read on the first frame, not defaults`() = runTest(dispatcher) {
+        permissions.value = PermissionsState(photos = false, sdkInt = 34)
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        assertFalse((vm.state.value as ProfileState.Content).permissions.photos)
+    }
+
+    @Test
+    fun `the rows know which permissions were already asked for`() = runTest(dispatcher) {
+        settings.value = AppSettings(requestedPermissions = setOf(AppPermission.Photos, AppPermission.Location))
+        advanceUntilIdle()
+
+        assertEquals(setOf(AppPermission.Photos, AppPermission.Location), content.requestedPermissions)
+    }
+
+    @Test
+    fun `a resume reads the permissions again`() = runTest(dispatcher) {
+        viewModel.onIntent(ProfileIntent.PermissionsChecked(emptySet()))
+
+        verify(exactly = 1) { permissionsRepository.refresh() }
+    }
+
+    @Test
+    fun `a missing photo permission that can be asked for is requested together with the location`() = runTest(dispatcher) {
+        givenPermissions(PermissionsState(photos = false, location = false, sdkInt = 34), canRequest = setOf(AppPermission.Photos))
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Photos))
+            advanceUntilIdle()
+
+            assertEquals(
+                ProfileEffect.RequestPermissions(listOf(PermissionRules.READ_MEDIA_IMAGES, PermissionRules.ACCESS_MEDIA_LOCATION)),
+                awaitItem(),
+            )
+        }
+        coVerify(exactly = 1) {
+            repository.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location))
+        }
+    }
+
+    @Test
+    fun `the location row asks for the photos too`() = runTest(dispatcher) {
+        givenPermissions(PermissionsState(photos = true, location = false, sdkInt = 33), canRequest = setOf(AppPermission.Location))
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Location))
+            advanceUntilIdle()
+
+            assertEquals(
+                ProfileEffect.RequestPermissions(listOf(PermissionRules.READ_MEDIA_IMAGES, PermissionRules.ACCESS_MEDIA_LOCATION)),
+                awaitItem(),
+            )
+        }
+    }
+
+    @Test
+    fun `a missing permission the system will not ask for opens the settings`() = runTest(dispatcher) {
+        givenPermissions(PermissionsState(photos = false, sdkInt = 34), canRequest = emptySet())
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Photos))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.OpenAppSettings, awaitItem())
+        }
+        coVerify(exactly = 0) { repository.markPermissionsRequested(any()) }
+    }
+
+    @Test
+    fun `a granted permission opens the settings, where it can be taken back`() = runTest(dispatcher) {
+        givenPermissions(PermissionsState(photos = true, location = true, sdkInt = 34), canRequest = setOf(AppPermission.Photos))
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Location))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.OpenAppSettings, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the notification row asks while the permission can be asked for`() = runTest(dispatcher) {
+        every { notificationStatus.areNotificationsEnabled() } returns false
+        permissions.value = PermissionsState(notifications = false, sdkInt = 34)
+        viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = true))
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Notifications))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.RequestNotificationPermission, awaitItem())
+        }
+        coVerify(exactly = 1) { repository.markNotificationPermissionRequested() }
+    }
+
+    @Test
+    fun `the notification row opens the notification settings otherwise`() = runTest(dispatcher) {
+        permissions.value = PermissionsState(notifications = false, sdkInt = 34)
+        viewModel.onIntent(ProfileIntent.SystemNotificationsChecked(enabled = false, canRequestPermission = false))
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Notifications))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.OpenNotificationSettings, awaitItem())
+        }
+    }
+
+    @Test
+    fun `the delete row asks for its own permission only`() = runTest(dispatcher) {
+        givenPermissions(PermissionsState(delete = false, sdkInt = 29), canRequest = setOf(AppPermission.Delete))
+
+        viewModel.effects.test {
+            viewModel.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Delete))
+            advanceUntilIdle()
+
+            assertEquals(ProfileEffect.RequestPermissions(listOf(PermissionRules.WRITE_EXTERNAL_STORAGE)), awaitItem())
+        }
+        coVerify(exactly = 1) { repository.markPermissionsRequested(setOf(AppPermission.Delete)) }
+    }
+
+    @Test
+    fun `a row tapped while the profile is loading does nothing`() = runTest(dispatcher) {
+        val pending = kotlinx.coroutines.flow.MutableSharedFlow<Streaks>()
+        val vm = newViewModel(pending)
+        advanceUntilIdle()
+
+        vm.effects.test {
+            vm.onIntent(ProfileIntent.PermissionRowClicked(AppPermission.Photos))
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `a cancelled follow of the permissions is not an error`() = runTest(dispatcher) {
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        vm.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     private companion object {

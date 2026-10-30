@@ -32,6 +32,9 @@ object ProfileReducer {
         is ProfileIntent.SelectGoal -> state.copy(goal = intent.goal)
         is ProfileIntent.SelectTheme -> state.copy(themeMode = intent.mode)
         is ProfileIntent.SwipeButtonsToggled -> state.copy(swipeButtonsEnabled = intent.on)
+        // Acted on by the ViewModel: asking for a permission or opening the settings changes no state
+        is ProfileIntent.PermissionRowClicked,
+        is ProfileIntent.PermissionsChecked,
         ProfileIntent.ReplayOnboardingClicked,
         ProfileIntent.ContactSupportClicked -> state
     }
@@ -42,11 +45,13 @@ object ProfileReducer {
             currentStreak = event.currentStreak,
             systemNotificationsEnabled = event.systemNotificationsEnabled,
             versionName = event.versionName,
+            permissions = event.permissions,
         ).withSettings(event.settings)
         is ProfileEvent.SettingsLoaded -> state.ifContent { it.withSettings(event.settings) }
         is ProfileEvent.StreakLoaded -> state.ifContent { it.copy(currentStreak = event.currentStreak) }
         // Waiting for the user to come back from the system settings
         ProfileEvent.AwaitingSystemSettings -> state.ifContent { it.copy(pendingEnable = true) }
+        is ProfileEvent.PermissionsChanged -> state.ifContent { it.copy(permissions = event.permissions) }
     }
 
     private fun ProfileState.Content.withSettings(settings: AppSettings) = copy(
@@ -56,6 +61,7 @@ object ProfileReducer {
         goal = settings.streakGoal,
         reminderTime = settings.reminderTime,
         permissionRequested = settings.notificationPermissionRequested,
+        requestedPermissions = settings.requestedPermissions,
     )
 
     private inline fun ProfileState.ifContent(block: (ProfileState.Content) -> ProfileState): ProfileState =

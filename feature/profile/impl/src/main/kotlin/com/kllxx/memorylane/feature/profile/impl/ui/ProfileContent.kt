@@ -68,6 +68,8 @@ internal fun ProfileContent(
                     NotificationsCard(state, onIntent, is24Hour)
                     SectionHeader(stringResource(R.string.profile_section_review))
                     ReviewCard(state, onIntent)
+                    SectionHeader(stringResource(R.string.profile_section_permissions))
+                    PermissionsCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_appearance))
                     ThemeCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_about))

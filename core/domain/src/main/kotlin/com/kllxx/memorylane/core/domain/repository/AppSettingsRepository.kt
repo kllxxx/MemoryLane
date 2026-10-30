@@ -3,6 +3,7 @@ package com.kllxx.memorylane.core.domain.repository
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalTime
 
@@ -16,4 +17,5 @@ interface AppSettingsRepository {
     suspend fun markNotificationPermissionRequested()
     suspend fun setSwipeButtonsEnabled(enabled: Boolean)
     suspend fun setLocationGrantSeen(granted: Boolean)
+    suspend fun markPermissionsRequested(permissions: Set<AppPermission>)
 }

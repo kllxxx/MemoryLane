@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.domain.model
 
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import java.time.LocalTime
 
 data class AppSettings(
@@ -15,4 +16,6 @@ data class AppSettings(
     val swipeButtonsEnabled: Boolean = false,
     /** Whether the location permission was granted when it was last looked at, to tell a new grant from an old one. */
     val locationGrantSeen: Boolean = false,
+    /** The permissions the system prompt was shown for, to tell "not asked yet" from "denied for good". Photos and location go together. */
+    val requestedPermissions: Set<AppPermission> = emptySet(),
 )

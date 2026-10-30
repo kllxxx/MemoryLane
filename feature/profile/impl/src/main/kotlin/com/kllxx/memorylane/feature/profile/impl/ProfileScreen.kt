@@ -24,6 +24,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
+import com.kllxx.memorylane.core.ui.permission.canRequest
+import com.kllxx.memorylane.core.ui.permission.rememberPermissionRequester
 import com.kllxx.memorylane.feature.profile.impl.ui.ProfileContent
 
 @Composable
@@ -35,6 +38,9 @@ fun ProfileScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val permissionRequested by rememberUpdatedState((state as? ProfileState.Content)?.permissionRequested ?: false)
+    val requestedPermissions by rememberUpdatedState((state as? ProfileState.Content)?.requestedPermissions.orEmpty())
+    // The result is not needed: a dialog gives the screen back, which is an ON_RESUME that reads the permissions again
+    val permissionRequester = rememberPermissionRequester { }
 
     fun checkSystemNotifications() {
         viewModel.onIntent(
@@ -53,8 +59,16 @@ fun ProfileScreen(
         checkSystemNotifications()
     }
 
-    // The user may have changed the notification settings while the app was in the background
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { checkSystemNotifications() }
+    // The user may have changed the notification settings or a permission while the app was in the background
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        checkSystemNotifications()
+        viewModel.onIntent(
+            ProfileIntent.PermissionsChecked(
+                PermissionRules.relevant(Build.VERSION.SDK_INT)
+                    .filterTo(HashSet()) { permissionRequester.canRequest(it, Build.VERSION.SDK_INT, it in requestedPermissions) },
+            ),
+        )
+    }
 
     val resources = LocalResources.current
     LaunchedEffect(viewModel) {
@@ -64,6 +78,8 @@ fun ProfileScreen(
                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 ProfileEffect.OpenNotificationSettings ->
                     context.startActivity(NotificationSystem.settingsIntent(context.packageName))
+                is ProfileEffect.RequestPermissions -> permissionRequester.request(effect.permissions)
+                ProfileEffect.OpenAppSettings -> permissionRequester.openAppSettings()
                 ProfileEffect.NavigateToOnboarding -> onNavigateToOnboarding()
                 is ProfileEffect.ContactSupport -> {
                     val intent = supportMailIntent(

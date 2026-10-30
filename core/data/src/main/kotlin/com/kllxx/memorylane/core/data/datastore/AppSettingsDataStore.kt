@@ -7,9 +7,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -45,6 +47,9 @@ internal class AppSettingsDataStore @Inject constructor(
                     ?: defaults.notificationPermissionRequested,
                 swipeButtonsEnabled = prefs[SWIPE_BUTTONS_ENABLED] ?: defaults.swipeButtonsEnabled,
                 locationGrantSeen = prefs[LOCATION_GRANT_SEEN] ?: defaults.locationGrantSeen,
+                requestedPermissions = prefs[REQUESTED_PERMISSIONS]
+                    ?.mapNotNullTo(HashSet()) { name -> AppPermission.entries.firstOrNull { it.name == name } }
+                    ?: defaults.requestedPermissions,
             )
         }
 
@@ -76,6 +81,12 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[SWIPE_BUTTONS_ENABLED] = enabled }
     }
 
+    suspend fun markPermissionsRequested(permissions: Set<AppPermission>) {
+        dataStore.edit { prefs ->
+            prefs[REQUESTED_PERMISSIONS] = (prefs[REQUESTED_PERMISSIONS].orEmpty()) + permissions.map { it.name }
+        }
+    }
+
     suspend fun setLocationGrantSeen(granted: Boolean) {
         dataStore.edit { it[LOCATION_GRANT_SEEN] = granted }
     }
@@ -103,5 +114,6 @@ internal class AppSettingsDataStore @Inject constructor(
         val NOTIFICATION_PERMISSION_REQUESTED = booleanPreferencesKey("notification_permission_requested")
         val SWIPE_BUTTONS_ENABLED = booleanPreferencesKey("swipe_buttons_enabled")
         val LOCATION_GRANT_SEEN = booleanPreferencesKey("location_grant_seen")
+        val REQUESTED_PERMISSIONS = stringSetPreferencesKey("requested_permissions")
     }
 }

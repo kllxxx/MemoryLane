@@ -2,6 +2,8 @@ package com.kllxx.memorylane.feature.profile.impl
 
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.permission.PermissionsState
 import java.time.LocalTime
 
 sealed interface ProfileState {
@@ -24,8 +26,15 @@ sealed interface ProfileState {
         val swipeButtonsEnabled: Boolean = false,
         val versionName: String = "",
         val isTimePickerVisible: Boolean = false,
+        /** What the system says about the permissions; the rows of «Разрешения» follow it. */
+        val permissions: PermissionsState = PermissionsState(),
+        /** The permissions the system prompt was shown for: "not asked yet" can still be asked, the rest needs the settings. */
+        val requestedPermissions: Set<AppPermission> = emptySet(),
     ) : ProfileState {
         val notificationsOn: Boolean get() = userNotificationsEnabled && systemNotificationsEnabled
+
+        /** The rows of «Разрешения»: only the permissions that exist on this API level. */
+        val permissionRows: List<AppPermission> get() = permissions.relevant
 
         val streakProgress: StreakProgress get() = StreakProgress.of(currentStreak, goal)
     }
