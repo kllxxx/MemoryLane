@@ -16,4 +16,6 @@ data class PhotoDecisionEntity(
     val sessionDate: LocalDate,
     val decision: String,
     @ColumnInfo(name = "decided_at") val decidedAt: Long,
+    /** When the photo was taken, local epoch second, as the deck had it; null when not known. */
+    @ColumnInfo(name = "taken_at") val takenAt: Long? = null,
 )

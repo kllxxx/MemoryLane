@@ -47,7 +47,7 @@ class MigrationTest {
         v1.close()
 
         database = Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .allowMainThreadQueries()
             .build()
     }
@@ -157,5 +157,14 @@ class MigrationTest {
 
     private companion object {
         const val DB_NAME = "migration-test.db"
+    }
+
+    @Test
+    fun `decisions made before the capture time was stored keep it unknown`() = runTest {
+        val decision = database.photoDecisionDao().getById(7L)
+
+        assertNotNull(decision)
+        assertEquals("DELETE", decision!!.decision)
+        assertEquals(null, decision.takenAt)
     }
 }

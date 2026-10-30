@@ -174,7 +174,11 @@ class SwipeViewModel @Inject constructor(
         val ids = decisions.filter { (id, decision) -> decision == PhotoDecision.TRASHED && id !in inLibrary }.keys
         if (ids.isEmpty()) return emptyList()
         return try {
-            photoRepository.getTrashedPhotos(ids)
+            // MediaStore dates a trashed photo by its file time when its resolved date left with the trash
+            val storedTimes = swipeRepository.getTakenAt(ids)
+            photoRepository.getTrashedPhotos(ids).map { photo ->
+                storedTimes[photo.id]?.let { photo.copy(takenAt = it) } ?: photo
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -222,10 +226,13 @@ class SwipeViewModel @Inject constructor(
     private fun markReviewed(photoId: Long) =
         launchLogged("Could not mark photo $photoId as reviewed") { statsRepository.markReviewed(photoId) }
 
-    private fun saveDecision(photoId: Long, decision: PhotoDecision) =
+    private fun saveDecision(photoId: Long, decision: PhotoDecision) {
+        // The capture time goes with the decision: once the photo is trashed the gallery cannot tell it any more
+        val takenAt = _state.value.deck.firstOrNull { it.id == photoId }?.photo?.takenAt
         launchLogged("Could not save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, deckKey, decision)
+            swipeRepository.saveDecision(photoId, deckKey, decision, takenAt)
         }
+    }
 
     private fun removeDecision(photoId: Long) =
         launchLogged("Could not remove the decision of photo $photoId") { swipeRepository.removeDecision(photoId) }

@@ -13,6 +13,7 @@ import com.kllxx.memorylane.core.data.db.MIGRATION_3_4
 import com.kllxx.memorylane.core.data.db.MIGRATION_4_5
 import com.kllxx.memorylane.core.data.db.MIGRATION_5_6
 import com.kllxx.memorylane.core.data.db.MIGRATION_6_7
+import com.kllxx.memorylane.core.data.db.MIGRATION_7_8
 import com.kllxx.memorylane.core.data.db.dao.DeletionDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDateCacheDao
 import com.kllxx.memorylane.core.data.db.dao.PhotoDecisionDao
@@ -54,7 +55,7 @@ internal object DataProvidesModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, DataConstants.DB_NAME)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .build()
 
     @Provides

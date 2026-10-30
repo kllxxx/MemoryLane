@@ -81,3 +81,14 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         )
     }
 }
+
+/**
+ * Adds `taken_at` to the decisions: the moment the photo was taken, as the deck had it when the photo was decided
+ * (local epoch second). A photo that is trashed leaves the gallery query and loses its resolved date with it, so the
+ * strip needs it kept here. Decisions made before stay null and keep the date MediaStore gives.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE photo_decisions ADD COLUMN taken_at INTEGER")
+    }
+}

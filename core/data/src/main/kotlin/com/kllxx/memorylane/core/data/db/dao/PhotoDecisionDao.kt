@@ -25,6 +25,9 @@ interface PhotoDecisionDao {
     @Query("SELECT * FROM photo_decisions WHERE photoId = :photoId")
     suspend fun getById(photoId: Long): PhotoDecisionEntity?
 
+    @Query("SELECT * FROM photo_decisions WHERE photoId IN (:photoIds)")
+    suspend fun getByIds(photoIds: List<Long>): List<PhotoDecisionEntity>
+
     @Query("DELETE FROM photo_decisions WHERE photoId = :photoId")
     suspend fun deleteById(photoId: Long)
 

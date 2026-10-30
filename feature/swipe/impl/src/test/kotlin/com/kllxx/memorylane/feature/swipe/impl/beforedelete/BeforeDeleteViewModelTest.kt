@@ -67,11 +67,13 @@ private class FakeSwipeRepository(
     var deletedCount = 0
     var freedBytes = 0L
 
-    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision) {
+    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision, takenAt: LocalDateTime?) {
         saved += photoId to decision
         decisions[photoId] = decision
         days[photoId] = deck
     }
+
+    override suspend fun getTakenAt(photoIds: Collection<Long>): Map<Long, LocalDateTime> = emptyMap()
 
     override suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision> =
         decisions.filterKeys { (days[it] ?: DeckKey.Day(defaultDate)) == deck }

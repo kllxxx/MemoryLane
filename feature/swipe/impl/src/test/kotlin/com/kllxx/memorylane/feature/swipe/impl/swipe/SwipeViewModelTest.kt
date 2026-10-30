@@ -13,6 +13,7 @@ import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.buildStrip
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
@@ -195,6 +196,34 @@ class SwipeViewModelTest {
         assertEquals(formatTakenAt(trashed.takenAt!!, Locale.getDefault()), state.trashed.single().takenAtText)
     }
 
+
+    @Test
+    fun `a trashed photo dated by EXIF keeps its place in the strip, not the file time`() = runTest(dispatcher) {
+        // photo1 is 2016-01-07 21:15, photo2 is 2017-01-07 08:05; the trashed one was taken in between, at 14:00 in 2016
+        // and found out from EXIF, then trashed: MediaStore only has the file time of the trashing, years later
+        val takenInTheMiddle = LocalDateTime.of(2016, 6, 7, 14, 0)
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(50L to PhotoDecision.TRASHED)
+        coEvery { swipeRepository.getTakenAt(setOf(50L)) } returns mapOf(50L to takenInTheMiddle)
+        val trashedOnTheDisk = Photo(50, mockk(relaxed = true), LocalDateTime.of(2026, 10, 20, 9, 0), sizeBytes = 500)
+        coEvery { photoRepository.getTrashedPhotos(setOf(50L)) } returns listOf(trashedOnTheDisk)
+
+        load()
+
+        assertEquals(takenInTheMiddle, state.trashed.single().photo.takenAt)
+        assertEquals(listOf(1L, 50L, 2L), buildStrip(state.deck, state.trashed).map { it.photoId })
+    }
+
+    @Test
+    fun `a trashed photo without a stored time keeps what the gallery says`() = runTest(dispatcher) {
+        coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns mapOf(50L to PhotoDecision.TRASHED)
+        coEvery { swipeRepository.getTakenAt(setOf(50L)) } returns emptyMap()
+        val trashed = Photo(50, mockk(relaxed = true), LocalDateTime.of(2015, 1, 7, 9, 0), sizeBytes = 500)
+        coEvery { photoRepository.getTrashedPhotos(setOf(50L)) } returns listOf(trashed)
+
+        load()
+
+        assertEquals(trashed.takenAt, state.trashed.single().photo.takenAt)
+    }
     @Test
     fun `a photo that is back in the library after being trashed is undecided again`() = runTest(dispatcher) {
         coEvery { swipeRepository.getDecisions(DeckKey.Day(date)) } returns
@@ -274,7 +303,7 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(PhotoDecision.DELETE, null), decisions())
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE, photo1.takenAt) }
     }
 
     @Test
@@ -285,14 +314,14 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(PhotoDecision.KEEP, null), decisions())
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP, photo1.takenAt) }
     }
 
     @Test
     fun `nothing is saved before a swipe`() = runTest(dispatcher) {
         load()
 
-        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any(), any()) }
         coVerify(exactly = 0) { statsRepository.markReviewed(any()) }
     }
 
@@ -303,7 +332,7 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Up, SwipeDirection.Down)
 
         assertEquals(0, state.currentIndex)
-        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any(), any()) }
         coVerify(exactly = 0) { statsRepository.markReviewed(any()) }
     }
 
@@ -325,12 +354,12 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Left)
 
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE, photo1.takenAt) }
     }
 
     @Test
     fun `a failing decision write does not stop swiping`() = runTest(dispatcher) {
-        coEvery { swipeRepository.saveDecision(any(), any(), any()) } throws IllegalStateException("disk full")
+        coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } throws IllegalStateException("disk full")
         load()
 
         swipe(SwipeDirection.Left)
@@ -353,7 +382,7 @@ class SwipeViewModelTest {
 
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP, photo1.takenAt) }
     }
 
     @Test
@@ -364,7 +393,7 @@ class SwipeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, state.currentIndex)
-        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any(), any()) }
     }
 
     // --- undo ---
@@ -397,8 +426,8 @@ class SwipeViewModelTest {
 
         assertEquals(PhotoDecision.DELETE, state.deck[0].decision)
         // The previous decision is written back, last
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP, photo1.takenAt) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE, photo1.takenAt) }
         coVerify(exactly = 0) { swipeRepository.removeDecision(any()) }
     }
 
@@ -433,7 +462,7 @@ class SwipeViewModelTest {
 
         assertEquals(0, state.currentIndex)
         coVerify(exactly = 0) { swipeRepository.removeDecision(any()) }
-        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any()) }
+        coVerify(exactly = 0) { swipeRepository.saveDecision(any(), any(), any(), any()) }
     }
 
     @Test
@@ -457,7 +486,7 @@ class SwipeViewModelTest {
         swipe(SwipeDirection.Right)
 
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP, photo1.takenAt) }
     }
 
     // --- end of the deck ---
@@ -764,7 +793,7 @@ class SwipeViewModelTest {
         viewModel.onIntent(SwipeIntent.Undo)
         advanceUntilIdle()
         assertEquals(PhotoDecision.KEEP, state.deck[0].decision)
-        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP) }
+        coVerify(exactly = 1) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.KEEP, photo1.takenAt) }
     }
 
     @Test

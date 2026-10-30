@@ -5,11 +5,22 @@ import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
 import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.Flow
 
 interface SwipeRepository {
-    /** Records [decision] for the photo of the deck [deck], replacing the one it had. */
-    suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision)
+    /**
+     * Records [decision] for the photo of the deck [deck], replacing the one it had. [takenAt] is kept with it; null
+     * leaves the time stored before.
+     */
+    suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision, takenAt: LocalDateTime? = null)
+
+    /**
+     * When the photos of [photoIds] were taken, as the deck had it when they were decided. A photo whose decision was
+     * saved without it, or was never saved, is missing. It stays after the photo is trashed, which a gallery query cannot
+     * tell any more.
+     */
+    suspend fun getTakenAt(photoIds: Collection<Long>): Map<Long, LocalDateTime>
 
     /** The decisions of the deck [deck] only, by photo id. Undecided photos are not in the map. */
     suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision>

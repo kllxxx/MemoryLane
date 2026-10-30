@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import javax.inject.Inject
 
 internal class SwipeRepositoryImpl @Inject constructor(
@@ -27,15 +29,22 @@ internal class SwipeRepositoryImpl @Inject constructor(
     private val clock: Clock,
 ) : SwipeRepository {
 
-    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision) =
+    override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision, takenAt: LocalDateTime?) =
         photoDecisionDao.upsert(
             PhotoDecisionEntity(
                 photoId = photoId,
                 sessionDate = deck.toStoredDate(),
                 decision = decision.name,
                 decidedAt = clock.millis(),
+                // A save that does not know the time must not wipe the one an earlier swipe stored
+                takenAt = takenAt?.toEpochSecond(ZoneOffset.UTC) ?: photoDecisionDao.getById(photoId)?.takenAt,
             ),
         )
+
+    override suspend fun getTakenAt(photoIds: Collection<Long>): Map<Long, LocalDateTime> =
+        photoIds.chunked(SQL_VARIABLE_LIMIT).flatMap { photoDecisionDao.getByIds(it) }
+            .mapNotNull { row -> row.takenAt?.let { row.photoId to LocalDateTime.ofEpochSecond(it, 0, ZoneOffset.UTC) } }
+            .toMap()
 
     override suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision> =
         photoDecisionDao.getByDate(deck.toStoredDate())

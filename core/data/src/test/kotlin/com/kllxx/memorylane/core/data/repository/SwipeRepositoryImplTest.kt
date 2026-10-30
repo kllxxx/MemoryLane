@@ -15,6 +15,7 @@ import io.mockk.slot
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -35,12 +36,47 @@ class SwipeRepositoryImplTest {
     fun `saveDecision stores the decision with the day and the time of the decision`() = runTest {
         val saved = slot<PhotoDecisionEntity>()
         coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
+        coEvery { photoDecisionDao.getById(7L) } returns null
 
         repository.saveDecision(7L, DeckKey.Day(date), PhotoDecision.DELETE)
 
         assertEquals(PhotoDecisionEntity(7L, date, "DELETE", now.toEpochMilli()), saved.captured)
     }
 
+
+    @Test
+    fun `saveDecision stores when the photo was taken, as a local epoch second`() = runTest {
+        val saved = slot<PhotoDecisionEntity>()
+        coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
+
+        repository.saveDecision(7L, DeckKey.Day(date), PhotoDecision.DELETE, LocalDateTime.of(2020, 10, 15, 14, 0))
+
+        assertEquals(
+            LocalDateTime.of(2020, 10, 15, 14, 0).toEpochSecond(ZoneOffset.UTC),
+            saved.captured.takenAt,
+        )
+    }
+
+    @Test
+    fun `a decision saved without the time keeps the one stored before`() = runTest {
+        val saved = slot<PhotoDecisionEntity>()
+        coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
+        coEvery { photoDecisionDao.getById(7L) } returns PhotoDecisionEntity(7L, date, "DELETE", 1, takenAt = 1_600_000_000L)
+
+        repository.saveDecision(7L, DeckKey.Day(date), PhotoDecision.KEEP)
+
+        assertEquals(1_600_000_000L, saved.captured.takenAt)
+    }
+
+    @Test
+    fun `getTakenAt gives the stored times and leaves out the photos without one`() = runTest {
+        coEvery { photoDecisionDao.getByIds(listOf(7L, 8L)) } returns listOf(
+            PhotoDecisionEntity(7L, date, "TRASHED", 1, takenAt = LocalDateTime.of(2020, 10, 15, 14, 0).toEpochSecond(ZoneOffset.UTC)),
+            PhotoDecisionEntity(8L, date, "TRASHED", 1, takenAt = null),
+        )
+
+        assertEquals(mapOf(7L to LocalDateTime.of(2020, 10, 15, 14, 0)), repository.getTakenAt(listOf(7L, 8L)))
+    }
     @Test
     fun `getDecisions reads only that date and maps to a map by photo`() = runTest {
         coEvery { photoDecisionDao.getByDate(date) } returns listOf(
@@ -87,6 +123,7 @@ class SwipeRepositoryImplTest {
     fun `a decision of the undated deck is stored under the reserved date`() = runTest {
         val saved = slot<PhotoDecisionEntity>()
         coEvery { photoDecisionDao.upsert(capture(saved)) } returns Unit
+        coEvery { photoDecisionDao.getById(7L) } returns null
 
         repository.saveDecision(7L, DeckKey.Undated, PhotoDecision.KEEP)
 
