@@ -45,6 +45,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.onIntent(AppIntent.Resumed)
+    }
+
     /** The reminder was tapped while the app was open: this activity is brought to the front instead of a second one. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

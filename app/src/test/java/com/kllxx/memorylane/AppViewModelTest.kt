@@ -8,6 +8,7 @@ import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
+import com.kllxx.memorylane.core.photos.domain.usecase.SyncLocationPermission
 import com.kllxx.memorylane.navigation.StartDestination
 import com.kllxx.memorylane.reminder.TodayReview
 import io.mockk.coEvery
@@ -51,6 +52,7 @@ class AppViewModelTest {
     private val todayReview = mockk<TodayReview> {
         coEvery { photosToReview(any()) } returns 4
     }
+    private val syncLocationPermission = mockk<SyncLocationPermission>(relaxed = true)
 
     @Before
     fun setUp() {
@@ -66,7 +68,7 @@ class AppViewModelTest {
         every { appSettingsRepository.getSettings() } returns flowOf(AppSettings(onboardingCompleted = completed))
     }
 
-    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, todayProvider, errorHandler)
+    private fun viewModel() = AppViewModel(appSettingsRepository, todayReview, todayProvider, syncLocationPermission, errorHandler)
 
     private suspend fun assertResolvesTo(expected: StartDestination) {
         viewModel().state.test {
@@ -244,5 +246,46 @@ class AppViewModelTest {
         }
         // The count and the destination are for the same day
         coVerify { todayReview.photosToReview(LocalDate.of(2026, 10, 16)) }
+    }
+
+    @Test
+    fun `coming to the foreground syncs the location permission`() = runTest {
+        givenOnboarding(completed = true)
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onIntent(AppIntent.Resumed)
+        runCurrent()
+
+        coVerify(exactly = 1) { syncLocationPermission() }
+    }
+
+    @Test
+    fun `a failing sync is reported and does not stop the app`() = runTest {
+        givenOnboarding(completed = true)
+        coEvery { syncLocationPermission() } throws IllegalStateException("disk full")
+        val viewModel = viewModel()
+        runCurrent()
+
+        viewModel.onIntent(AppIntent.Resumed)
+        runCurrent()
+
+        verify { errorHandler.handle(any<IllegalStateException>(), "sync the permissions") }
+        assertEquals(StartDestination.Main, (viewModel.state.value as AppUiState.Ready).startDestination)
+    }
+
+    @Test
+    fun `a cancelled sync is not an error`() = runTest {
+        givenOnboarding(completed = true)
+        coEvery { syncLocationPermission() } coAnswers { awaitCancellation() }
+        val viewModel = viewModel()
+        runCurrent()
+        viewModel.onIntent(AppIntent.Resumed)
+        runCurrent()
+
+        viewModel.viewModelScope.cancel()
+        runCurrent()
+
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }

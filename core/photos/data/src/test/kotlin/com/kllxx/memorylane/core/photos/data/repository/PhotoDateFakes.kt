@@ -66,6 +66,10 @@ internal class FakePhotoLocationCache : PhotoLocationCache {
         entries.forEach { this.entries[it.photoId] = it }
     }
 
+    override suspend fun clear() {
+        entries.clear()
+    }
+
     override suspend fun retainOnly(ids: Set<Long>) {
         entries.keys.retainAll(ids)
     }

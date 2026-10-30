@@ -1,11 +1,6 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,7 +22,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -35,6 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.core.ui.component.PageIndicator
 import com.kllxx.memorylane.core.ui.component.PrimaryButton
 import com.kllxx.memorylane.core.ui.component.StatusBarScrim
+import com.kllxx.memorylane.core.ui.permission.rememberPermissionRequester
 import com.kllxx.memorylane.core.ui.theme.DarkSpringGreen
 import com.kllxx.memorylane.core.ui.theme.Spacing
 import com.kllxx.memorylane.feature.onboarding.impl.ui.InfoRow
@@ -52,18 +47,12 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
-    val photoLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { result ->
-        viewModel.onIntent(
-            OnboardingIntent.PhotoPermissionResult(OnboardingPermissions.isMediaAccessGranted(result)),
-        )
+    val photoRequester = rememberPermissionRequester { result ->
+        viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(OnboardingPermissions.isMediaAccessGranted(result)))
     }
-    val notificationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
+    val notificationRequester = rememberPermissionRequester { result ->
+        val granted = OnboardingPermissions.notification()?.let { result[it] } == true
         viewModel.onIntent(OnboardingIntent.NotificationPermissionResult(granted))
     }
 
@@ -71,19 +60,17 @@ fun OnboardingScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 OnboardingEffect.RequestPhotoPermissionLauncher ->
-                    photoLauncher.launch(OnboardingPermissions.photo().toTypedArray())
+                    photoRequester.request(OnboardingPermissions.photo())
                 OnboardingEffect.RequestNotificationPermissionLauncher -> {
                     val permission = OnboardingPermissions.notification()
                     // No runtime permission before API 33, nothing to ask
                     if (permission != null) {
-                        notificationLauncher.launch(permission)
+                        notificationRequester.request(listOf(permission))
                     } else {
                         viewModel.onIntent(OnboardingIntent.NotificationPermissionResult(granted = true))
                     }
                 }
-                OnboardingEffect.OpenAppSettings -> context.startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
-                )
+                OnboardingEffect.OpenAppSettings -> photoRequester.openAppSettings()
                 OnboardingEffect.NavigateToSwipe -> onFinished()
             }
         }

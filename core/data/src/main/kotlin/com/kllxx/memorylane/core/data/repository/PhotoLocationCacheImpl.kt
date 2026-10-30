@@ -25,6 +25,8 @@ class PhotoLocationCacheImpl @Inject constructor(
             .forEach { dao.deleteByIds(it) }
     }
 
+    override suspend fun clear() = dao.deleteAll()
+
     private companion object {
         // SQLite allows 999 variables per statement on older Android versions
         const val SQL_VARIABLE_LIMIT = 500

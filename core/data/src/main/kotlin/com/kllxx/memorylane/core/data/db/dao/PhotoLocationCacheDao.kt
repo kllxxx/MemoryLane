@@ -19,4 +19,7 @@ interface PhotoLocationCacheDao {
 
     @Query("DELETE FROM photo_locations WHERE photoId IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    @Query("DELETE FROM photo_locations")
+    suspend fun deleteAll()
 }

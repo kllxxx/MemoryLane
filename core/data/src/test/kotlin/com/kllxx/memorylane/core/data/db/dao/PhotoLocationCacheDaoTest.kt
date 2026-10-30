@@ -75,4 +75,13 @@ class PhotoLocationCacheDaoTest {
 
         assertEquals(listOf(2L), dao.allIds())
     }
+
+    @Test
+    fun `deleteAll removes every entry`() = runTest {
+        dao.upsertAll(listOf(entry(1), entry(2), entry(3)))
+
+        dao.deleteAll()
+
+        assertEquals(emptyList<Long>(), dao.allIds())
+    }
 }

@@ -15,4 +15,5 @@ interface AppSettingsRepository {
     suspend fun setReminderTime(time: LocalTime)
     suspend fun markNotificationPermissionRequested()
     suspend fun setSwipeButtonsEnabled(enabled: Boolean)
+    suspend fun setLocationGrantSeen(granted: Boolean)
 }

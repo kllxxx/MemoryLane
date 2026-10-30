@@ -78,4 +78,13 @@ class PhotoLocationCacheImplTest {
 
         assertEquals(2, cache.get(listOf(1, 2)).size)
     }
+
+    @Test
+    fun `clear removes every entry, so every place is looked up again`() = runTest {
+        cache.putAll(listOf(entry(1), entry(2, location = null), entry(3)))
+
+        cache.clear()
+
+        assertEquals(emptyMap<Long, CachedPhotoLocation>(), cache.get(listOf(1L, 2L, 3L)))
+    }
 }

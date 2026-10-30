@@ -5,6 +5,7 @@ import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.time.TodayProvider
+import com.kllxx.memorylane.core.photos.domain.usecase.SyncLocationPermission
 import com.kllxx.memorylane.navigation.StartDestination
 import com.kllxx.memorylane.reminder.TodayReview
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,7 @@ class AppViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val todayReview: TodayReview,
     private val todayProvider: TodayProvider,
+    private val syncLocationPermission: SyncLocationPermission,
     errorHandler: ErrorHandler,
 ) : MviViewModel<AppUiState, AppIntent, AppEvent, AppEffect>(
     initialState = AppUiState.Loading,
@@ -46,6 +48,7 @@ class AppViewModel @Inject constructor(
 
         when (intent) {
             AppIntent.ReminderOpened -> onReminderOpened()
+            AppIntent.Resumed -> onResumed()
         }
     }
 
@@ -62,6 +65,11 @@ class AppViewModel @Inject constructor(
             val today = todayProvider.now()
             if (todayReview.photosToReview(today) > 0) sendEffect(AppEffect.OpenToday(today))
         }
+    }
+
+    /** A permission can be changed in the system settings while the app is in the background. */
+    private fun onResumed() {
+        launchSafe("sync the permissions") { syncLocationPermission() }
     }
 
     /** Keeps the theme in step with the Profile setting once the app is up. */

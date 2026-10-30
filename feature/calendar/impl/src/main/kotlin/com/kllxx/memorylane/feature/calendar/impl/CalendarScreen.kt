@@ -1,8 +1,6 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -12,6 +10,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.core.domain.permission.PermissionRules
+import com.kllxx.memorylane.core.ui.permission.rememberPermissionRequester
 import com.kllxx.memorylane.feature.calendar.impl.ui.CalendarContent
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -50,9 +49,9 @@ fun CalendarScreen(
         reselected.collect { listState.animateScrollToItem(viewModel.currentMonthIndex.coerceAtLeast(0)) }
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> viewModel.onIntent(CalendarIntent.PermissionResult(granted)) }
+    val permissionRequester = rememberPermissionRequester { result ->
+        viewModel.onIntent(CalendarIntent.PermissionResult(result[PermissionRules.mediaRead(Build.VERSION.SDK_INT)] == true))
+    }
 
     LaunchedEffect(Unit) {
         CalendarPerf.onRouteEntered()
@@ -64,7 +63,7 @@ fun CalendarScreen(
             when (effect) {
                 is CalendarEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
                 CalendarEffect.NavigateToUndated -> onNavigateToUndated()
-                CalendarEffect.RequestPermissionLauncher -> permissionLauncher.launch(PermissionRules.mediaRead(Build.VERSION.SDK_INT))
+                CalendarEffect.RequestPermissionLauncher -> permissionRequester.request(PermissionRules.photoRequest(Build.VERSION.SDK_INT))
             }
         }
     }

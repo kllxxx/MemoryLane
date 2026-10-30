@@ -31,4 +31,6 @@ internal class AppSettingsRepositoryImpl @Inject constructor(
         dataStore.markNotificationPermissionRequested()
 
     override suspend fun setSwipeButtonsEnabled(enabled: Boolean) = dataStore.setSwipeButtonsEnabled(enabled)
+
+    override suspend fun setLocationGrantSeen(granted: Boolean) = dataStore.setLocationGrantSeen(granted)
 }

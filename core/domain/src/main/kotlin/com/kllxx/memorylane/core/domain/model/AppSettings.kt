@@ -13,4 +13,6 @@ data class AppSettings(
     val notificationPermissionRequested: Boolean = false,
     /** Swipe shows the keep and delete buttons on the card, next to the gesture. */
     val swipeButtonsEnabled: Boolean = false,
+    /** Whether the location permission was granted when it was last looked at, to tell a new grant from an old one. */
+    val locationGrantSeen: Boolean = false,
 )

@@ -44,6 +44,7 @@ internal class AppSettingsDataStore @Inject constructor(
                 notificationPermissionRequested = prefs[NOTIFICATION_PERMISSION_REQUESTED]
                     ?: defaults.notificationPermissionRequested,
                 swipeButtonsEnabled = prefs[SWIPE_BUTTONS_ENABLED] ?: defaults.swipeButtonsEnabled,
+                locationGrantSeen = prefs[LOCATION_GRANT_SEEN] ?: defaults.locationGrantSeen,
             )
         }
 
@@ -75,6 +76,10 @@ internal class AppSettingsDataStore @Inject constructor(
         dataStore.edit { it[SWIPE_BUTTONS_ENABLED] = enabled }
     }
 
+    suspend fun setLocationGrantSeen(granted: Boolean) {
+        dataStore.edit { it[LOCATION_GRANT_SEEN] = granted }
+    }
+
     private companion object {
         const val MINUTES_PER_HOUR = 60
         const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
@@ -97,5 +102,6 @@ internal class AppSettingsDataStore @Inject constructor(
         val REMINDER_MINUTE_OF_DAY = intPreferencesKey("reminder_minute_of_day")
         val NOTIFICATION_PERMISSION_REQUESTED = booleanPreferencesKey("notification_permission_requested")
         val SWIPE_BUTTONS_ENABLED = booleanPreferencesKey("swipe_buttons_enabled")
+        val LOCATION_GRANT_SEEN = booleanPreferencesKey("location_grant_seen")
     }
 }

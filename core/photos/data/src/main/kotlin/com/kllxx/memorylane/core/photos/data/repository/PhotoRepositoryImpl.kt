@@ -13,6 +13,7 @@ import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
 import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.date.CacheLookup
@@ -88,14 +89,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
     // The first scan of this process is started by the first getPhotosForDate if nothing else has by then
     private val indexLoadStarted = AtomicBoolean(false)
 
-    override fun hasMediaPermission(): Boolean {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-    }
+    override fun hasMediaPermission(): Boolean =
+        context.checkSelfPermission(PermissionRules.mediaRead(Build.VERSION.SDK_INT)) == PackageManager.PERMISSION_GRANTED
 
     private val refreshLock = Any()
     private val _onThisDayIndex = MutableStateFlow<OnThisDayIndex?>(null)
@@ -662,6 +657,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
      */
     private fun coordinatesOf(uri: Uri): Pair<Double, Double>? {
         val coordinates = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            PerfLog.d { "coordinates: ACCESS_MEDIA_LOCATION granted=${canReadCoordinates()} for $uri" }
             if (canReadCoordinates()) readExifCoordinates(uri) else null
         } else {
             queryLegacyCoordinates(uri)
@@ -675,15 +671,18 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private fun queryLegacyCoordinates(uri: Uri): Pair<Double, Double>? =
         resolver.query(uri, arrayOf(LATITUDE_COLUMN, LONGITUDE_COLUMN), null, null, null)?.use {
             if (it.moveToFirst() && !it.isNull(0) && !it.isNull(1)) it.getDouble(0) to it.getDouble(1) else null
-        }
+        }.also { PerfLog.d { "coordinates: legacy columns of $uri -> $it" } }
 
     /** Reads the GPS position from the original file's EXIF. */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun readExifCoordinates(uri: Uri): Pair<Double, Double>? = try {
-        resolver.openInputStream(MediaStore.setRequireOriginal(uri))?.use { stream ->
-            ExifInterface(stream).latLong?.let { it[0] to it[1] }
+        resolver.openInputStream(MediaStore.setRequireOriginal(uri)).also {
+            PerfLog.d { "coordinates: setRequireOriginal stream of $uri opened=${it != null}" }
+        }?.use { stream ->
+            ExifInterface(stream).latLong.also { PerfLog.d { "coordinates: exif latLong=${it?.toList()}" } }?.let { it[0] to it[1] }
         }
     } catch (e: Exception) {
+        PerfLog.d { "coordinates: exception reading $uri: $e" }
         Timber.e(e, "Could not read the EXIF coordinates")
         null
     }

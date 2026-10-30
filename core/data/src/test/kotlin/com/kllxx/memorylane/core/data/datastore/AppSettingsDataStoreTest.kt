@@ -194,4 +194,16 @@ class AppSettingsDataStoreTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test
+    fun `the location grant is not seen until it is stored`() = runTest {
+        store.settings.test {
+            assertEquals(false, awaitItem().locationGrantSeen)
+            store.setLocationGrantSeen(true)
+            assertEquals(true, awaitItem().locationGrantSeen)
+            store.setLocationGrantSeen(false)
+            assertEquals(false, awaitItem().locationGrantSeen)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

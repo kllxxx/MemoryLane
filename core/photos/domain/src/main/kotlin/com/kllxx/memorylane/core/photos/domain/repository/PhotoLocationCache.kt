@@ -12,4 +12,7 @@ interface PhotoLocationCache {
 
     /** Removes every entry whose id is not in [ids], i.e. photos that were deleted. */
     suspend fun retainOnly(ids: Set<Long>)
+
+    /** Removes every entry, so each place is looked up again. */
+    suspend fun clear()
 }

@@ -4,7 +4,8 @@ object AppReducer {
 
     /** The reminder only leads to an effect, so the state stays as it is. */
     fun reduce(state: AppUiState, intent: AppIntent): AppUiState = when (intent) {
-        AppIntent.ReminderOpened -> state
+        AppIntent.ReminderOpened,
+        AppIntent.Resumed -> state
     }
 
     fun reduce(state: AppUiState, event: AppEvent): AppUiState = when (event) {

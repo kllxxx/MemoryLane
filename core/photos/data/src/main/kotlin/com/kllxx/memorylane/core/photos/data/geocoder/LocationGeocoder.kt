@@ -6,6 +6,7 @@ import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import androidx.annotation.RequiresApi
+import com.kllxx.memorylane.core.common.PerfLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import javax.inject.Inject
@@ -47,7 +48,9 @@ internal class LocationGeocoder internal constructor(
     /** "City, Country" in the current language; see [formatPlace] for the fallbacks. Never throws, apart from cancellation. */
     @SuppressLint("NewApi") // the API level is checked through the injectable sdkInt
     suspend fun getLocation(latitude: Double, longitude: Double): GeocodeResult = try {
-        if (!isPresent()) {
+        val present = isPresent()
+        PerfLog.d { "geocoder: isPresent=$present lat=$latitude lon=$longitude sdk=$sdkInt" }
+        if (!present) {
             GeocodeResult.Failure
         } else {
             val geocoder = geocoderProvider()
@@ -65,6 +68,7 @@ internal class LocationGeocoder internal constructor(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
+        PerfLog.d { "geocoder: exception $e" }
         Timber.e(e, "Could not geocode a location")
         GeocodeResult.Failure
     }
@@ -86,10 +90,14 @@ internal class LocationGeocoder internal constructor(
                 1,
                 object : Geocoder.GeocodeListener {
                     override fun onGeocode(addresses: MutableList<Address>) {
-                        if (!cancelled) continuation.resume(Lookup.Answer(addresses.firstOrNull()))
+                        if (!cancelled) {
+                            logAddresses(addresses)
+                            continuation.resume(Lookup.Answer(addresses.firstOrNull()))
+                        }
                     }
 
                     override fun onError(errorMessage: String?) {
+                        PerfLog.d { "geocoder: onError message=$errorMessage" }
                         if (!cancelled) continuation.resume(Lookup.Failed)
                     }
                 },
@@ -100,8 +108,14 @@ internal class LocationGeocoder internal constructor(
     private suspend fun fetchBlocking(geocoder: Geocoder, latitude: Double, longitude: Double): Lookup =
         withContext(ioDispatcher) {
             // An empty or null list means "no match"; a missing network or service throws instead
-            Lookup.Answer(geocoder.getFromLocation(latitude, longitude, 1)?.firstOrNull())
+            Lookup.Answer(geocoder.getFromLocation(latitude, longitude, 1).also(::logAddresses)?.firstOrNull())
         }
+
+    private fun logAddresses(addresses: List<Address>?) = PerfLog.d {
+        val first = addresses?.firstOrNull()
+        "geocoder: results=${addresses?.size} first[locality=${first?.locality} subAdminArea=${first?.subAdminArea} " +
+            "adminArea=${first?.adminArea} country=${first?.countryName}]"
+    }
 
     private fun format(address: Address): String? =
         formatPlace(address.locality, address.subAdminArea, address.adminArea, address.countryName)
