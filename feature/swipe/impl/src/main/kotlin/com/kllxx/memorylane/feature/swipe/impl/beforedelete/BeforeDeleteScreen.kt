@@ -49,8 +49,8 @@ fun BeforeDeleteScreen(
                 is BeforeDeleteEffect.NavigateToResult ->
                     onNavigateToResult(effect.deck, effect.deletedCount, effect.freedBytes, effect.keptCount, effect.totalCount)
                 BeforeDeleteEffect.NavigateToCalendar -> onNavigateToCalendar()
-                BeforeDeleteEffect.ShowDeleteError ->
-                    Toast.makeText(context, R.string.before_delete_error, Toast.LENGTH_SHORT).show()
+                is BeforeDeleteEffect.ShowError ->
+                    Toast.makeText(context, effect.error.message, Toast.LENGTH_SHORT).show()
                 BeforeDeleteEffect.ShowPermissionDenied ->
                     Toast.makeText(context, R.string.before_delete_permission_denied, Toast.LENGTH_SHORT).show()
             }

@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
 import android.content.IntentSender
+import com.kllxx.memorylane.core.common.UiError
 
 sealed interface BeforeDeleteEffect {
     /** The screen launches the system dialog of the trash request (API 30+) and reports the result. */
@@ -22,7 +23,7 @@ sealed interface BeforeDeleteEffect {
     data object NavigateToCalendar : BeforeDeleteEffect
 
     /** The delete failed with an error, as opposed to the user cancelling. Nothing was deleted. */
-    data object ShowDeleteError : BeforeDeleteEffect
+    data class ShowError(val error: UiError) : BeforeDeleteEffect
 
     /** The permission to write was refused, so nothing was deleted. */
     data object ShowPermissionDenied : BeforeDeleteEffect

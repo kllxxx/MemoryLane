@@ -33,7 +33,7 @@ object BeforeDeleteReducer {
 }
 
 /** Results produced by [BeforeDeleteViewModel] itself. The UI never sends these. */
-internal sealed interface BeforeDeleteEvent {
+sealed interface BeforeDeleteEvent {
     data class CellsLoaded(val cells: List<DeleteCell>) : BeforeDeleteEvent
     data class DeletingChanged(val deleting: Boolean) : BeforeDeleteEvent
     data class PermanentDialogChanged(val shown: Boolean) : BeforeDeleteEvent

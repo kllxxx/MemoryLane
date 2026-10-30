@@ -6,6 +6,10 @@ import android.app.Application
 import android.content.IntentSender
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.feature.swipe.impl.R
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
@@ -23,12 +27,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -138,6 +145,7 @@ class BeforeDeleteViewModelTest {
     private lateinit var photoRepository: PhotoRepository
     private lateinit var viewModel: BeforeDeleteViewModel
     private lateinit var savedStateHandle: SavedStateHandle
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     @Before
     fun setUp() {
@@ -164,7 +172,7 @@ class BeforeDeleteViewModelTest {
     private fun create(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
         val route = if (undated) mapOf<String, Any>("deck" to DeckKind.UNDATED) else mapOf<String, Any>("date" to date.toString())
         savedStateHandle = SavedStateHandle(route + extra)
-        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), clock, application, savedStateHandle)
+        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), clock, application, savedStateHandle, errorHandler)
     }
 
     private fun TestScope.load(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
@@ -691,7 +699,7 @@ class BeforeDeleteViewModelTest {
         viewModel.effects.test {
             send(BeforeDeleteIntent.DeleteClicked)
 
-            assertEquals(BeforeDeleteEffect.ShowDeleteError, awaitItem())
+            assertEquals(BeforeDeleteEffect.ShowError(UiError(R.string.before_delete_error)), awaitItem())
         }
         assertFalse(state.isDeleting)
         assertEquals(listOf(1L, 2L), marked())
@@ -706,7 +714,7 @@ class BeforeDeleteViewModelTest {
                 throw IllegalStateException("disk full")
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), clock, application, savedStateHandle)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), clock, application, savedStateHandle, errorHandler)
         advanceUntilIdle()
 
         viewModel.effects.test {
@@ -714,7 +722,7 @@ class BeforeDeleteViewModelTest {
             assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
             send(BeforeDeleteIntent.SystemDeleteResult(true))
 
-            assertEquals(BeforeDeleteEffect.ShowDeleteError, awaitItem())
+            assertEquals(BeforeDeleteEffect.ShowError(UiError(R.string.before_delete_error)), awaitItem())
         }
         assertFalse(state.isDeleting)
     }
@@ -882,10 +890,35 @@ class BeforeDeleteViewModelTest {
         viewModel.effects.test {
             send(BeforeDeleteIntent.PermanentDeleteConfirmed)
 
-            assertEquals(BeforeDeleteEffect.ShowDeleteError, awaitItem())
+            assertEquals(BeforeDeleteEffect.ShowError(UiError(R.string.before_delete_error)), awaitItem())
         }
         assertFalse(state.isDeleting)
         assertEquals(listOf(1L, 2L), marked())
         assertTrue(swipeRepository.confirmed.isEmpty())
+    }
+
+    @Test
+    fun `a failed request is logged with what failed`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(any()) } throws SecurityException("no")
+        load()
+
+        send(BeforeDeleteIntent.DeleteClicked)
+
+        verify(exactly = 1) { errorHandler.handle(any<SecurityException>(), "ask for the trash request") }
+    }
+
+    @Test
+    fun `a cancelled request is neither an error nor a reason to unlock the button`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(any()) } coAnswers { awaitCancellation() }
+        load()
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }

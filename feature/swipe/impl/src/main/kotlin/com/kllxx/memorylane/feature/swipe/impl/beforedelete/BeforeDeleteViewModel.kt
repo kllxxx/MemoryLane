@@ -4,11 +4,12 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.MviViewModel
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
@@ -20,6 +21,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,14 +31,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -57,15 +52,14 @@ class BeforeDeleteViewModel @Inject constructor(
     private val clock: Clock,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
-) : ViewModel() {
+    errorHandler: ErrorHandler,
+) : MviViewModel<BeforeDeleteState, BeforeDeleteIntent, BeforeDeleteEvent, BeforeDeleteEffect>(
+    initialState = BeforeDeleteState(currentDeck = savedStateHandle.toRoute<BeforeDeleteRoute>().toDeckKey()),
+    reducer = BeforeDeleteReducer::reduce,
+    errorHandler = errorHandler,
+) {
 
     private val deck: DeckKey = savedStateHandle.toRoute<BeforeDeleteRoute>().toDeckKey()
-
-    private val _state = MutableStateFlow(BeforeDeleteState(currentDeck = deck))
-    val state: StateFlow<BeforeDeleteState> = _state.asStateFlow()
-
-    private val _effects = Channel<BeforeDeleteEffect>(Channel.BUFFERED)
-    val effects: Flow<BeforeDeleteEffect> = _effects.receiveAsFlow()
 
     private var loadJob: Job? = null
 
@@ -79,9 +73,9 @@ class BeforeDeleteViewModel @Inject constructor(
         loadJob = load()
     }
 
-    fun onIntent(intent: BeforeDeleteIntent) {
-        val before = _state.value
-        _state.update { BeforeDeleteReducer.reduce(it, intent) }
+    override fun onIntent(intent: BeforeDeleteIntent) {
+        val before = currentState
+        update { BeforeDeleteReducer.reduce(it, intent) }
 
         when (intent) {
             is BeforeDeleteIntent.Toggle -> onToggled(before, intent.photoId)
@@ -92,20 +86,16 @@ class BeforeDeleteViewModel @Inject constructor(
                 if (intent.granted) {
                     deletePermanently(before.marked)
                 } else {
-                    onEvent(BeforeDeleteEvent.DeletingChanged(false))
-                    _effects.trySend(BeforeDeleteEffect.ShowPermissionDenied)
+                    reduce(BeforeDeleteEvent.DeletingChanged(false))
+                    sendEffect(BeforeDeleteEffect.ShowPermissionDenied)
                 }
             is BeforeDeleteIntent.SystemDeleteResult -> onSystemDeleteResult(intent.confirmed)
         }
     }
 
-    private fun onEvent(event: BeforeDeleteEvent) {
-        _state.update { BeforeDeleteReducer.reduce(it, event) }
-    }
-
     // --- loading ---
 
-    private fun load() = viewModelScope.launch {
+    private fun load() = launchSafe("load the marked photos", onError = { sendEffect(BeforeDeleteEffect.NavigateToCalendar) }) {
         try {
             // A photo that was marked in the undated deck and has a date now is a mark of its day
             adoptDatedMarks()
@@ -142,36 +132,34 @@ class BeforeDeleteViewModel @Inject constructor(
             savedStateHandle[GRID_DATES] = ArrayList(cells.map { encodeDeck(it.deck) })
             if (cells.isEmpty() && !awaitingResult) {
                 // Nothing to review, so the screen is not shown at all
-                _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
-                return@launch
+                sendEffect(BeforeDeleteEffect.NavigateToCalendar)
+                return@launchSafe
             }
-            onEvent(BeforeDeleteEvent.CellsLoaded(cells))
+            reduce(BeforeDeleteEvent.CellsLoaded(cells))
             // The system dialog was open when the screen was recreated: the button stays locked until it answers
-            if (awaitingResult) onEvent(BeforeDeleteEvent.DeletingChanged(true))
-        } catch (e: CancellationException) {
-            throw e
+            if (awaitingResult) reduce(BeforeDeleteEvent.DeletingChanged(true))
         } catch (e: PermissionDeniedException) {
-            _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not load the marked photos", e)
-            _effects.trySend(BeforeDeleteEffect.NavigateToCalendar)
+            sendEffect(BeforeDeleteEffect.NavigateToCalendar)
         }
     }
 
-    /** Without it the grid is still right for everything but a photo that got a date lately, so a failure only logs. */
+    /**
+     * Without it the grid is still right for everything but a photo that got a date lately, so a failure only logs.
+     * Having no access to the photos is not a failure to skip: it ends the load.
+     */
     private suspend fun adoptDatedMarks() {
-        try {
-            adoptDatedDecisions(photoRepository.onThisDayIndex.value?.undatedIds.orEmpty())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: PermissionDeniedException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not move the decisions of the photos that got a date", e)
+        val denied = runSafe("move the decisions of the photos that got a date", fallback = { null }) {
+            try {
+                adoptDatedDecisions(photoRepository.onThisDayIndex.value?.undatedIds.orEmpty())
+                null
+            } catch (e: PermissionDeniedException) {
+                e
+            }
         }
+        if (denied != null) throw denied
     }
 
-    private fun removeStaleDecision(photoId: Long) = launchLogged("Could not remove the stale decision of photo $photoId") {
+    private fun removeStaleDecision(photoId: Long) = launchSafe("remove the stale decision of photo $photoId") {
         swipeRepository.removeDecision(photoId)
     }
 
@@ -181,7 +169,7 @@ class BeforeDeleteViewModel @Inject constructor(
         if (before.isDeleting) return
         val cell = before.cells.firstOrNull { it.photoId == photoId } ?: return
         val decision = if (cell.marked) PhotoDecision.KEEP else PhotoDecision.DELETE
-        launchLogged("Could not save the $decision decision of photo $photoId") {
+        launchSafe("save the $decision decision of photo $photoId") {
             swipeRepository.saveDecision(photoId, cell.deck, decision)
         }
     }
@@ -195,33 +183,31 @@ class BeforeDeleteViewModel @Inject constructor(
             marked.isEmpty() -> finishWithoutDeleting()
             trashAvailable() -> startTrashRequest(marked)
             // No trash and no system dialog below API 30: our own confirmation comes first
-            else -> onEvent(BeforeDeleteEvent.PermanentDialogChanged(true))
+            else -> reduce(BeforeDeleteEvent.PermanentDialogChanged(true))
         }
     }
 
     private fun startTrashRequest(marked: List<DeleteCell>) {
-        onEvent(BeforeDeleteEvent.DeletingChanged(true))
-        viewModelScope.launch {
-            try {
-                val ids = marked.map { it.photoId }
-                val bytes = sizesBeforeRequest(marked)
-                // Before the dialog opens: after a recreation the result is understood from this
-                savedStateHandle[PENDING_IDS] = ids.toLongArray()
-                savedStateHandle[PENDING_BYTES] = ids.map { bytes.getValue(it) }.toLongArray()
-                when (val result = photoRepository.deletePhotos(ids)) {
-                    is DeleteResult.RequiresConfirmation ->
-                        _effects.trySend(BeforeDeleteEffect.LaunchTrashRequest(result.intentSender))
-                    // Nothing asked for a confirmation, so the photos are already handled
-                    DeleteResult.Deleted -> confirm(bytes, PhotoDecision.TRASHED)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+        reduce(BeforeDeleteEvent.DeletingChanged(true))
+        launchSafe(
+            what = "ask for the trash request",
+            onError = {
                 // SecurityException, IllegalArgumentException and the like: nothing was trashed, the marks stay
-                Log.e(TAG, "Could not ask for the trash request", e)
                 clearPending()
-                onEvent(BeforeDeleteEvent.DeletingChanged(false))
-                _effects.trySend(BeforeDeleteEffect.ShowDeleteError)
+                reduce(BeforeDeleteEvent.DeletingChanged(false))
+                sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
+            },
+        ) {
+            val ids = marked.map { it.photoId }
+            val bytes = sizesBeforeRequest(marked)
+            // Before the dialog opens: after a recreation the result is understood from this
+            savedStateHandle[PENDING_IDS] = ids.toLongArray()
+            savedStateHandle[PENDING_BYTES] = ids.map { bytes.getValue(it) }.toLongArray()
+            when (val result = photoRepository.deletePhotos(ids)) {
+                is DeleteResult.RequiresConfirmation ->
+                    sendEffect(BeforeDeleteEffect.LaunchTrashRequest(result.intentSender))
+                // Nothing asked for a confirmation, so the photos are already handled
+                DeleteResult.Deleted -> confirm(bytes, PhotoDecision.TRASHED)
             }
         }
     }
@@ -230,7 +216,7 @@ class BeforeDeleteViewModel @Inject constructor(
         if (!confirmed) {
             // Cancelled in the system dialog: nothing changes and the user can try again
             clearPending()
-            onEvent(BeforeDeleteEvent.DeletingChanged(false))
+            reduce(BeforeDeleteEvent.DeletingChanged(false))
             return
         }
         viewModelScope.launch {
@@ -245,12 +231,12 @@ class BeforeDeleteViewModel @Inject constructor(
     }
 
     private fun onPermanentDeleteConfirmed(before: BeforeDeleteState) {
-        onEvent(BeforeDeleteEvent.PermanentDialogChanged(false))
+        reduce(BeforeDeleteEvent.PermanentDialogChanged(false))
         if (before.isDeleting) return
         if (!hasWritePermission()) {
             // Deleting other apps' photos below API 30 needs it, and it is asked for only now
-            onEvent(BeforeDeleteEvent.DeletingChanged(true))
-            _effects.trySend(BeforeDeleteEffect.RequestWritePermission)
+            reduce(BeforeDeleteEvent.DeletingChanged(true))
+            sendEffect(BeforeDeleteEffect.RequestWritePermission)
         } else {
             deletePermanently(before.marked)
         }
@@ -258,23 +244,21 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private fun deletePermanently(marked: List<DeleteCell>) {
         if (marked.isEmpty()) {
-            onEvent(BeforeDeleteEvent.DeletingChanged(false))
+            reduce(BeforeDeleteEvent.DeletingChanged(false))
             return
         }
-        onEvent(BeforeDeleteEvent.DeletingChanged(true))
-        viewModelScope.launch {
-            try {
-                val ids = marked.map { it.photoId }
-                val bytes = sizesBeforeRequest(marked)
-                photoRepository.deletePhotos(ids)
-                confirm(bytes, PhotoDecision.DELETED)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not delete the marked photos", e)
-                onEvent(BeforeDeleteEvent.DeletingChanged(false))
-                _effects.trySend(BeforeDeleteEffect.ShowDeleteError)
-            }
+        reduce(BeforeDeleteEvent.DeletingChanged(true))
+        launchSafe(
+            what = "delete the marked photos",
+            onError = {
+                reduce(BeforeDeleteEvent.DeletingChanged(false))
+                sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
+            },
+        ) {
+            val ids = marked.map { it.photoId }
+            val bytes = sizesBeforeRequest(marked)
+            photoRepository.deletePhotos(ids)
+            confirm(bytes, PhotoDecision.DELETED)
         }
     }
 
@@ -292,20 +276,24 @@ class BeforeDeleteViewModel @Inject constructor(
         if (finished || confirming) return
         confirming = true
         try {
-            val outcome = swipeRepository.confirmDeletion(bytesById, decision)
-            clearPending()
-            finished = true
-            refreshPhotoIndex()
-            handOver(outcome)
+            runSafe(
+                what = "record the deletion",
+                fallback = {
+                    // The pending request stays: the photos may be gone already, so the result is not asked for again
+                    confirming = false
+                    reduce(BeforeDeleteEvent.DeletingChanged(false))
+                    sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
+                },
+            ) {
+                val outcome = swipeRepository.confirmDeletion(bytesById, decision)
+                clearPending()
+                finished = true
+                refreshPhotoIndex()
+                handOver(outcome)
+            }
         } catch (e: CancellationException) {
             confirming = false
             throw e
-        } catch (e: Exception) {
-            // The pending request stays: the photos may be gone already, so the result is not asked for again
-            Log.e(TAG, "Could not record the deletion", e)
-            confirming = false
-            onEvent(BeforeDeleteEvent.DeletingChanged(false))
-            _effects.trySend(BeforeDeleteEffect.ShowDeleteError)
         }
     }
 
@@ -315,7 +303,8 @@ class BeforeDeleteViewModel @Inject constructor(
             // The undated deck is not a day: it has no session to complete
             val day = (deck as? DeckKey.Day)?.date
             if (day != null) {
-                try {
+                // The user has finished, so a failed write must not keep them on this screen
+                runSafe("save the session of $day", fallback = {}) {
                     val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
                     swipeRepository.saveSession(
                         SwipeSession(
@@ -327,11 +316,6 @@ class BeforeDeleteViewModel @Inject constructor(
                             completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
                         ),
                     )
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // The user has finished, so a failed write must not keep them on this screen
-                    Log.e(TAG, "Could not save the session of $day", e)
                 }
             }
             finished = true
@@ -340,15 +324,10 @@ class BeforeDeleteViewModel @Inject constructor(
     }
 
     private suspend fun handOver(outcome: DeletionOutcome) {
-        val decisions = try {
+        val decisions = runSafe("read the decisions of $deck", fallback = { emptyMap() }) {
             swipeRepository.getDecisions(deck)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not read the decisions of $deck", e)
-            emptyMap()
         }
-        _effects.trySend(
+        sendEffect(
             BeforeDeleteEffect.NavigateToResult(
                 deck = deck,
                 deletedCount = outcome.deletedCount,
@@ -361,12 +340,8 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private suspend fun refreshPhotoIndex() {
         // The deleted photos must be gone from the Calendar when it opens; only a failure is allowed to skip this
-        try {
+        runSafe("refresh the photo index after the deletion", fallback = {}) {
             photoRepository.refreshOnThisDayIndex()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not refresh the photo index after the deletion", e)
         }
     }
 
@@ -381,20 +356,9 @@ class BeforeDeleteViewModel @Inject constructor(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
             context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
-    private fun launchLogged(failure: String, block: suspend () -> Unit) {
-        viewModelScope.launch {
-            try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, failure, e)
-            }
-        }
-    }
-
     internal companion object {
-        const val TAG = "BeforeDeleteViewModel"
+        /** The delete failed with an error, as opposed to the user cancelling. */
+        private val DeleteError = UiError(R.string.before_delete_error)
 
         /** The photos of the grid, kept so that a recreated screen shows the unmarked ones as well. */
         const val GRID_IDS = "grid_ids"
