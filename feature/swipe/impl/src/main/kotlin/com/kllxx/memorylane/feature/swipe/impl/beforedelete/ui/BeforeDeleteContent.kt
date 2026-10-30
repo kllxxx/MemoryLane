@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -58,7 +59,6 @@ import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toIntro
 import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
 import com.kllxx.memorylane.core.domain.format.formatDayMonth
-import java.util.Locale
 
 private val CellShape = RoundedCornerShape(14.dp)
 private val GridGap = 8.dp
@@ -166,7 +166,7 @@ private fun PhotoGrid(state: BeforeDeleteState, onIntent: (BeforeDeleteIntent) -
 @Composable
 private fun GroupHeader(group: DeleteGroup) {
     val day = when (val deck = group.deck) {
-        is DeckKey.Day -> formatDayMonth(deck.date, Locale.getDefault())
+        is DeckKey.Day -> formatDayMonth(deck.date, LocalConfiguration.current.locales[0])
         DeckKey.Undated -> stringResource(R.string.deck_undated)
     }
     Text(

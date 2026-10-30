@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -43,7 +44,6 @@ import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultIntent
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultState
 import com.kllxx.memorylane.core.domain.format.formatDayMonth
-import java.util.Locale
 
 private val CardShape = RoundedCornerShape(16.dp)
 
@@ -149,7 +149,10 @@ private fun FreedValue(state: ResultState) {
 private fun Caption(state: ResultState) {
     val deck = state.deck
     val dayMonth = when (deck) {
-        is DeckKey.Day -> remember(deck) { formatDayMonth(deck.date, Locale.getDefault()) }
+        is DeckKey.Day -> {
+            val locale = LocalConfiguration.current.locales[0]
+            remember(deck, locale) { formatDayMonth(deck.date, locale) }
+        }
         DeckKey.Undated -> stringResource(R.string.deck_undated)
     }
     Text(

@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,6 +56,7 @@ fun ProfileScreen(
     // The user may have changed the notification settings while the app was in the background
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { checkSystemNotifications() }
 
+    val resources = LocalResources.current
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
@@ -66,22 +68,17 @@ fun ProfileScreen(
                 is ProfileEffect.ContactSupport -> {
                     val intent = supportMailIntent(
                         email = SUPPORT_EMAIL,
-                        subject = context.getString(R.string.profile_support_subject),
-                        body = context.getString(
-                            R.string.profile_support_body,
-                            effect.versionName,
-                            Build.VERSION.RELEASE,
-                            Build.MODEL,
-                        ),
+                        subject = resources.getString(R.string.profile_support_subject),
+                        body = resources.getString(R.string.profile_support_body, effect.versionName, Build.VERSION.RELEASE, Build.MODEL),
                     )
                     try {
                         context.startActivity(intent)
                     } catch (e: ActivityNotFoundException) {
-                        snackbarHostState.showSnackbar(context.getString(R.string.profile_no_mail_app))
+                        snackbarHostState.showSnackbar(resources.getString(R.string.profile_no_mail_app))
                     }
                 }
                 ProfileEffect.ShowSettingsError ->
-                    snackbarHostState.showSnackbar(context.getString(R.string.profile_settings_error))
+                    snackbarHostState.showSnackbar(resources.getString(R.string.profile_settings_error))
             }
         }
     }

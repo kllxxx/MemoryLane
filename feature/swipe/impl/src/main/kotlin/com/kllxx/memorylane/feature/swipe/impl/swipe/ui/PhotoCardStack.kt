@@ -81,7 +81,7 @@ internal fun PhotoCardStack(
     val decodedAspects = remember { mutableStateMapOf<Long, Float>() }
 
     // The next swipe of the card the state is on is allowed again once the state has moved on
-    remember(state.currentIndex) { gate.reset() }
+    LaunchedEffect(state.currentIndex) { gate.reset() }
 
     fun handleSwiped(index: Int, direction: SwipeDirection) {
         // A swipe the state cannot take (stale or a duplicate) leaves the stack wrong, so it is put back

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +29,7 @@ fun SwipeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
@@ -38,7 +40,7 @@ fun SwipeScreen(
                 // Calendar asks for the permission, so the user is not left on an empty screen
                 SwipeEffect.PermissionRequired -> onNavigateToCalendar()
                 is SwipeEffect.ShareImage -> context.launchOrToast(
-                    SwipeIntentFactory.share(effect.uri, context.getString(R.string.swipe_share_chooser)),
+                    SwipeIntentFactory.share(effect.uri, resources.getString(R.string.swipe_share_chooser)),
                 )
                 is SwipeEffect.OpenInGallery -> context.launchOrToast(SwipeIntentFactory.view(effect.uri))
             }
