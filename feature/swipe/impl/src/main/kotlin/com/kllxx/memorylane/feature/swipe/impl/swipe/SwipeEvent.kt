@@ -1,5 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.common.UiError
+
 /** Results produced by [SwipeViewModel] itself. The UI never sends these. */
 sealed interface SwipeEvent {
     data class PhotosLoaded(
@@ -17,6 +19,9 @@ sealed interface SwipeEvent {
     data class LocationLoaded(val photoId: Long, val location: String?) : SwipeEvent
 
     data class ButtonsModeChanged(val enabled: Boolean) : SwipeEvent
+
+    /** The photos could not be read. Nothing is recorded for the day and the screen offers a retry. */
+    data class LoadFailed(val error: UiError) : SwipeEvent
 
     /** The decisions of the day as stored now, by photo id. */
     data class DecisionsReloaded(val decisions: Map<Long, com.kllxx.memorylane.core.domain.model.PhotoDecision>) : SwipeEvent

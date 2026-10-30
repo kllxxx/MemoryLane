@@ -12,6 +12,7 @@ object SwipeReducer {
         is SwipeIntent.Swipe -> swipe(state, intent.direction)
         SwipeIntent.Undo -> undo(state)
         is SwipeIntent.JumpTo -> jumpTo(state, intent.index)
+        SwipeIntent.Retry -> state.copy(isLoading = true, loadError = null)
         // Handled by the ViewModel: the setting is stored first, the screen follows the stored value
         SwipeIntent.ToggleButtonsMode,
         SwipeIntent.Share,
@@ -34,6 +35,7 @@ object SwipeReducer {
                 )
             }
         is SwipeEvent.ButtonsModeChanged -> state.copy(buttonsMode = event.enabled)
+        is SwipeEvent.LoadFailed -> state.copy(isLoading = false, loadError = event.error)
         is SwipeEvent.DecisionsReloaded -> reloadDecisions(state, event)
     }
 

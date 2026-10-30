@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.domain.model.DeckKey
@@ -41,6 +42,8 @@ data class SwipeState(
     val undoStack: ImmutableList<UndoEntry> = persistentListOf(),
     val buttonsMode: Boolean = false,
     val isLoading: Boolean = false,
+    /** The photos could not be read: [SwipeIntent.Retry] starts over, the close button leaves. */
+    val loadError: UiError? = null,
     val isFinished: Boolean = false,
 ) {
     val canUndo: Boolean get() = undoStack.isNotEmpty()

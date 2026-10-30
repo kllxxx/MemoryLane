@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import com.haroncode.lazycardstack.swiper.SwipeDirection
@@ -423,5 +424,26 @@ class SwipeReducerTest {
         assertSame(state, reduce(state, SwipeIntent.Share))
         assertSame(state, reduce(state, SwipeIntent.OpenInGallery))
         assertSame(state, reduce(state, SwipeIntent.Close))
+    }
+
+    @Test
+    fun `a failed load stops the spinner and shows the error`() {
+        val state = SwipeState(deckKey = DeckKey.Day(date), isLoading = true)
+
+        val result = reduce(state, SwipeEvent.LoadFailed(UiError.Generic))
+
+        assertFalse(result.isLoading)
+        assertEquals(UiError.Generic, result.loadError)
+        assertTrue(result.deck.isEmpty())
+    }
+
+    @Test
+    fun `retry clears the error and shows the spinner`() {
+        val failed = SwipeState(deckKey = DeckKey.Day(date), isLoading = false, loadError = UiError.Generic)
+
+        val result = reduce(failed, SwipeIntent.Retry)
+
+        assertTrue(result.isLoading)
+        assertNull(result.loadError)
     }
 }

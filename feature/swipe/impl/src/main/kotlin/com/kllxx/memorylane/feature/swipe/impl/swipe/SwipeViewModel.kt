@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.MviViewModel
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -18,6 +19,7 @@ import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
+import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.toDeckPhoto
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -79,6 +81,7 @@ class SwipeViewModel @Inject constructor(
             SwipeIntent.OpenInGallery ->
                 before.currentPhoto?.let { sendEffect(SwipeEffect.OpenInGallery(it.photo.uri)) }
             SwipeIntent.Close -> sendEffect(SwipeEffect.NavigateToCalendar)
+            SwipeIntent.Retry -> loadPhotos()
             SwipeIntent.ReturnedToDeck -> reloadDecisions()
         }
     }
@@ -88,9 +91,9 @@ class SwipeViewModel @Inject constructor(
         persistState(currentState)
     }
 
-    /** Survives process death; not written while loading, when the index is still the reset 0. */
+    /** Survives process death; not written while loading or after a failed load, when the index is still the reset 0. */
     private fun persistState(state: SwipeState) {
-        if (state.isLoading) return
+        if (state.isLoading || state.loadError != null) return
         savedStateHandle[CURRENT_INDEX_KEY] = state.currentIndex
         savedStateHandle[UNDO_STACK_KEY] = ArrayList(state.undoStack.map { encodeUndoEntry(it) })
     }
@@ -114,10 +117,10 @@ class SwipeViewModel @Inject constructor(
         restartLocationLookup()
     }
 
-    /** Only called once, from init: the screen has no way to start a second load. */
+    /** From init, and again for every retry: the saved index and undo stack are only written once a load has succeeded. */
     private fun loadPhotos() {
-        // A failed load is not an empty day, so no session is recorded for it
-        launchSafe("load the photos for $deckKey", onError = { sendEffect(SwipeEffect.NavigateToCalendar) }) {
+        // A failed load is not an empty day, so no session is recorded for it and the screen offers a retry
+        launchSafe("load the photos for $deckKey", onError = { reduce(SwipeEvent.LoadFailed(UiError(R.string.swipe_load_error))) }) {
             val event = try {
                 readDeck()
             } catch (e: PermissionDeniedException) {

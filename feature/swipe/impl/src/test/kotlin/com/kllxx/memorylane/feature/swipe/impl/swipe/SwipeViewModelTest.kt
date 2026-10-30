@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.feature.swipe.impl.R
 import app.cash.turbine.test
 import com.haroncode.lazycardstack.swiper.SwipeDirection
 import com.kllxx.memorylane.core.domain.model.AppSettings
@@ -267,14 +268,61 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `a failed photo load goes to calendar without recording a session`() = runTest(dispatcher) {
+    fun `a failed photo load shows the error and stays, without recording a session`() = runTest(dispatcher) {
         coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
         createViewModel()
         viewModel.effects.test {
             advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertFalse(state.isLoading)
+        assertEquals(UiError(R.string.swipe_load_error), state.loadError)
+        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
+    }
+
+    @Test
+    fun `retry loads the photos again and clears the error`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
+        load()
+        coEvery { photoRepository.getPhotosForDate(date) } returns listOf(photo1, photo2)
+
+        viewModel.onIntent(SwipeIntent.Retry)
+        assertTrue(state.isLoading)
+        assertNull(state.loadError)
+        advanceUntilIdle()
+
+        assertFalse(state.isLoading)
+        assertNull(state.loadError)
+        assertEquals(listOf(1L, 2L), state.deck.map { it.id })
+    }
+
+    @Test
+    fun `a failed load does not overwrite the saved position, a retry restores it`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
+        createViewModel(restoredIndex = 1, restoredUndo = listOf("1:-"))
+        advanceUntilIdle()
+        viewModel.onIntent(SwipeIntent.Close)
+
+        assertEquals(1, savedStateHandle.get<Int>(SwipeViewModel.CURRENT_INDEX_KEY))
+        assertEquals(arrayListOf("1:-"), savedStateHandle.get<ArrayList<String>>(SwipeViewModel.UNDO_STACK_KEY))
+
+        coEvery { photoRepository.getPhotosForDate(date) } returns listOf(photo1, photo2)
+        viewModel.onIntent(SwipeIntent.Retry)
+        advanceUntilIdle()
+
+        assertEquals(1, state.currentIndex)
+    }
+
+    @Test
+    fun `the close button leaves a load error`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
+        load()
+
+        viewModel.effects.test {
+            viewModel.onIntent(SwipeIntent.Close)
+
             assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
         }
-        coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 
     @Test
@@ -1127,15 +1175,16 @@ class SwipeViewModelTest {
     }
 
     @Test
-    fun `a failed undated load goes to calendar without recording a session`() = runTest(dispatcher) {
+    fun `a failed undated load shows the error without recording a session`() = runTest(dispatcher) {
         createUndatedViewModel()
         coEvery { photoRepository.getUndatedPhotos() } throws IllegalStateException("db")
 
         viewModel.effects.test {
             load()
 
-            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
+            expectNoEvents()
         }
+        assertEquals(UiError(R.string.swipe_load_error), state.loadError)
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.kllxx.memorylane.feature.swipe.impl.common.LoadError
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntent
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeState
@@ -48,6 +49,8 @@ fun SwipeContent(
             contentAlignment = Alignment.Center,
         ) {
             when {
+                state.loadError != null ->
+                    LoadError(state.loadError, onRetry = { onIntent(SwipeIntent.Retry) })
                 state.isLoading -> {
                     val loading = stringResource(R.string.swipe_loading)
                     CircularProgressIndicator(Modifier.semantics { contentDescription = loading })

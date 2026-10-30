@@ -1,6 +1,10 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
+import com.kllxx.memorylane.feature.swipe.impl.common.LOAD_ERROR_RETRY_TAG
+import com.kllxx.memorylane.feature.swipe.impl.common.LOAD_ERROR_TAG
+import java.time.LocalDate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -341,5 +345,16 @@ class SwipeContentTest {
         composeRule.onNodeWithTag(SwipeTags.CLOSE).performClick()
 
         assertEquals(listOf<SwipeIntent>(SwipeIntent.Close), sent)
+    }
+
+    @Test
+    fun `a load error shows a retry that sends the intent, and the close button is still there`() {
+        show(SwipeState(deckKey = DeckKey.Day(LocalDate.of(2026, 10, 15)), loadError = UiError.Generic))
+
+        composeRule.onNodeWithTag(LOAD_ERROR_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(LOAD_ERROR_RETRY_TAG).performClick()
+        composeRule.onNodeWithTag(SwipeTags.CLOSE).assertIsDisplayed()
+
+        assertEquals(listOf<SwipeIntent>(SwipeIntent.Retry), sent)
     }
 }

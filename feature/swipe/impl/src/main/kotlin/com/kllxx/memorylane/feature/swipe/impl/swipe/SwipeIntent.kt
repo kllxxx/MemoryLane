@@ -16,6 +16,9 @@ sealed interface SwipeIntent {
     data object OpenInGallery : SwipeIntent
     data object Close : SwipeIntent
 
+    /** Retry after the photos could not be loaded. */
+    data object Retry : SwipeIntent
+
     /**
      * The screen is back on top after the day was completed and Перед удалением was left with Back: the decisions are
      * read again, because the marks may have changed there, and the deck goes back to the last photo.
