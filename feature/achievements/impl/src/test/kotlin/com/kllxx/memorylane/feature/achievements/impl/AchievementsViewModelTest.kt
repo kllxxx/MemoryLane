@@ -4,12 +4,17 @@ import com.kllxx.memorylane.core.domain.format.SizeUnit
 
 import com.kllxx.memorylane.core.domain.format.FormattedSize
 
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.AchievementStats
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
@@ -32,6 +37,7 @@ class AchievementsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val statsFlow = MutableSharedFlow<AchievementStats>(replay = 1)
     private lateinit var statsRepository: StatsRepository
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
 
     private fun stats(
         viewed: Int = 5,
@@ -53,7 +59,7 @@ class AchievementsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel() = AchievementsViewModel(statsRepository)
+    private fun viewModel() = AchievementsViewModel(statsRepository, errorHandler)
 
     @Test
     fun `the state is loading until the first stats arrive`() = runTest(dispatcher) {
@@ -124,6 +130,19 @@ class AchievementsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(AchievementsState.Loading, vm.state.value)
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the achievements") }
+    }
+
+    @Test
+    fun `a cancelled collection is not an error`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertEquals(AchievementsState.Loading, vm.state.value)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     @Test
