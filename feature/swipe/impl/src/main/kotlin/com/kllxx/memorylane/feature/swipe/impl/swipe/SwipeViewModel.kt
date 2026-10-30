@@ -1,10 +1,10 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.model.SwipeSession
@@ -25,18 +25,10 @@ import java.time.Clock
 import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -48,15 +40,14 @@ class SwipeViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val clock: Clock,
     private val savedStateHandle: SavedStateHandle,
-) : ViewModel() {
+    errorHandler: ErrorHandler,
+) : MviViewModel<SwipeState, SwipeIntent, SwipeEvent, SwipeEffect>(
+    initialState = SwipeState(deckKey = savedStateHandle.toRoute<SwipeRoute>().toDeckKey(), isLoading = true),
+    reducer = SwipeReducer::reduce,
+    errorHandler = errorHandler,
+) {
 
     private val deckKey: DeckKey = savedStateHandle.toRoute<SwipeRoute>().toDeckKey()
-
-    private val _state = MutableStateFlow(SwipeState(deckKey = deckKey, isLoading = true))
-    val state: StateFlow<SwipeState> = _state.asStateFlow()
-
-    private val _effects = Channel<SwipeEffect>(Channel.BUFFERED)
-    val effects: Flow<SwipeEffect> = _effects.receiveAsFlow()
 
     // Geocoding is slow, so the places are looked up in the background, the photo on top first, and a lookup that
     // is started again (the user jumped) skips what has already arrived
@@ -73,10 +64,10 @@ class SwipeViewModel @Inject constructor(
         loadPhotos()
     }
 
-    fun onIntent(intent: SwipeIntent) {
-        val before = _state.value
-        _state.update { SwipeReducer.reduce(it, intent) }
-        val after = _state.value
+    override fun onIntent(intent: SwipeIntent) {
+        val before = currentState
+        update { SwipeReducer.reduce(it, intent) }
+        val after = currentState
         persistState(after)
 
         when (intent) {
@@ -84,17 +75,17 @@ class SwipeViewModel @Inject constructor(
             SwipeIntent.Undo -> onUndone(before, after)
             is SwipeIntent.JumpTo -> if (after.currentIndex != before.currentIndex) restartLocationLookup()
             SwipeIntent.ToggleButtonsMode -> setButtonsMode(!before.buttonsMode)
-            SwipeIntent.Share -> before.currentPhoto?.let { _effects.trySend(SwipeEffect.ShareImage(it.photo.uri)) }
+            SwipeIntent.Share -> before.currentPhoto?.let { sendEffect(SwipeEffect.ShareImage(it.photo.uri)) }
             SwipeIntent.OpenInGallery ->
-                before.currentPhoto?.let { _effects.trySend(SwipeEffect.OpenInGallery(it.photo.uri)) }
-            SwipeIntent.Close -> _effects.trySend(SwipeEffect.NavigateToCalendar)
+                before.currentPhoto?.let { sendEffect(SwipeEffect.OpenInGallery(it.photo.uri)) }
+            SwipeIntent.Close -> sendEffect(SwipeEffect.NavigateToCalendar)
             SwipeIntent.ReturnedToDeck -> reloadDecisions()
         }
     }
 
     private fun onEvent(event: SwipeEvent) {
-        _state.update { SwipeReducer.reduce(it, event) }
-        persistState(_state.value)
+        reduce(event)
+        persistState(currentState)
     }
 
     /** Survives process death; not written while loading, when the index is still the reset 0. */
@@ -125,44 +116,42 @@ class SwipeViewModel @Inject constructor(
 
     /** Only called once, from init: the screen has no way to start a second load. */
     private fun loadPhotos() {
-        viewModelScope.launch {
+        // A failed load is not an empty day, so no session is recorded for it
+        launchSafe("load the photos for $deckKey", onError = { sendEffect(SwipeEffect.NavigateToCalendar) }) {
             val event = try {
-                val photos = photoRepository.getPhotos(deckKey)
-                // Photos that got a date since they were decided in the undated deck keep their decision on their day
-                if (deckKey is DeckKey.Day) adoptDatedDecisions.forDay(deckKey.date, photos.map { it.id })
-                val decisions = swipeRepository.getDecisions(deckKey)
-                val trashed = loadTrashed(photos, decisions)
-                val locale = Locale.getDefault()
-                SwipeEvent.PhotosLoaded(
-                    // A photo that is back in the library, e.g. restored from the trash, is a photo to decide on again
-                    deck = photos.map { it.toDeckPhoto(decisions[it.id]?.takeIf(::isLive), locale) },
-                    trashed = trashed.map { it.toDeckPhoto(PhotoDecision.TRASHED, locale) },
-                    restoredIndex = restoredIndex,
-                    restoredUndo = restoredUndo,
-                )
-            } catch (e: CancellationException) {
-                throw e
+                readDeck()
             } catch (e: PermissionDeniedException) {
                 // Not an empty day: nothing is recorded and the user stays to grant access
-                _effects.trySend(SwipeEffect.PermissionRequired)
-                return@launch
-            } catch (e: Exception) {
-                // A failed load is not an empty day, so no session is recorded for it
-                Log.e(TAG, "Could not load the photos for $deckKey", e)
-                _effects.trySend(SwipeEffect.NavigateToCalendar)
-                return@launch
+                sendEffect(SwipeEffect.PermissionRequired)
+                return@launchSafe
             }
             onEvent(event)
             // Nothing to sort: an empty day has no activity, so no session is recorded for it
-            if (_state.value.isFinished) {
-                _effects.trySend(SwipeEffect.NavigateToCalendar)
-                return@launch
+            if (currentState.isFinished) {
+                sendEffect(SwipeEffect.NavigateToCalendar)
+                return@launchSafe
             }
             restartLocationLookup()
         }
     }
 
-    private fun reloadDecisions() = launchLogged("Could not read the decisions of $deckKey again") {
+    private suspend fun readDeck(): SwipeEvent.PhotosLoaded {
+        val photos = photoRepository.getPhotos(deckKey)
+        // Photos that got a date since they were decided in the undated deck keep their decision on their day
+        if (deckKey is DeckKey.Day) adoptDatedDecisions.forDay(deckKey.date, photos.map { it.id })
+        val decisions = swipeRepository.getDecisions(deckKey)
+        val trashed = loadTrashed(photos, decisions)
+        val locale = Locale.getDefault()
+        return SwipeEvent.PhotosLoaded(
+            // A photo that is back in the library, e.g. restored from the trash, is a photo to decide on again
+            deck = photos.map { it.toDeckPhoto(decisions[it.id]?.takeIf(::isLive), locale) },
+            trashed = trashed.map { it.toDeckPhoto(PhotoDecision.TRASHED, locale) },
+            restoredIndex = restoredIndex,
+            restoredUndo = restoredUndo,
+        )
+    }
+
+    private fun reloadDecisions() = launchSafe("read the decisions of $deckKey again") {
         onEvent(SwipeEvent.DecisionsReloaded(swipeRepository.getDecisions(deckKey)))
     }
 
@@ -173,22 +162,17 @@ class SwipeViewModel @Inject constructor(
         val inLibrary = photos.mapTo(mutableSetOf()) { it.id }
         val ids = decisions.filter { (id, decision) -> decision == PhotoDecision.TRASHED && id !in inLibrary }.keys
         if (ids.isEmpty()) return emptyList()
-        return try {
+        return runSafe("load the trashed photos of $deckKey", fallback = { emptyList() }) {
             // MediaStore dates a trashed photo by its file time when its resolved date left with the trash
             val storedTimes = swipeRepository.getTakenAt(ids)
             photoRepository.getTrashedPhotos(ids).map { photo ->
                 storedTimes[photo.id]?.let { photo.copy(takenAt = it) } ?: photo
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not load the trashed photos of $deckKey", e)
-            emptyList()
         }
     }
 
     private fun restartLocationLookup() {
-        val state = _state.value
+        val state = currentState
         if (state.deck.isEmpty()) return
         val start = state.currentIndex.coerceIn(0, state.deck.lastIndex)
         // The photo on top first, then the ones after it, then those before it
@@ -197,22 +181,16 @@ class SwipeViewModel @Inject constructor(
             .filter { it.location == null && it.id !in resolvedLocations }
         if (unresolved.isEmpty()) return
         locationJob?.cancel()
-        locationJob = viewModelScope.launch {
-            try {
-                photoRepository.resolveLocations(unresolved).collect { found ->
-                    resolvedLocations += found.photoId
-                    onEvent(SwipeEvent.LocationLoaded(found.photoId, found.location))
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not look up the locations of $deckKey", e)
+        locationJob = launchSafe("look up the locations of $deckKey") {
+            photoRepository.resolveLocations(unresolved).collect { found ->
+                resolvedLocations += found.photoId
+                onEvent(SwipeEvent.LocationLoaded(found.photoId, found.location))
             }
         }
     }
 
     private fun observeButtonsMode() {
-        launchLogged("Could not read the buttons mode") {
+        launchSafe("read the buttons mode") {
             appSettingsRepository.getSettings()
                 .map { it.swipeButtonsEnabled }
                 .distinctUntilChanged()
@@ -221,33 +199,21 @@ class SwipeViewModel @Inject constructor(
     }
 
     private fun setButtonsMode(enabled: Boolean) =
-        launchLogged("Could not save the buttons mode") { appSettingsRepository.setSwipeButtonsEnabled(enabled) }
+        launchSafe("save the buttons mode") { appSettingsRepository.setSwipeButtonsEnabled(enabled) }
 
     private fun markReviewed(photoId: Long) =
-        launchLogged("Could not mark photo $photoId as reviewed") { statsRepository.markReviewed(photoId) }
+        launchSafe("mark photo $photoId as reviewed") { statsRepository.markReviewed(photoId) }
 
     private fun saveDecision(photoId: Long, decision: PhotoDecision) {
         // The capture time goes with the decision: once the photo is trashed the gallery cannot tell it any more
-        val takenAt = _state.value.deck.firstOrNull { it.id == photoId }?.photo?.takenAt
-        launchLogged("Could not save the $decision decision of photo $photoId") {
+        val takenAt = currentState.deck.firstOrNull { it.id == photoId }?.photo?.takenAt
+        launchSafe("save the $decision decision of photo $photoId") {
             swipeRepository.saveDecision(photoId, deckKey, decision, takenAt)
         }
     }
 
     private fun removeDecision(photoId: Long) =
-        launchLogged("Could not remove the decision of photo $photoId") { swipeRepository.removeDecision(photoId) }
-
-    private fun launchLogged(failure: String, block: suspend () -> Unit) {
-        viewModelScope.launch {
-            try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, failure, e)
-            }
-        }
-    }
+        launchSafe("remove the decision of photo $photoId") { swipeRepository.removeDecision(photoId) }
 
     /**
      * Every photo of the day has a decision, a mark for deletion included, so the day is completed now. Marks left
@@ -261,7 +227,7 @@ class SwipeViewModel @Inject constructor(
             // The undated deck is not a day: it has no session to complete and never counts for a streak.
             val day = (state.deckKey as? DeckKey.Day)?.date
             if (day != null) {
-                try {
+                runSafe("save the session of $day", fallback = {}) {
                     val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
                     swipeRepository.saveSession(
                         SwipeSession(
@@ -273,23 +239,14 @@ class SwipeViewModel @Inject constructor(
                             completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
                         ),
                     )
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Could not save the session of $day", e)
                 }
             }
             if (!hasDeletes) {
-                hasDeletes = try {
+                hasDeletes = runSafe("read the pending deletions", fallback = { false }) {
                     swipeRepository.getPendingDeletes().isNotEmpty()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Could not read the pending deletions", e)
-                    false
                 }
             }
-            _effects.trySend(
+            sendEffect(
                 if (hasDeletes) {
                     SwipeEffect.NavigateToBeforeDelete(state.deckKey, totalPhotosCount = state.deck.size)
                 } else {
@@ -304,7 +261,6 @@ class SwipeViewModel @Inject constructor(
     }
 
     internal companion object {
-        const val TAG = "SwipeViewModel"
         const val CURRENT_INDEX_KEY = "current_index"
         const val UNDO_STACK_KEY = "undo_stack"
         private const val NO_DECISION = "-"

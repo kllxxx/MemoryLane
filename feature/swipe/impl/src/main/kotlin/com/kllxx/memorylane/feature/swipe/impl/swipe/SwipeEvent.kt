@@ -1,7 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 /** Results produced by [SwipeViewModel] itself. The UI never sends these. */
-internal sealed interface SwipeEvent {
+sealed interface SwipeEvent {
     data class PhotosLoaded(
         /** The photos that exist, oldest first, each with the decision it already has. */
         val deck: List<DeckPhoto>,

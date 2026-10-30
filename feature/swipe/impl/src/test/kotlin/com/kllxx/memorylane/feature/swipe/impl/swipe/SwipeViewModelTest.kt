@@ -3,6 +3,9 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
+import com.kllxx.memorylane.core.common.ErrorHandler
+import com.kllxx.memorylane.core.common.UiError
 import app.cash.turbine.test
 import com.haroncode.lazycardstack.swiper.SwipeDirection
 import com.kllxx.memorylane.core.domain.model.AppSettings
@@ -24,6 +27,7 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -32,6 +36,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -74,6 +79,7 @@ class SwipeViewModelTest {
     private lateinit var statsRepository: StatsRepository
     private lateinit var appSettingsRepository: AppSettingsRepository
     private lateinit var viewModel: SwipeViewModel
+    private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
     private lateinit var savedStateHandle: SavedStateHandle
     private val locationRequests = mutableListOf<List<Long>>()
 
@@ -110,7 +116,7 @@ class SwipeViewModelTest {
             },
         )
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle, errorHandler,
         )
     }
 
@@ -599,7 +605,7 @@ class SwipeViewModelTest {
         val onItsOwnDate = Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
         viewModel = SwipeViewModel(
             photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, onItsOwnDate,
-            SavedStateHandle(mapOf("date" to date.toString())),
+            SavedStateHandle(mapOf("date" to date.toString())), errorHandler,
         )
         advanceUntilIdle()
 
@@ -957,7 +963,7 @@ class SwipeViewModelTest {
         coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns emptyMap()
         savedStateHandle = SavedStateHandle(mapOf("deck" to DeckKind.UNDATED))
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle, errorHandler,
         )
     }
 
@@ -1143,5 +1149,40 @@ class SwipeViewModelTest {
 
             assertEquals(SwipeEffect.PermissionRequired, awaitItem())
         }
+    }
+
+    // --- failures are handed to the error handler, a cancellation is not one ---
+
+    @Test
+    fun `a failing decision write is logged with what failed`() = runTest(dispatcher) {
+        coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } throws IllegalStateException("disk full")
+        load()
+
+        swipe(SwipeDirection.Left)
+
+        verify(exactly = 1) {
+            errorHandler.handle(any<IllegalStateException>(), "save the ${PhotoDecision.DELETE} decision of photo 1")
+        }
+    }
+
+    @Test
+    fun `a failed load is logged with what failed`() = runTest(dispatcher) {
+        coEvery { photoRepository.getPhotosForDate(date) } throws SecurityException("nope")
+        load()
+
+        verify(exactly = 1) { errorHandler.handle(any<SecurityException>(), "load the photos for ${DeckKey.Day(date)}") }
+    }
+
+    @Test
+    fun `a cancelled write is neither an error nor a stop for the swipe`() = runTest(dispatcher) {
+        coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } coAnswers { awaitCancellation() }
+        load()
+
+        swipe(SwipeDirection.Left)
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertEquals(1, state.currentIndex)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }
