@@ -565,6 +565,58 @@ class ProfileViewModelTest {
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
+    @Test
+    fun `settings that cannot be read show the defaults instead of an endless loading`() = runTest(dispatcher) {
+        every { repository.getSettings() } returns kotlinx.coroutines.flow.flow { throw IllegalStateException("db closed") }
+        every { notificationStatus.areNotificationsEnabled() } returns false
+
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            ProfileState.Content(
+                currentStreak = 0,
+                systemNotificationsEnabled = false,
+                versionName = VERSION,
+            ).copy(
+                goal = AppSettings().streakGoal,
+                userNotificationsEnabled = AppSettings().notificationsEnabled,
+                themeMode = AppSettings().themeMode,
+                swipeButtonsEnabled = AppSettings().swipeButtonsEnabled,
+                reminderTime = AppSettings().reminderTime,
+                permissionRequested = AppSettings().notificationPermissionRequested,
+            ),
+            vm.state.value,
+        )
+        verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the profile") }
+    }
+
+    @Test
+    fun `no error is shown when the defaults stand in for the settings`() = runTest(dispatcher) {
+        every { repository.getSettings() } returns kotlinx.coroutines.flow.flow { throw IllegalStateException("db closed") }
+        val vm = newViewModel()
+
+        vm.effects.test {
+            advanceUntilIdle()
+            expectNoEvents()
+        }
+        assertTrue(vm.state.value is ProfileState.Content)
+    }
+
+    @Test
+    fun `a settings flow that fails after the content was shown keeps the content`() = runTest(dispatcher) {
+        val failing = kotlinx.coroutines.flow.flow {
+            emit(AppSettings(themeMode = ThemeMode.Light))
+            throw IllegalStateException("db closed")
+        }
+        every { repository.getSettings() } returns failing
+
+        val vm = newViewModel()
+        advanceUntilIdle()
+
+        assertEquals(ThemeMode.Light, (vm.state.value as ProfileState.Content).themeMode)
+    }
+
     private companion object {
         const val VERSION = "1.2.3"
     }

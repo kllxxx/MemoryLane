@@ -107,25 +107,32 @@ class ProfileViewModel @Inject constructor(
      * come in through [ProfileIntent.SystemNotificationsChecked].
      */
     private fun observeProfile() {
-        launchSafe("load the profile") {
+        launchSafe("load the profile", onError = { showDefaultsIfStillLoading() }) {
             combine(appSettingsRepository.getSettings(), currentStreak()) { settings, streak -> settings to streak }
-                .collect { (settings, streak) ->
-                    storedSettings = settings
-                    if (currentState is ProfileState.Loading) {
-                        reduce(
-                            ProfileEvent.Loaded(
-                                settings = settings,
-                                currentStreak = streak,
-                                systemNotificationsEnabled = notificationStatusProvider.areNotificationsEnabled(),
-                                versionName = versionName,
-                            ),
-                        )
-                    } else {
-                        reduce(ProfileEvent.SettingsLoaded(settings))
-                        reduce(ProfileEvent.StreakLoaded(streak))
-                    }
-                }
+                .collect { (settings, streak) -> showProfile(settings, streak) }
         }
+    }
+
+    private fun showProfile(settings: AppSettings, streak: Int) {
+        storedSettings = settings
+        if (currentState is ProfileState.Loading) {
+            reduce(
+                ProfileEvent.Loaded(
+                    settings = settings,
+                    currentStreak = streak,
+                    systemNotificationsEnabled = notificationStatusProvider.areNotificationsEnabled(),
+                    versionName = versionName,
+                ),
+            )
+        } else {
+            reduce(ProfileEvent.SettingsLoaded(settings))
+            reduce(ProfileEvent.StreakLoaded(streak))
+        }
+    }
+
+    /** Settings that cannot be read are not a reason to show nothing: the screen works with the defaults. */
+    private fun showDefaultsIfStillLoading() {
+        if (currentState is ProfileState.Loading) showProfile(AppSettings(), streak = 0)
     }
 
     /** The same streak as the Calendar chip, the Итоги chip and Achievements: they all read it from [StatsRepository]. */
