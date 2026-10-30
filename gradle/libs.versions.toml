@@ -8,6 +8,7 @@ composeBom = "2026.09.00"
 
 # AndroidX
 coreKtx = "1.19.1"
+annotation = "1.9.1"
 coreSplashscreen = "1.2.0"
 activityCompose = "1.13.0"
 exifinterface = "1.4.1"
@@ -45,6 +46,7 @@ robolectric = "4.17"
 [libraries]
 # Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
