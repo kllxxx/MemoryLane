@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
-import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +11,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.snapshotFlow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kllxx.memorylane.core.domain.permission.PermissionRules
 import com.kllxx.memorylane.feature.calendar.impl.ui.CalendarContent
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -64,17 +64,10 @@ fun CalendarScreen(
             when (effect) {
                 is CalendarEffect.NavigateToSwipe -> onNavigateToSwipe(effect.date)
                 CalendarEffect.NavigateToUndated -> onNavigateToUndated()
-                CalendarEffect.RequestPermissionLauncher -> permissionLauncher.launch(mediaReadPermission())
+                CalendarEffect.RequestPermissionLauncher -> permissionLauncher.launch(PermissionRules.mediaRead(Build.VERSION.SDK_INT))
             }
         }
     }
 
     CalendarContent(state = state, listState = listState, onIntent = viewModel::onIntent)
 }
-
-private fun mediaReadPermission(): String =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_IMAGES
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
