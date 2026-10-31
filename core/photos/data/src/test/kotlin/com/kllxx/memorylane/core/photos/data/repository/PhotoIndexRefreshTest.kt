@@ -14,6 +14,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.MonthDay
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -60,7 +62,7 @@ class PhotoIndexRefreshTest {
     }
 
     private fun repository(dispatcher: CoroutineDispatcher) =
-        PhotoRepositoryImpl(application, geocoder, dispatcher, clock, reader, cache, FakePhotoLocationCache())
+        PhotoRepositoryImpl(application, geocoder, dispatcher, CoroutineScope(SupervisorJob()), clock, reader, cache, FakePhotoLocationCache())
 
     private fun row(
         id: Long,

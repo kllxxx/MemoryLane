@@ -2,6 +2,7 @@ package com.kllxx.memorylane
 
 import android.app.Application
 import com.kllxx.memorylane.core.common.PerfLog
+import com.kllxx.memorylane.core.common.di.ApplicationScope
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.reminder.ReminderScheduler
 import com.kllxx.memorylane.reminder.wantsReminder
@@ -9,8 +10,6 @@ import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -20,8 +19,7 @@ class MemoryLaneApp : Application() {
 
     @Inject lateinit var appSettingsRepository: AppSettingsRepository
     @Inject lateinit var reminderScheduler: ReminderScheduler
-
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Inject @field:ApplicationScope lateinit var appScope: CoroutineScope
 
     override fun onCreate() {
         super.onCreate()

@@ -30,6 +30,8 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.Locale
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -157,7 +159,8 @@ class PhotoRepositoryImplTest {
         FakeMediaProvider.reset()
         Robolectric.buildContentProvider(FakeMediaProvider::class.java).create(MediaStore.AUTHORITY)
         repository = PhotoRepositoryImpl(
-            application, geocoder, UnconfinedTestDispatcher(), clock, FakeExifDateReader(), dateCache, locationCache,
+            application, geocoder, UnconfinedTestDispatcher(), CoroutineScope(SupervisorJob()), clock, FakeExifDateReader(),
+            dateCache, locationCache,
         )
     }
 
@@ -233,7 +236,8 @@ class PhotoRepositoryImplTest {
         grantMedia()
         val clockZone = ZoneId.of("Pacific/Kiritimati")
         val inClockZone = PhotoRepositoryImpl(
-            application, geocoder, UnconfinedTestDispatcher(), Clock.fixed(clock.instant(), clockZone),
+            application, geocoder, UnconfinedTestDispatcher(), CoroutineScope(SupervisorJob()),
+            Clock.fixed(clock.instant(), clockZone),
             FakeExifDateReader(), dateCache, locationCache,
         )
         val taken = date.minusYears(1).atTime(10, 30).atZone(clockZone).toInstant()

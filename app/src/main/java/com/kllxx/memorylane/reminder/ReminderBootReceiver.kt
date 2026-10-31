@@ -3,13 +3,12 @@ package com.kllxx.memorylane.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.kllxx.memorylane.core.common.di.ApplicationScope
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -23,11 +22,12 @@ class ReminderBootReceiver : BroadcastReceiver() {
 
     @Inject lateinit var appSettingsRepository: AppSettingsRepository
     @Inject lateinit var scheduler: ReminderScheduler
+    @Inject @field:ApplicationScope lateinit var appScope: CoroutineScope
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in REARM_ACTIONS) return
         val pending = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+        appScope.launch {
             try {
                 scheduler.apply(appSettingsRepository.getSettings().first())
             } catch (e: CancellationException) {

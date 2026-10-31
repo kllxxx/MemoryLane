@@ -14,6 +14,8 @@ import io.mockk.mockk
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.launch
@@ -54,7 +56,7 @@ class UndatedPhotosTest {
     }
 
     private fun repository(dispatcher: CoroutineDispatcher) =
-        PhotoRepositoryImpl(application, geocoder, dispatcher, clock, reader, cache, FakePhotoLocationCache())
+        PhotoRepositoryImpl(application, geocoder, dispatcher, CoroutineScope(SupervisorJob()), clock, reader, cache, FakePhotoLocationCache())
 
     private fun millis(date: LocalDate) = date.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
 

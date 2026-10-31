@@ -13,8 +13,9 @@ import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
+import com.kllxx.memorylane.core.common.di.ApplicationScope
+import com.kllxx.memorylane.core.common.di.IoDispatcher
 import com.kllxx.memorylane.core.domain.permission.PermissionRules
-import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.date.CacheLookup
 import com.kllxx.memorylane.core.photos.data.date.ExifDateReader
 import com.kllxx.memorylane.core.photos.data.date.PhotoDateResolver
@@ -41,7 +42,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
@@ -69,6 +69,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val geocoder: LocationGeocoder,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    @ApplicationScope private val appScope: CoroutineScope,
     private val clock: Clock,
     private val exifReader: ExifDateReader,
     private val dateCache: PhotoDateCache,
@@ -79,9 +80,6 @@ internal class PhotoRepositoryImpl @Inject constructor(
 
     private val dateResolver = PhotoDateResolver(exifReader, clock)
     private val undatedPhotoDates = UndatedPhotoDates(dateCache, dateResolver)
-
-    // Reading the files of undated photos goes on after the index was shown, so it is not tied to the caller
-    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
     @Volatile
     private var resolutionJob: Job? = null
@@ -123,7 +121,8 @@ internal class PhotoRepositoryImpl @Inject constructor(
             // Only the files the cache has no date for are read, after this index was shown; the index is emitted
             // again, once, if that found anything
             resolutionJob?.cancel()
-            resolutionJob = scope.launch { resolveUndatedDates(scan, lookup) }
+            // Reading the files of undated photos goes on after the index was shown, so it is not tied to the caller
+            resolutionJob = appScope.launch(ioDispatcher) { resolveUndatedDates(scan, lookup) }
             run.complete(Unit)
         } catch (e: Throwable) {
             run.completeExceptionally(e)
@@ -428,7 +427,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
      */
     private fun ensureIndexLoading() {
         if (_onThisDayIndex.value != null || !indexLoadStarted.compareAndSet(false, true)) return
-        scope.launch {
+        appScope.launch(ioDispatcher) {
             try {
                 refreshOnThisDayIndex()
             } catch (e: CancellationException) {

@@ -7,13 +7,13 @@ import android.location.Geocoder
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.kllxx.memorylane.core.common.PerfLog
+import com.kllxx.memorylane.core.common.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -37,11 +37,14 @@ internal class LocationGeocoder internal constructor(
     private val isPresent: () -> Boolean,
 ) {
     @Inject
-    constructor(@ApplicationContext context: Context) : this(
+    constructor(
+        @ApplicationContext context: Context,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
+    ) : this(
         // Built per lookup, so the language that is current at that moment is the one the place is named in
         geocoderProvider = { Geocoder(context, Locale.getDefault()) },
         sdkInt = Build.VERSION.SDK_INT,
-        ioDispatcher = Dispatchers.IO,
+        ioDispatcher = ioDispatcher,
         isPresent = { Geocoder.isPresent() },
     )
 
