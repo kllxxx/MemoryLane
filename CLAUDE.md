@@ -40,7 +40,7 @@ All processing is local — no network, no cloud, no uploads.
 :feature:profile:impl      — theme, notifications, streak goal settings, MVI
 :core:photos:domain         — repository interfaces, photo domain models, use cases over photos and decisions (PhotosToReview, CompleteDay, ResolveDeckEnd, RequestDeletion, FinishDeletion), DeleteCapabilities; depends on :core:domain
 :core:photos:data           — MediaStore access, reading and deleting photos
-:core:ui                    — shared Compose components, theme, swipe overlay
+:core:ui                    — shared Compose components, theme (the swipe drag overlay is in :feature:swipe:impl)
 :core:domain                — repository interfaces, domain models, shared formatters (date, size)
 :core:common                — MviViewModel, ErrorHandler and UiError, the injected dispatchers and @ApplicationScope (di), PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
@@ -94,7 +94,7 @@ A failed load is never a silent navigation away and never an endless spinner. Se
 5. User taps "Delete X photos" → single MediaStore.createDeleteRequest() system dialog
 6. On confirmation → animate freed space counter → navigate to Calendar
 
-**Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:core:ui`.
+**Swipe overlay:** During drag, show green (Keep) or red (Delete) overlay on the card based on drag direction and offset. Implemented in `:feature:swipe:impl` (`DragOverlay` in `DragMapper.kt`, `DragOverlayLayer` in `SwipeCard.kt`).
 
 **Theme:** Dark by default. User can override in Profile. Stored in DataStore.
 
@@ -119,8 +119,8 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-30
-- fix: last used MMLN-39
-- refactor: last used MMLN-28
+- fix: last used MMLN-40
+- refactor: last used MMLN-29
 
 **Commit format (Conventional Commits):**
 
@@ -181,7 +181,7 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 - No business logic in Composables — only UI
 - No runBlocking in production code — tests only.
 - No `android.util.Log` — Timber only; no hand-written `catch (e: Exception)` around suspend calls, see "MviViewModel" above
-- Repository interfaces live in `:core:domain`, implementations in `:core:data`
+- Repository interfaces live in `:core:domain` (settings, permissions, stats, swipe decisions and sessions) and `:core:photos:domain` (`PhotoRepository`); implementations in `:core:data` and `:core:photos:data`
 - `:core:photos:data` is the only module allowed to touch MediaStore
 
 **What to ask before doing:**
@@ -219,3 +219,26 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 - Tests that need the Android runtime (Bundle, SavedStateHandle.toRoute(), Log, Room, ContentResolver) use `@RunWith(RobolectricTestRunner::class)`; do not mockkStatic Android framework classes in them
 - The real MediaStore is never queried: other layers mock the PhotoRepository interface, and PhotoRepositoryImpl tests use a fake ContentProvider registered with Robolectric
 - Test files mirror source structure: src/test/ for unit, src/androidTest/ for instrumented
+
+## Done when
+
+A task is done only when all three pass, with the real exit code of Gradle:
+
+```
+./gradlew testDebugUnitTest
+./gradlew :app:assembleDebug
+./gradlew :app:assembleRelease
+```
+
+- Never pipe a verifying Gradle command through `tail`, `head`, `grep` or anything else: the pipe returns its own exit code and hides a failed build. Redirect the output to a file, read `$?` of Gradle itself, and look at the file afterwards.
+- `:app:assembleRelease` is required because it is the only step that builds with R8. A broken keep rule (for example the `PerfLog` rule in `app/release-rules.pro`) shows up only there.
+- Run one Gradle command at a time. `gradle.properties` limits Gradle to 2 workers (`org.gradle.workers.max=2`) with parallel execution and the build cache on; a full run needs about 4 GB of heap and was killed for lack of memory when several ran at once.
+- Lint (`./gradlew lintDebug`) is not part of "done" yet: it still fails on `MissingTranslation` until the localization is finished.
+
+## Conventions learned in batch 3
+
+- Test hooks in production code (`PerfLog.setEnabled`, `PerfLog.sink`) are public only because tests in other modules need them; they carry `@VisibleForTesting`. Do not use them in main code.
+- Compose tests use `androidx.compose.ui.test.junit4.v2.createComposeRule` (it runs on a `StandardTestDispatcher`); the old `createComposeRule` is deprecated.
+- `hiltViewModel` comes from `androidx.hilt.lifecycle.viewmodel.compose`.
+- Sizes are formatted by `formatSize` (`:core:domain`): KB below 1 MB, one decimal from 1 to 10 MB, whole MB up to 1 GB, one decimal in GB; all rounded, and a value that rounds up to the next unit is shown in that unit.
+- The onboarding pages are `OnboardingPage` (an enum); page numbers, the page count and the permission pages derive from it.
