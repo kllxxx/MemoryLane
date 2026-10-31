@@ -21,21 +21,14 @@ import com.kllxx.memorylane.AppEffect
 import com.kllxx.memorylane.R
 import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.feature.achievements.api.AchievementsRoute
-import com.kllxx.memorylane.feature.achievements.impl.AchievementsScreen
 import com.kllxx.memorylane.feature.calendar.api.CalendarRoute
-import com.kllxx.memorylane.feature.calendar.impl.CalendarScreen
 import com.kllxx.memorylane.feature.onboarding.api.OnboardingRoute
-import com.kllxx.memorylane.feature.onboarding.impl.OnboardingScreen
 import com.kllxx.memorylane.feature.profile.api.ProfileRoute
-import com.kllxx.memorylane.feature.profile.impl.ProfileScreen
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.toBeforeDeleteRoute
 import com.kllxx.memorylane.feature.swipe.impl.toResultRoute
-import com.kllxx.memorylane.feature.swipe.impl.SwipeScreen
-import com.kllxx.memorylane.feature.swipe.impl.beforedelete.BeforeDeleteScreen
-import com.kllxx.memorylane.feature.swipe.impl.result.ResultScreen
 import java.time.LocalDate
 import kotlin.reflect.KClass
 import kotlinx.coroutines.flow.Flow
@@ -65,10 +58,11 @@ private val bottomNavItems = listOf(
 )
 
 @Composable
-fun AppNavHost(
+internal fun AppNavHost(
     startDestination: StartDestination,
     appEffects: Flow<AppEffect>,
     navController: NavHostController = rememberNavController(),
+    screens: AppScreens = AppScreens.Real,
 ) {
     LaunchedEffect(navController, appEffects) {
         appEffects.collect { effect ->
@@ -117,68 +111,66 @@ fun AppNavHost(
         // handles the navigation bar inset on its own
         composable<OnboardingRoute> { entry ->
             val fromProfile = entry.toRoute<OnboardingRoute>().fromProfile
-            OnboardingScreen(
-                onFinished = {
-                    if (fromProfile) {
-                        // A replay: back to the Profile tab it was started from
-                        navController.popBackStack()
-                    } else {
-                        navController.navigate(CalendarRoute) {
-                            popUpTo<OnboardingRoute> { inclusive = true }
-                        }
+            screens.onboarding {
+                if (fromProfile) {
+                    // A replay: back to the Profile tab it was started from
+                    navController.popBackStack()
+                } else {
+                    navController.navigate(CalendarRoute) {
+                        popUpTo<OnboardingRoute> { inclusive = true }
                     }
-                },
-            )
+                }
+            }
         }
         composable<SwipeRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
-                SwipeScreen(
+                screens.swipe(
                     // Swipe stays on the back stack: Back from «Перед удалением» returns to the deck
-                    onNavigateToBeforeDelete = { deck -> navController.navigate(deck.toBeforeDeleteRoute()) },
-                    onNavigateToResult = { deck, keptCount, totalCount ->
+                    { deck -> navController.navigate(deck.toBeforeDeleteRoute()) },
+                    { deck, keptCount, totalCount ->
                         navController.navigate(deck.toResultRoute(0, 0L, keptCount, totalCount))
                     },
-                    onNavigateToCalendar = { navController.navigateToCalendar() },
+                    { navController.navigateToCalendar() },
                 )
             }
         }
         composable<BeforeDeleteRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
-                BeforeDeleteScreen(
-                    onBack = { navController.popBackStack() },
-                    onNavigateToResult = { deck, deletedCount, freedBytes, keptCount, totalCount ->
+                screens.beforeDelete(
+                    { navController.popBackStack() },
+                    { deck, deletedCount, freedBytes, keptCount, totalCount ->
                         navController.navigate(deck.toResultRoute(deletedCount, freedBytes, keptCount, totalCount)) {
                             popUpTo<BeforeDeleteRoute> { inclusive = true }
                         }
                     },
-                    onNavigateToCalendar = { navController.navigateToCalendar() },
+                    { navController.navigateToCalendar() },
                 )
             }
         }
         composable<ResultRoute> {
             Box(Modifier.fillMaxSize().fullScreenInsets()) {
-                ResultScreen(onNavigateToCalendar = { navController.navigateToCalendar() })
+                screens.result { navController.navigateToCalendar() }
             }
         }
         composable<CalendarRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
-                CalendarScreen(
-                    onNavigateToSwipe = { date -> navController.navigate(SwipeRoute.day(date)) },
-                    onNavigateToUndated = { navController.navigate(SwipeRoute.undated()) },
-                    reselected = calendarReselected,
+                screens.calendar(
+                    { date -> navController.navigate(SwipeRoute.day(date)) },
+                    { navController.navigate(SwipeRoute.undated()) },
+                    calendarReselected,
                 )
             }
         }
         composable<AchievementsRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
-                AchievementsScreen(onNavigateToCalendar = { navController.navigateToTab(CalendarRoute) })
+                screens.achievements { navController.navigateToTab(CalendarRoute) }
             }
         }
         composable<ProfileRoute> {
             Box(Modifier.fillMaxSize().tabScreenInsets()) {
-                ProfileScreen(
+                screens.profile(
                     // Stacked on top of Profile, so finishing or skipping returns to it
-                    onNavigateToOnboarding = { navController.navigate(OnboardingRoute(fromProfile = true)) },
+                    { navController.navigate(OnboardingRoute(fromProfile = true)) },
                 )
             }
         }
