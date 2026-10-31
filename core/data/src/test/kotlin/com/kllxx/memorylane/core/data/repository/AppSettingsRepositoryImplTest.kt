@@ -5,15 +5,19 @@ import com.kllxx.memorylane.core.data.datastore.AppSettingsDataStore
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
-import io.mockk.coEvery
+import com.kllxx.memorylane.core.domain.permission.AppPermission
+import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import io.mockk.coVerify
+import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import java.time.LocalTime
-import org.junit.Test
 import org.junit.Assert.assertEquals
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.Parameterized
+import java.time.LocalTime
 
 class AppSettingsRepositoryImplTest {
 
@@ -30,31 +34,85 @@ class AppSettingsRepositoryImplTest {
             awaitComplete()
         }
     }
+}
+
+/** One row per setter of [AppSettingsRepository]: it must reach the matching data store member, once, unchanged. */
+@RunWith(Parameterized::class)
+internal class AppSettingsRepositorySetterTest(
+    @Suppress("unused") private val name: String,
+    private val call: suspend (AppSettingsRepository) -> Unit,
+    private val verifyOnStore: suspend (AppSettingsDataStore) -> Unit,
+) {
 
     @Test
-    fun `setters delegate to the data store`() = runTest {
-        coEvery { dataStore.setOnboardingCompleted(any()) } returns Unit
-        coEvery { dataStore.setThemeMode(any()) } returns Unit
-        coEvery { dataStore.setNotificationsEnabled(any()) } returns Unit
-        coEvery { dataStore.setStreakGoal(any()) } returns Unit
-        coEvery { dataStore.setReminderTime(any()) } returns Unit
-        coEvery { dataStore.markNotificationPermissionRequested() } returns Unit
-        coEvery { dataStore.setSwipeButtonsEnabled(any()) } returns Unit
+    fun `the setter calls its data store counterpart once with the same argument and nothing else`() = runTest {
+        val dataStore = mockk<AppSettingsDataStore>(relaxed = true)
 
-        repository.setSwipeButtonsEnabled(true)
-        repository.setOnboardingCompleted(true)
-        repository.setThemeMode(ThemeMode.System)
-        repository.setNotificationsEnabled(false)
-        repository.setStreakGoal(StreakGoal.D30)
-        repository.setReminderTime(LocalTime.of(8, 30))
-        repository.markNotificationPermissionRequested()
+        call(AppSettingsRepositoryImpl(dataStore))
 
-        coVerify(exactly = 1) { dataStore.setOnboardingCompleted(true) }
-        coVerify(exactly = 1) { dataStore.setThemeMode(ThemeMode.System) }
-        coVerify(exactly = 1) { dataStore.setNotificationsEnabled(false) }
-        coVerify(exactly = 1) { dataStore.setStreakGoal(StreakGoal.D30) }
-        coVerify(exactly = 1) { dataStore.setReminderTime(LocalTime.of(8, 30)) }
-        coVerify(exactly = 1) { dataStore.markNotificationPermissionRequested() }
-        coVerify(exactly = 1) { dataStore.setSwipeButtonsEnabled(true) }
+        verifyOnStore(dataStore)
+        confirmVerified(dataStore)
+    }
+
+    companion object {
+        private fun row(
+            name: String,
+            call: suspend (AppSettingsRepository) -> Unit,
+            verifyOnStore: suspend (AppSettingsDataStore) -> Unit,
+        ): Array<Any> = arrayOf(name, call, verifyOnStore)
+
+        @JvmStatic
+        @Parameterized.Parameters(name = "{0}")
+        fun setters(): List<Array<Any>> = listOf(
+            row(
+                "setOnboardingCompleted",
+                { it.setOnboardingCompleted(true) },
+                { coVerify(exactly = 1) { it.setOnboardingCompleted(true) } },
+            ),
+            row(
+                "setThemeMode",
+                { it.setThemeMode(ThemeMode.System) },
+                { coVerify(exactly = 1) { it.setThemeMode(ThemeMode.System) } },
+            ),
+            row(
+                "setNotificationsEnabled",
+                { it.setNotificationsEnabled(false) },
+                { coVerify(exactly = 1) { it.setNotificationsEnabled(false) } },
+            ),
+            row(
+                "setStreakGoal",
+                { it.setStreakGoal(StreakGoal.D100) },
+                { coVerify(exactly = 1) { it.setStreakGoal(StreakGoal.D100) } },
+            ),
+            row(
+                "setReminderTime",
+                { it.setReminderTime(LocalTime.of(8, 30)) },
+                { coVerify(exactly = 1) { it.setReminderTime(LocalTime.of(8, 30)) } },
+            ),
+            row(
+                "markNotificationPermissionRequested",
+                { it.markNotificationPermissionRequested() },
+                { coVerify(exactly = 1) { it.markNotificationPermissionRequested() } },
+            ),
+            row(
+                "setSwipeButtonsEnabled",
+                { it.setSwipeButtonsEnabled(true) },
+                { coVerify(exactly = 1) { it.setSwipeButtonsEnabled(true) } },
+            ),
+            row(
+                "setLocationGrantSeen",
+                { it.setLocationGrantSeen(true) },
+                { coVerify(exactly = 1) { it.setLocationGrantSeen(true) } },
+            ),
+            row(
+                "markPermissionsRequested",
+                { it.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location)) },
+                {
+                    coVerify(exactly = 1) {
+                        it.markPermissionsRequested(setOf(AppPermission.Photos, AppPermission.Location))
+                    }
+                },
+            ),
+        )
     }
 }

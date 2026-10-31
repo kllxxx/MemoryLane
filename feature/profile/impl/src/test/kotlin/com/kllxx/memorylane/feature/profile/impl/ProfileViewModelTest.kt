@@ -802,9 +802,15 @@ class ProfileViewModelTest {
         val vm = newViewModel()
         advanceUntilIdle()
 
-        vm.viewModelScope.cancel()
-        advanceUntilIdle()
+        val before = vm.state.value
+        vm.effects.test {
+            vm.viewModelScope.cancel()
+            advanceUntilIdle()
 
+            expectNoEvents()
+        }
+
+        assertEquals(before, vm.state.value)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 

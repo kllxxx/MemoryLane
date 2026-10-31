@@ -216,10 +216,12 @@ class OnboardingViewModelTest {
             viewModel.onIntent(OnboardingIntent.Skip)
             advanceUntilIdle()
 
+            val before = viewModel.state.value
             viewModel.viewModelScope.cancel()
             advanceUntilIdle()
 
             expectNoEvents()
+            assertEquals(before, viewModel.state.value)
         }
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }

@@ -159,8 +159,12 @@ class AppViewModelTest {
         val viewModel = viewModel()
         runCurrent()
 
-        viewModel.viewModelScope.cancel()
-        runCurrent()
+        viewModel.effects.test {
+            viewModel.viewModelScope.cancel()
+            runCurrent()
+
+            expectNoEvents()
+        }
 
         assertEquals(AppUiState.Loading, viewModel.state.value)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
@@ -283,9 +287,15 @@ class AppViewModelTest {
         viewModel.onIntent(AppIntent.Resumed)
         runCurrent()
 
-        viewModel.viewModelScope.cancel()
-        runCurrent()
+        val before = viewModel.state.value
+        viewModel.effects.test {
+            viewModel.viewModelScope.cancel()
+            runCurrent()
 
+            expectNoEvents()
+        }
+
+        assertEquals(before, viewModel.state.value)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 }

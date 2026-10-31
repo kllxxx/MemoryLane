@@ -154,8 +154,12 @@ class AchievementsViewModelTest {
         val vm = viewModel()
         advanceUntilIdle()
 
-        vm.viewModelScope.cancel()
-        advanceUntilIdle()
+        vm.effects.test {
+            vm.viewModelScope.cancel()
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
 
         assertEquals(AchievementsState.Loading, vm.state.value)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }

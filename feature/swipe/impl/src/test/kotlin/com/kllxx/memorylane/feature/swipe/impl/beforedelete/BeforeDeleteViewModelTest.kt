@@ -1001,10 +1001,12 @@ class BeforeDeleteViewModelTest {
 
         viewModel.effects.test {
             send(BeforeDeleteIntent.DeleteClicked)
+            val before = state
             viewModel.viewModelScope.cancel()
             advanceUntilIdle()
 
             expectNoEvents()
+            assertEquals(before, state)
         }
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }

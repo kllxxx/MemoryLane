@@ -205,9 +205,15 @@ class ResultViewModelTest {
         val viewModel = create()
         advanceUntilIdle()
 
-        viewModel.viewModelScope.cancel()
-        advanceUntilIdle()
+        val before = viewModel.state.value
+        viewModel.effects.test {
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
 
+            expectNoEvents()
+        }
+
+        assertEquals(before, viewModel.state.value)
         assertNull(viewModel.state.value.streakDays)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }

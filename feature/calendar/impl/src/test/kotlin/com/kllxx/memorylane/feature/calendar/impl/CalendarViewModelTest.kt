@@ -1200,9 +1200,15 @@ class CalendarViewModelTest {
         viewModel = createViewModel(waiting)
         advanceUntilIdle()
 
-        viewModel.viewModelScope.cancel()
-        advanceUntilIdle()
+        val before = viewModel.state.value
+        viewModel.effects.test {
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
 
+            expectNoEvents()
+        }
+
+        assertEquals(before, viewModel.state.value)
         assertNull(viewModel.state.value.error)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
@@ -1213,9 +1219,15 @@ class CalendarViewModelTest {
         viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.viewModelScope.cancel()
-        advanceUntilIdle()
+        val before = viewModel.state.value
+        viewModel.effects.test {
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
 
+            expectNoEvents()
+        }
+
+        assertEquals(before, viewModel.state.value)
         assertNull(viewModel.state.value.error)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }

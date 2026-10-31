@@ -1229,9 +1229,15 @@ class SwipeViewModelTest {
         coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } coAnswers { awaitCancellation() }
         load()
 
-        swipe(SwipeDirection.Left)
-        viewModel.viewModelScope.cancel()
-        advanceUntilIdle()
+        viewModel.effects.test {
+            swipe(SwipeDirection.Left)
+            val before = state
+            viewModel.viewModelScope.cancel()
+            advanceUntilIdle()
+
+            expectNoEvents()
+            assertEquals(before, state)
+        }
 
         assertEquals(1, state.currentIndex)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
