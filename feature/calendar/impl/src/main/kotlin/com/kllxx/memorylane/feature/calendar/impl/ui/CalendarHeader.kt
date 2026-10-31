@@ -45,7 +45,6 @@ internal fun CalendarHeader(currentStreak: Int, modifier: Modifier = Modifier) {
     }
 }
 
-// TODO: localize full UI
 @Composable
 internal fun StreakChip(days: Int, modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary

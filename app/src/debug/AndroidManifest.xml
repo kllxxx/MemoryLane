@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
-        <!-- Debug builds only: posts the reminder on demand, `adb shell am broadcast -n <this receiver> -a ...POST_REMINDER` -->
+        <!-- Debug builds only: posts the reminder on demand, `adb shell am broadcast -n <this receiver> -a ...POST_REMINDER`.
+             Exported on purpose: adb has no signature, so a permission would block it. It has no intent filter,
+             ignores every other action and only posts a notification. -->
         <receiver
             android:name=".reminder.DebugReminderReceiver"
-            android:exported="true" />
+            android:exported="true"
+            tools:ignore="ExportedReceiver" />
     </application>
 
 </manifest>

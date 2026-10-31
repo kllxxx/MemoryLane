@@ -107,6 +107,7 @@ internal class LocationGeocoder internal constructor(
             )
         }
 
+    // Remove when minSdk >= 33: the blocking overload is deprecated there, fetchAsync covers it
     @Suppress("DEPRECATION")
     private suspend fun fetchBlocking(geocoder: Geocoder, latitude: Double, longitude: Double): Lookup =
         withContext(ioDispatcher) {

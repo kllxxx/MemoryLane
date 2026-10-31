@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.core.common
 
+import androidx.annotation.VisibleForTesting
 import timber.log.Timber
 
 /**
@@ -16,15 +17,17 @@ object PerfLog {
     @Volatile
     private var enabled = false
 
-    // Replaceable so that tests can read the lines
+    // Replaceable so that tests can read the lines. Public only because tests of other modules use it
     @Volatile
+    @VisibleForTesting
     var sink: (String) -> Unit = { Timber.tag(TAG).d(it) }
 
     fun enable() {
         enabled = true
     }
 
-    /** For tests: switches the logging on or off. */
+    /** For tests: switches the logging on or off. Public only because tests of other modules use it. */
+    @VisibleForTesting
     fun setEnabled(value: Boolean) {
         enabled = value
     }

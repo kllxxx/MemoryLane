@@ -7,8 +7,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 
 /**
- * @param themeMode dark by default. TODO(DataStore): the app/Profile layer should collect the
- * persisted [ThemeMode] from DataStore and pass it here; no storage is read in :core:ui.
+ * @param themeMode dark by default. The app layer collects the persisted [ThemeMode] and passes it here;
+ * no storage is read in :core:ui.
  */
 @Composable
 fun MemoryLaneTheme(
