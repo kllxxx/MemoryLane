@@ -97,7 +97,7 @@ class AchievementsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.MB), "1", "0"),
+            AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.KB), "1", "0"),
             vm.state.value,
         )
     }
@@ -112,7 +112,7 @@ class AchievementsViewModelTest {
             assertEquals(AchievementsState.Empty, awaitItem())
 
             statsFlow.emit(stats(viewed = 1, current = 1, best = 1, deleted = 0, freedBytes = 0))
-            assertEquals(AchievementsState.Stats(1, 1, FormattedSize("0", SizeUnit.MB), "1", "0"), awaitItem())
+            assertEquals(AchievementsState.Stats(1, 1, FormattedSize("0", SizeUnit.KB), "1", "0"), awaitItem())
 
             statsFlow.emit(stats(viewed = 1_248, current = 7, best = 21, deleted = 312, freedBytes = 2_440_000_000))
             assertEquals(

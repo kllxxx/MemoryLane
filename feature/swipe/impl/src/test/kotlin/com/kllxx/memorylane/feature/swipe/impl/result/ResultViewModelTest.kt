@@ -140,7 +140,7 @@ class ResultViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.nothingDeleted)
-        assertEquals(FormattedSize("0", SizeUnit.MB), viewModel.state.value.freed)
+        assertEquals(FormattedSize("0", SizeUnit.KB), viewModel.state.value.freed)
     }
 
     @Test

@@ -15,6 +15,7 @@
     <string name="achievements_section_stats">Статистика</string>
     <string name="achievements_freed_label">Освобождено места</string>
     <string name="achievements_freed_caption">за всё время</string>
+    <string name="achievements_unit_kb">КБ</string>
     <string name="achievements_unit_mb">МБ</string>
     <string name="achievements_unit_gb">ГБ</string>
     <string name="achievements_viewed">Просмотрено фото</string>

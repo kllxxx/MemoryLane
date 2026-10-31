@@ -58,6 +58,7 @@
     <string name="result_overline_freed">ОСВОБОЖДЕНО</string>
     <string name="result_overline_sorted">ДЕНЬ РАЗОБРАН</string>
     <string name="result_all_kept">Все фото оставлены</string>
+    <string name="result_unit_kb">КБ</string>
     <string name="result_unit_mb">МБ</string>
     <string name="result_unit_gb">ГБ</string>
     <string name="deck_undated">Без даты</string>

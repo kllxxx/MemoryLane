@@ -35,7 +35,7 @@ class AchievementsMapperTest {
         val stats = AchievementStats(currentStreak = 0, bestStreak = 0, viewedPhotos = 1, deletedPhotos = 0, freedBytes = 0)
 
         assertEquals(
-            AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.MB), "1", "0"),
+            AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.KB), "1", "0"),
             stats.toState(),
         )
     }

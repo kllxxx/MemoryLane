@@ -59,6 +59,14 @@ class ResultContentTest {
     }
 
     @Test
+    fun `a size in kilobytes has its own unit`() {
+        show(freedState.copy(freed = FormattedSize("730", SizeUnit.KB)))
+
+        text(ResultTags.VALUE).assertTextEquals("730")
+        text(ResultTags.UNIT).assertTextEquals("КБ")
+    }
+
+    @Test
     fun `a size in gigabytes has its own unit`() {
         show(freedState.copy(freed = FormattedSize("2,5", SizeUnit.GB)))
 

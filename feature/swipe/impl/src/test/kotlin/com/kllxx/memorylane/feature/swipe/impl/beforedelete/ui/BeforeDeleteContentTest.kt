@@ -213,6 +213,13 @@ class BeforeDeleteContentTest {
     }
 
     @Test
+    fun `a size below a megabyte is shown in КБ`() {
+        show(initial(300_000, 430_000))
+
+        button().assertTextEquals("Удалить 2 фото · 730 КБ")
+    }
+
+    @Test
     fun `a size from a gigabyte up has a comma and ГБ`() {
         show(initial(1_500_000_000, 1_000_000_000))
 

@@ -75,6 +75,14 @@ class AchievementsContentTest {
     }
 
     @Test
+    fun `a freed size in kilobytes has its own unit`() {
+        setContent(AchievementsState.Stats(1, 1, FormattedSize("730", SizeUnit.KB), "1", "0"))
+
+        composeRule.onNodeWithTag(FREED_SPACE_TAG).assertTextEquals("730")
+        composeRule.onNodeWithTag(FREED_UNIT_TAG).assertTextEquals("КБ")
+    }
+
+    @Test
     fun `the stats state has no empty state`() {
         setContent(AchievementsState.Stats(0, 0, FormattedSize("0", SizeUnit.MB), "1", "0"))
 

@@ -7,27 +7,61 @@ class SizeFormatterTest {
 
     private fun size(bytes: Long) = formatSize(bytes).let { it.value to it.unit }
 
-
     @Test
-    fun `size below one megabyte is zero megabytes`() {
-        assertEquals("0" to SizeUnit.MB, size(0))
-        assertEquals("0" to SizeUnit.MB, size(999_999))
+    fun `zero bytes is zero kilobytes`() {
+        assertEquals("0" to SizeUnit.KB, size(0))
     }
 
     @Test
-    fun `size of one megabyte`() {
+    fun `size below a megabyte is whole kilobytes`() {
+        assertEquals("730" to SizeUnit.KB, size(730_000))
+        assertEquals("999" to SizeUnit.KB, size(999_000))
+    }
+
+    @Test
+    fun `kilobytes are rounded, not truncated`() {
+        assertEquals("1" to SizeUnit.KB, size(500))
+        assertEquals("0" to SizeUnit.KB, size(499))
+        assertEquals("731" to SizeUnit.KB, size(730_500))
+    }
+
+    @Test
+    fun `kilobytes that round up to 1000 become one megabyte`() {
+        assertEquals("999" to SizeUnit.KB, size(999_499))
+        assertEquals("1" to SizeUnit.MB, size(999_500))
+        assertEquals("1" to SizeUnit.MB, size(999_999))
+    }
+
+    @Test
+    fun `size of one megabyte drops the trailing zero`() {
         assertEquals("1" to SizeUnit.MB, size(1_000_000))
     }
 
     @Test
-    fun `size below a gigabyte is whole megabytes`() {
+    fun `megabytes below ten have one rounded decimal with a comma`() {
+        assertEquals("1,5" to SizeUnit.MB, size(1_470_000))
+        assertEquals("1,4" to SizeUnit.MB, size(1_449_999))
+        assertEquals("9,9" to SizeUnit.MB, size(9_940_000))
+    }
+
+    @Test
+    fun `megabytes that round up to ten show as whole ten`() {
+        assertEquals("10" to SizeUnit.MB, size(9_950_000))
+        assertEquals("10" to SizeUnit.MB, size(9_999_999))
+    }
+
+    @Test
+    fun `megabytes from ten are whole and rounded`() {
+        assertEquals("10" to SizeUnit.MB, size(10_400_000))
+        assertEquals("11" to SizeUnit.MB, size(10_500_000))
         assertEquals("640" to SizeUnit.MB, size(640_000_000))
     }
 
     @Test
-    fun `size just below a gigabyte never rounds up to 1000 megabytes`() {
-        assertEquals("999" to SizeUnit.MB, size(999_900_000))
-        assertEquals("999" to SizeUnit.MB, size(999_999_999))
+    fun `megabytes that round up to 1000 become one gigabyte`() {
+        assertEquals("999" to SizeUnit.MB, size(999_499_999))
+        assertEquals("1" to SizeUnit.GB, size(999_500_000))
+        assertEquals("1" to SizeUnit.GB, size(999_999_999))
     }
 
     @Test
