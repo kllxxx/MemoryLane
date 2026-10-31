@@ -3,8 +3,7 @@ package com.kllxx.memorylane.feature.profile.impl
 import android.content.Intent
 import androidx.core.net.toUri
 
-// TODO MMLN-19: set support email
-internal const val SUPPORT_EMAIL = "support@example.com"
+internal const val SUPPORT_EMAIL = "kuravkindm@gmail.com"
 
 internal fun supportMailIntent(email: String, subject: String, body: String): Intent =
     Intent(Intent.ACTION_SENDTO, "mailto:$email".toUri())
