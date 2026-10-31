@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
     id("memorylane.android.hilt")
 }
 
@@ -102,6 +103,8 @@ dependencies {
     implementation(libs.timber)
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.hilt.android.testing)
+    add("kspTest", libs.hilt.compiler)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -109,4 +112,9 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+hilt {
+    // @HiltAndroidTest under Robolectric needs the @AndroidEntryPoint bytecode swap in the local unit tests too
+    enableTransformForLocalTests = true
 }
