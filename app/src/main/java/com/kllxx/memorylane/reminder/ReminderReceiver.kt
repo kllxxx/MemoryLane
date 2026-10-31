@@ -24,7 +24,7 @@ class ReminderReceiver : BroadcastReceiver() {
     @Inject lateinit var scheduler: ReminderScheduler
     @Inject lateinit var notifier: ReminderNotifier
     @Inject lateinit var todayReview: TodayReview
-    @Inject @field:ApplicationScope lateinit var appScope: CoroutineScope
+    @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ReminderConstants.ACTION_REMIND) return

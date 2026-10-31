@@ -19,7 +19,7 @@ class MemoryLaneApp : Application() {
 
     @Inject lateinit var appSettingsRepository: AppSettingsRepository
     @Inject lateinit var reminderScheduler: ReminderScheduler
-    @Inject @field:ApplicationScope lateinit var appScope: CoroutineScope
+    @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
     override fun onCreate() {
         super.onCreate()

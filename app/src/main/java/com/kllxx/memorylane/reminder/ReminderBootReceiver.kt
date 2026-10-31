@@ -22,7 +22,7 @@ class ReminderBootReceiver : BroadcastReceiver() {
 
     @Inject lateinit var appSettingsRepository: AppSettingsRepository
     @Inject lateinit var scheduler: ReminderScheduler
-    @Inject @field:ApplicationScope lateinit var appScope: CoroutineScope
+    @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in REARM_ACTIONS) return
