@@ -53,7 +53,7 @@ class OnboardingViewModelTest {
     }
 
     private fun goToPhotoPage() {
-        repeat(OnboardingConstants.PHOTO_PAGE) { viewModel.onIntent(OnboardingIntent.NextPage) }
+        repeat(OnboardingPage.Photos.ordinal) { viewModel.onIntent(OnboardingIntent.NextPage) }
     }
 
     @Test
@@ -112,7 +112,7 @@ class OnboardingViewModelTest {
             viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(true))
             advanceUntilIdle()
             assertTrue(viewModel.state.value.permissionsGranted)
-            assertEquals(OnboardingConstants.NOTIFICATION_PAGE, viewModel.state.value.currentPage)
+            assertEquals(OnboardingPage.Notifications.ordinal, viewModel.state.value.currentPage)
             expectNoEvents()
         }
         coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
@@ -124,7 +124,7 @@ class OnboardingViewModelTest {
         viewModel.effects.test {
             viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
             advanceUntilIdle()
-            assertEquals(OnboardingConstants.PHOTO_PAGE, viewModel.state.value.currentPage)
+            assertEquals(OnboardingPage.Photos.ordinal, viewModel.state.value.currentPage)
             assertFalse(viewModel.state.value.showPermissionRationale)
             expectNoEvents()
         }
@@ -139,7 +139,7 @@ class OnboardingViewModelTest {
             viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false))
             advanceUntilIdle()
             assertTrue(viewModel.state.value.showPermissionRationale)
-            assertEquals(OnboardingConstants.PHOTO_PAGE, viewModel.state.value.currentPage)
+            assertEquals(OnboardingPage.Photos.ordinal, viewModel.state.value.currentPage)
             expectNoEvents()
         }
         coVerify(exactly = 0) { repository.setOnboardingCompleted(true) }
@@ -174,7 +174,7 @@ class OnboardingViewModelTest {
         repeat(2) { viewModel.onIntent(OnboardingIntent.PhotoPermissionResult(false)) }
         viewModel.onIntent(OnboardingIntent.DismissRationale)
         assertFalse(viewModel.state.value.showPermissionRationale)
-        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, viewModel.state.value.currentPage)
+        assertEquals(OnboardingPage.Notifications.ordinal, viewModel.state.value.currentPage)
     }
 
     @Test

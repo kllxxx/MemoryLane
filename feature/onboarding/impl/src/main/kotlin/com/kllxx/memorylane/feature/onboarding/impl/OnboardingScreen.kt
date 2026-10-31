@@ -103,7 +103,7 @@ internal fun OnboardingContent(
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "onboardingSlide",
             ) { page ->
-                OnboardingSlide(page)
+                OnboardingSlide(OnboardingPage.entries[page])
             }
             PageIndicator(
                 pageCount = state.totalPages,
@@ -114,7 +114,7 @@ internal fun OnboardingContent(
             )
             PrimaryButton(
                 text = stringResource(
-                    if (state.currentPage < OnboardingConstants.PHOTO_PAGE) R.string.onboarding_next else R.string.onboarding_allow,
+                    if (state.currentPage < OnboardingPage.Photos.ordinal) R.string.onboarding_next else R.string.onboarding_allow,
                 ),
                 onClick = { onIntent(state.primaryAction()) },
                 enabled = !state.isLoading,
@@ -145,24 +145,24 @@ internal fun OnboardingContent(
     }
 }
 
-private fun OnboardingState.primaryAction(): OnboardingIntent = when (currentPage) {
-    OnboardingConstants.PHOTO_PAGE -> OnboardingIntent.RequestPhotoPermission
-    OnboardingConstants.NOTIFICATION_PAGE -> OnboardingIntent.RequestNotificationPermission
+private fun OnboardingState.primaryAction(): OnboardingIntent = when (OnboardingPage.entries[currentPage]) {
+    OnboardingPage.Photos -> OnboardingIntent.RequestPhotoPermission
+    OnboardingPage.Notifications -> OnboardingIntent.RequestNotificationPermission
     else -> OnboardingIntent.NextPage
 }
 
 @Composable
-private fun OnboardingSlide(page: Int) {
+private fun OnboardingSlide(page: OnboardingPage) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             when (page) {
-                0 -> StackedCardsIllustration()
-                1 -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OnboardingPage.Welcome -> StackedCardsIllustration()
+                OnboardingPage.Swipe -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     SwipeCardIllustration()
                     InfoRow(stringResource(R.string.onboarding_slide2_row_streak), positive = true)
                     InfoRow(stringResource(R.string.onboarding_slide2_row_request), positive = true)
                 }
-                2 -> Column(
+                OnboardingPage.Photos -> Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -170,14 +170,14 @@ private fun OnboardingSlide(page: Int) {
                     InfoRow(stringResource(R.string.onboarding_slide3_row_access), positive = true)
                     InfoRow(stringResource(R.string.onboarding_slide3_row_local), positive = false)
                 }
-                else -> NotificationCardsIllustration()
+                OnboardingPage.Notifications -> NotificationCardsIllustration()
             }
         }
         val (title, subtitle) = when (page) {
-            0 -> R.string.onboarding_slide1_title to R.string.onboarding_slide1_subtitle
-            1 -> R.string.onboarding_slide2_title to R.string.onboarding_slide2_subtitle
-            2 -> R.string.onboarding_slide3_title to R.string.onboarding_slide3_subtitle
-            else -> R.string.onboarding_slide4_title to R.string.onboarding_slide4_subtitle
+            OnboardingPage.Welcome -> R.string.onboarding_slide1_title to R.string.onboarding_slide1_subtitle
+            OnboardingPage.Swipe -> R.string.onboarding_slide2_title to R.string.onboarding_slide2_subtitle
+            OnboardingPage.Photos -> R.string.onboarding_slide3_title to R.string.onboarding_slide3_subtitle
+            OnboardingPage.Notifications -> R.string.onboarding_slide4_title to R.string.onboarding_slide4_subtitle
         }
         SlideText(stringResource(title), stringResource(subtitle), Modifier.padding(top = 16.dp))
     }

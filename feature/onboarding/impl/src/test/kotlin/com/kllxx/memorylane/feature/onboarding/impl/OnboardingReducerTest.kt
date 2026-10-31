@@ -8,14 +8,14 @@ import org.junit.Test
 class OnboardingReducerTest {
 
     private val initial = OnboardingState()
-    private val photoPage = initial.copy(currentPage = OnboardingConstants.PHOTO_PAGE)
+    private val photoPage = initial.copy(currentPage = OnboardingPage.Photos.ordinal)
 
     private fun reduce(state: OnboardingState, intent: OnboardingIntent, denials: Int = 0) =
         OnboardingReducer.reduce(state, intent, denials)
 
     @Test
     fun `there are four pages`() {
-        assertEquals(4, initial.totalPages)
+        assertEquals(OnboardingPage.entries.size, initial.totalPages)
     }
 
     @Test
@@ -69,7 +69,7 @@ class OnboardingReducerTest {
         assertTrue(result.permissionsGranted)
         assertFalse(result.isLoading)
         assertFalse(result.showPermissionRationale)
-        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, result.currentPage)
+        assertEquals(OnboardingPage.Notifications.ordinal, result.currentPage)
         assertTrue(result.isLastPage)
     }
 
@@ -79,7 +79,7 @@ class OnboardingReducerTest {
         assertFalse(result.permissionsGranted)
         assertFalse(result.isLoading)
         assertFalse(result.showPermissionRationale)
-        assertEquals(OnboardingConstants.PHOTO_PAGE, result.currentPage)
+        assertEquals(OnboardingPage.Photos.ordinal, result.currentPage)
     }
 
     @Test
@@ -91,7 +91,7 @@ class OnboardingReducerTest {
         )
         assertFalse(result.isLoading)
         assertTrue(result.showPermissionRationale)
-        assertEquals(OnboardingConstants.PHOTO_PAGE, result.currentPage)
+        assertEquals(OnboardingPage.Photos.ordinal, result.currentPage)
     }
 
     @Test
@@ -105,6 +105,6 @@ class OnboardingReducerTest {
     fun `DismissRationale hides rationale and moves on`() {
         val result = reduce(photoPage.copy(showPermissionRationale = true), OnboardingIntent.DismissRationale)
         assertFalse(result.showPermissionRationale)
-        assertEquals(OnboardingConstants.NOTIFICATION_PAGE, result.currentPage)
+        assertEquals(OnboardingPage.Notifications.ordinal, result.currentPage)
     }
 }

@@ -35,7 +35,7 @@ class OnboardingContentTest {
         composeRule.setContent {
             MemoryLaneTheme {
                 OnboardingContent(
-                    state = OnboardingState(currentPage = this.page, isLoading = this.isLoading, isLastPage = this.page == 3),
+                    state = OnboardingState(currentPage = this.page, isLoading = this.isLoading, isLastPage = this.page == OnboardingPage.entries.lastIndex),
                     onIntent = { intents += it },
                 )
             }
@@ -70,7 +70,7 @@ class OnboardingContentTest {
 
     @Test
     fun `notification slide button requests the notification permission`() {
-        show(page = 3)
+        show(page = OnboardingPage.Notifications.ordinal)
         composeRule.onNodeWithText(string(R.string.onboarding_allow)).performClick()
         assertEquals(listOf<OnboardingIntent>(OnboardingIntent.RequestNotificationPermission), intents)
     }
@@ -78,7 +78,7 @@ class OnboardingContentTest {
     @Test
     fun `skip is available on every slide`() {
         show(page = 0)
-        (0..3).forEach { slide ->
+        OnboardingPage.entries.indices.forEach { slide ->
             page = slide
             intents.clear()
             composeRule.onNodeWithText(string(R.string.onboarding_skip)).performClick()

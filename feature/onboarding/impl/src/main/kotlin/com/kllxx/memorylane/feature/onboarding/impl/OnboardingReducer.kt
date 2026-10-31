@@ -20,7 +20,7 @@ object OnboardingReducer {
                     permissionsGranted = true,
                     isLoading = false,
                     showPermissionRationale = false,
-                ).withPage(OnboardingConstants.PHOTO_PAGE + 1)
+                ).withPage(OnboardingPage.AfterPhotos)
             } else {
                 // The system stops asking after repeated denials, so the user is sent to the settings
                 state.copy(
@@ -30,7 +30,7 @@ object OnboardingReducer {
             }
         is OnboardingIntent.NotificationPermissionResult -> state.copy(isLoading = false)
         OnboardingIntent.DismissRationale ->
-            state.copy(showPermissionRationale = false).withPage(OnboardingConstants.PHOTO_PAGE + 1)
+            state.copy(showPermissionRationale = false).withPage(OnboardingPage.AfterPhotos)
     }
 
     private fun OnboardingState.withPage(page: Int): OnboardingState {
