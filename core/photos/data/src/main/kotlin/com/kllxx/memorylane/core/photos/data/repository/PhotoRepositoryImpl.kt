@@ -161,7 +161,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     private fun scanMediaStore(): MediaScan {
         val diagnostics = PerfLog.isEnabled()
         val startedAt = PerfLog.nanoTime()
-        val zone = ZoneId.systemDefault()
+        val zone = clock.zone
         val currentYear = LocalDate.now(clock).year
         val builder = OnThisDayIndexBuilder(currentYear, MAX_YEARS_BACK, zone)
         val undated = ArrayList<UndatedPhoto>()
@@ -325,7 +325,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
         ensureIndexLoading()
-        val zone = ZoneId.systemDefault()
+        val zone = clock.zone
         val startedAt = PerfLog.nanoTime()
         val cursor = queryOnThisDay(date, zone)
         val queryMs = PerfLog.sinceMs(startedAt)
@@ -390,7 +390,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     override suspend fun getPhotoDates(photoIds: Collection<Long>): Map<Long, LocalDate> = withContext(ioDispatcher) {
         if (photoIds.isEmpty()) return@withContext emptyMap()
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
-        val zone = ZoneId.systemDefault()
+        val zone = clock.zone
         val distinct = photoIds.distinct()
         val cached = distinct.chunked(SQL_VARIABLE_LIMIT).fold(emptyMap<Long, CachedPhotoDate>()) { all, chunk ->
             all + dateCache.get(chunk)
@@ -498,7 +498,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     override suspend fun getTrashedPhotos(ids: Collection<Long>): List<Photo> = withContext(ioDispatcher) {
         if (ids.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return@withContext emptyList()
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
-        val zone = ZoneId.systemDefault()
+        val zone = clock.zone
         val distinct = ids.distinct()
         val cachedDates = distinct.chunked(SQL_VARIABLE_LIMIT).fold(emptyMap<Long, CachedPhotoDate>()) { all, chunk ->
             all + dateCache.get(chunk)

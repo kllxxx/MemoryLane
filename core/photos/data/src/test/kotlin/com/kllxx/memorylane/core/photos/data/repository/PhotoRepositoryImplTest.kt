@@ -229,6 +229,27 @@ class PhotoRepositoryImplTest {
     }
 
     @Test
+    fun `a photo is dated in the zone of the clock, not the zone of the host`() = runTest {
+        grantMedia()
+        val clockZone = ZoneId.of("Pacific/Kiritimati")
+        val inClockZone = PhotoRepositoryImpl(
+            application, geocoder, UnconfinedTestDispatcher(), Clock.fixed(clock.instant(), clockZone),
+            FakeExifDateReader(), dateCache, locationCache,
+        )
+        val taken = date.minusYears(1).atTime(10, 30).atZone(clockZone).toInstant()
+        FakeMediaProvider.rows = listOf(
+            mapOf(
+                MediaStore.Images.Media._ID to 7L,
+                MediaStore.Images.Media.DATE_TAKEN to taken.toEpochMilli(),
+            ),
+        )
+
+        val photo = inClockZone.getPhotosForDate(date).single()
+
+        assertEquals(date.minusYears(1).atTime(10, 30), photo.takenAt)
+    }
+
+    @Test
     fun `a photo carries the size and the orientation MediaStore stores`() = runTest {
         grantMedia()
         FakeMediaProvider.rows = listOf(
