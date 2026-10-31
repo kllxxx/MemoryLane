@@ -38,11 +38,11 @@ All processing is local — no network, no cloud, no uploads.
 :feature:achievements:impl — streak, freed space stats, MVI
 :feature:profile:api       — profile route
 :feature:profile:impl      — theme, notifications, streak goal settings, MVI
-:core:photos:domain         — repository interfaces, photo domain models, use cases over photos and decisions (PhotosToReview); depends on :core:domain
+:core:photos:domain         — repository interfaces, photo domain models, use cases over photos and decisions (PhotosToReview, CompleteDay, ResolveDeckEnd, RequestDeletion, FinishDeletion), DeleteCapabilities; depends on :core:domain
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, swipe overlay
 :core:domain                — repository interfaces, domain models, shared formatters (date, size)
-:core:common                — MviViewModel, ErrorHandler and UiError, PerfLog, the performance logging (CalendarPerf), a no-op in release
+:core:common                — MviViewModel, ErrorHandler and UiError, the injected dispatchers and @ApplicationScope (di), PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
 :lib:lazycardstack          — vendored Tinder-style card stack library
 :build-logic                — convention plugins (shared Gradle config)
@@ -119,8 +119,8 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-30
-- fix: last used MMLN-37
-- refactor: last used MMLN-21
+- fix: last used MMLN-39
+- refactor: last used MMLN-28
 
 **Commit format (Conventional Commits):**
 
