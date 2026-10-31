@@ -64,25 +64,6 @@ class SwipeSessionDaoTest {
     }
 
     @Test
-    fun `getCompletedOn finds a completed session by the day it was completed`() = runTest {
-        // Sorted on Wednesday although it is about Monday
-        dao.insert(session(monday, completed = true, savedBytes = 1, completedAt = wednesday))
-        assertEquals(monday, dao.getCompletedOn(wednesday)?.date)
-    }
-
-    @Test
-    fun `getCompletedOn does not match the date the session is about`() = runTest {
-        dao.insert(session(monday, completed = true, savedBytes = 1, completedAt = wednesday))
-        assertNull(dao.getCompletedOn(monday))
-    }
-
-    @Test
-    fun `getCompletedOn ignores sessions that are not completed`() = runTest {
-        dao.insert(session(monday, completed = false, savedBytes = 0, completedAt = wednesday))
-        assertNull(dao.getCompletedOn(wednesday))
-    }
-
-    @Test
     fun `observeCompleted keeps only completed sessions, newest first`() = runTest {
         dao.insert(session(monday, completed = true, savedBytes = 1))
         dao.insert(session(tuesday, completed = false, savedBytes = 0))
@@ -149,21 +130,6 @@ class SwipeSessionDaoTest {
         dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
 
         assertEquals(listOf(monday), dao.observeCompleted().first().map { it.date })
-    }
-
-    @Test
-    fun `getCompletedOn leaves out the undated deck`() = runTest {
-        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
-
-        assertNull(dao.getCompletedOn(wednesday))
-    }
-
-    @Test
-    fun `getCompletedOn still finds the day next to the undated deck`() = runTest {
-        dao.insert(session(undated, completed = true, savedBytes = 900, completedAt = wednesday))
-        dao.insert(session(tuesday, completed = true, savedBytes = 100, completedAt = wednesday))
-
-        assertEquals(tuesday, dao.getCompletedOn(wednesday)?.date)
     }
 
     @Test

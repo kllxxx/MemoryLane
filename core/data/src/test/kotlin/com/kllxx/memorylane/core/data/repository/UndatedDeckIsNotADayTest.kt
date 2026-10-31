@@ -240,21 +240,6 @@ class UndatedDeckIsNotADayTest {
     }
 
     @Test
-    fun `the undated deck finished today is not the session completed today`() = runTest {
-        deleteFromUndatedDeck()
-
-        assertNull(swipe.getSessionByCompletedAt(today))
-    }
-
-    @Test
-    fun `a day completed today is still the session completed today next to the undated deck`() = runTest {
-        deleteFromUndatedDeck()
-        realDay(today)
-
-        assertEquals(today, swipe.getSessionByCompletedAt(today)?.date)
-    }
-
-    @Test
     fun `the completed sessions flow does not emit the undated deck`() = runTest {
         swipe.getCompletedSessions().test {
             assertTrue(awaitItem().isEmpty())

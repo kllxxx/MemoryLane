@@ -34,9 +34,8 @@ class DeckRoutesTest {
     }
 
     @Test
-    fun `a deck goes into the three routes and comes back out of them`() {
+    fun `a deck goes into the routes and comes back out of them`() {
         listOf(DeckKey.Day(day), DeckKey.Undated).forEach { deck ->
-            assertEquals(deck, deck.toSwipeRoute().toDeckKey())
             assertEquals(deck, deck.toBeforeDeleteRoute().toDeckKey())
             assertEquals(deck, deck.toResultRoute(1, 2L, 3, 4).toDeckKey())
         }

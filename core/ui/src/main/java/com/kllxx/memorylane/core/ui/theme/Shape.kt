@@ -9,7 +9,6 @@ object MemoryLaneShapes {
     val Dialog = RoundedCornerShape(16.dp)
     val Button = RoundedCornerShape(8.dp)
     val PrimaryButton = RoundedCornerShape(12.dp)
-    val TextField = RoundedCornerShape(8.dp)
     val StatCard = RoundedCornerShape(12.dp)
 }
 

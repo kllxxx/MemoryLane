@@ -116,7 +116,6 @@ private class FakeSwipeRepository(
         sessions += session
     }
 
-    override suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession? = null
 
     override fun getCompletedSessions(): Flow<List<SwipeSession>> = flowOf(emptyList())
 }

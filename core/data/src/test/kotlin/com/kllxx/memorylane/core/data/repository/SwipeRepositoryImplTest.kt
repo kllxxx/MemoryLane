@@ -88,8 +88,6 @@ class SwipeRepositoryImplTest {
             mapOf(7L to PhotoDecision.KEEP, 8L to PhotoDecision.TRASHED),
             repository.getDecisions(DeckKey.Day(date)),
         )
-
-        coVerify(exactly = 0) { photoDecisionDao.getAll() }
     }
 
     @Test
@@ -192,23 +190,6 @@ class SwipeRepositoryImplTest {
         repository.setDecisions((1L..1_200L).toList(), PhotoDecision.DELETED)
 
         coVerify(exactly = 3) { photoDecisionDao.updateDecisions(match { it.size <= 500 }, "DELETED", any()) }
-    }
-
-    @Test
-    fun `getSessionByCompletedAt maps the completed session of that day`() = runTest {
-        val day = LocalDate.of(2026, 10, 20)
-        val entity = SwipeSessionEntity(LocalDate.of(2026, 10, 15), completed = true, savedBytes = 9, completedAt = day)
-        coEvery { swipeSessionDao.getCompletedOn(day) } returns entity
-
-        assertEquals(entity.toDomain(), repository.getSessionByCompletedAt(day))
-    }
-
-    @Test
-    fun `getSessionByCompletedAt is null when nothing was completed that day`() = runTest {
-        val day = LocalDate.of(2026, 10, 20)
-        coEvery { swipeSessionDao.getCompletedOn(day) } returns null
-
-        assertNull(repository.getSessionByCompletedAt(day))
     }
 
     @Test

@@ -53,9 +53,6 @@ interface SwipeRepository {
     /** Saves the session of a day. The undated deck has no session of its own to show: it never counts as a day. */
     suspend fun saveSession(session: SwipeSession)
 
-    /** A completed session of a real day whose [SwipeSession.completedAt] is [date], or null. */
-    suspend fun getSessionByCompletedAt(date: LocalDate): SwipeSession?
-
     /** The completed sessions of real days; the undated deck is never one of them. */
     fun getCompletedSessions(): Flow<List<SwipeSession>>
 }

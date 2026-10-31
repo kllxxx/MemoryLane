@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -80,6 +81,13 @@ class SwipeContentTest {
         composeRule.onNodeWithTag(SwipeTags.CARD).assertIsDisplayed()
         composeRule.onNodeWithTag(SwipeTags.STRIP).assertIsDisplayed()
         composeRule.onNodeWithTag(SwipeTags.stripItem(1)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the strip has a description for screen readers`() {
+        show(swipeState(count = 3))
+
+        composeRule.onNodeWithTag(SwipeTags.STRIP).assertContentDescriptionEquals("Все фото дня")
     }
 
     @Test

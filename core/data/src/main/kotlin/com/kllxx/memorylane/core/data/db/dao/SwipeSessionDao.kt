@@ -16,9 +16,6 @@ interface SwipeSessionDao {
 
     // The undated deck is stored as a session too (it holds its deleted count and freed bytes) but is never a day: the
     // queries that feed streaks, sorted days and the daily routing leave it out. The sums below keep it.
-    @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND date <> ${StoredDeck.UNDATED_EPOCH_DAY} AND completed_at = :date LIMIT 1")
-    suspend fun getCompletedOn(date: LocalDate): SwipeSessionEntity?
-
     @Query("SELECT * FROM swipe_sessions WHERE completed = 1 AND date <> ${StoredDeck.UNDATED_EPOCH_DAY} ORDER BY date DESC")
     fun observeCompleted(): Flow<List<SwipeSessionEntity>>
 

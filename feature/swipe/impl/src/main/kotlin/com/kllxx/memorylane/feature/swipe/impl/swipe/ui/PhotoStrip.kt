@@ -85,9 +85,10 @@ internal fun PhotoStrip(
     BoxWithConstraints(modifier = modifier.fillMaxWidth().height(StripHeight)) {
         // Half the width on both sides lets the first and the last photo reach the centre too
         val sidePadding = (maxWidth / 2 - CurrentThumb / 2).coerceAtLeast(0.dp)
+        val stripDescription = stringResource(R.string.swipe_strip_description)
         LazyRow(
             state = listState,
-            modifier = Modifier.fillMaxSize().testTag(SwipeTags.STRIP),
+            modifier = Modifier.fillMaxSize().testTag(SwipeTags.STRIP).semantics { contentDescription = stripDescription },
             contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.Top,

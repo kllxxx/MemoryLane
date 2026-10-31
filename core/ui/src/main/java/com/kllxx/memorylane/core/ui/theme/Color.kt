@@ -15,14 +15,11 @@ val EmptyTile = Color(0xFFEAEAEA)
 val LightGray = Color.LightGray.copy(red = 0.6f, blue = 0.6f, green = 0.6f)
 
 // M3 generated (seed #137547)
-val Green10 = Color(0xFF002110)
 val Green20 = Color(0xFF00391F)
 val Green30 = Color(0xFF0C5130)
-val Green40 = Color(0xFF2B6A46)
 val Green80 = Color(0xFF94D5A9)
 val Green90 = Color(0xFFAFF2C4)
 val DarkBackground = Color(0xFF0F1511)
-val DarkSurface = Color(0xFF1C211D)
 
 internal val LightColorScheme = lightColorScheme(
     primary = DarkSpringGreen,

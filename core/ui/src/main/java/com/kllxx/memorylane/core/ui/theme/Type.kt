@@ -2,7 +2,6 @@ package com.kllxx.memorylane.core.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
@@ -59,11 +58,4 @@ internal val MemoryLaneTypography = Typography(
     labelLarge = Defaults.labelLarge.copy(fontFamily = NunitoFontFamily, fontSize = 16.sp),
     labelMedium = Defaults.labelMedium.copy(fontFamily = NunitoFontFamily),
     labelSmall = Defaults.labelSmall.copy(fontFamily = NunitoFontFamily),
-)
-
-val AppTitleStyle = TextStyle(
-    fontFamily = NunitoFontFamily,
-    fontSize = 26.sp,
-    fontWeight = FontWeight.SemiBold,
-    letterSpacing = 0.5.sp,
 )

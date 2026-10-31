@@ -20,11 +20,6 @@ internal fun BeforeDeleteRoute.toDeckKey(): DeckKey = deckKeyOf(deck, date)
 internal fun ResultRoute.toDeckKey(): DeckKey = deckKeyOf(deck, date)
 
 /** The routes of the screens for a deck, for the app's navigation. */
-fun DeckKey.toSwipeRoute(): SwipeRoute = when (this) {
-    is DeckKey.Day -> SwipeRoute.day(date)
-    DeckKey.Undated -> SwipeRoute.undated()
-}
-
 fun DeckKey.toBeforeDeleteRoute(): BeforeDeleteRoute = when (this) {
     is DeckKey.Day -> BeforeDeleteRoute.day(date)
     DeckKey.Undated -> BeforeDeleteRoute.undated()

@@ -170,7 +170,7 @@ class SwipeViewModelTest {
 
         assertEquals(listOf(PhotoDecision.KEEP, PhotoDecision.DELETE, null), decisions())
         assertEquals(2, state.currentIndex)
-        assertFalse(state.isDayCompleted)
+        assertFalse(state.deck.all { it.decision != null })
     }
 
     @Test
@@ -185,7 +185,7 @@ class SwipeViewModelTest {
         }
 
         assertEquals(0, state.currentIndex)
-        assertTrue(state.isDayCompleted)
+        assertTrue(state.deck.all { it.decision != null })
         assertFalse(state.isFinished)
         // Opening a completed day records nothing
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
@@ -1141,7 +1141,7 @@ class SwipeViewModelTest {
             load()
 
             assertEquals(0, state.currentIndex)
-            assertEquals(true, state.isDayCompleted)
+            assertEquals(true, state.deck.all { it.decision != null })
             expectNoEvents()
         }
     }

@@ -39,14 +39,16 @@ class PhotoDecisionDaoTest {
     @After
     fun tearDown() = database.close()
 
+    private val allIds = (1L..100L).toList()
+
     private fun decision(id: Long, date: LocalDate = day, value: String = "KEEP", at: Long = 1_000) =
         PhotoDecisionEntity(photoId = id, sessionDate = date, decision = value, decidedAt = at)
 
     @Test
-    fun `upsert then getAll returns the row`() = runTest {
+    fun `upsert then reading the row returns it`() = runTest {
         dao.upsert(decision(1))
 
-        assertEquals(listOf(decision(1)), dao.getAll())
+        assertEquals(listOf(decision(1)), dao.getByIds(allIds))
     }
 
     @Test
@@ -54,7 +56,7 @@ class PhotoDecisionDaoTest {
         dao.upsert(decision(1, value = "KEEP", at = 1_000))
         dao.upsert(decision(1, value = "DELETE", at = 2_000))
 
-        assertEquals(listOf(decision(1, value = "DELETE", at = 2_000)), dao.getAll())
+        assertEquals(listOf(decision(1, value = "DELETE", at = 2_000)), dao.getByIds(allIds))
     }
 
     @Test
@@ -82,7 +84,7 @@ class PhotoDecisionDaoTest {
 
         dao.deleteById(1)
 
-        assertEquals(listOf(2L), dao.getAll().map { it.photoId })
+        assertEquals(listOf(2L), dao.getByIds(allIds).map { it.photoId })
     }
 
     @Test
@@ -91,7 +93,7 @@ class PhotoDecisionDaoTest {
 
         dao.deleteById(99)
 
-        assertEquals(1, dao.getAll().size)
+        assertEquals(1, dao.getByIds(allIds).size)
     }
 
     @Test
@@ -102,7 +104,7 @@ class PhotoDecisionDaoTest {
 
         dao.updateDecisions(listOf(1, 2), "TRASHED", 5_000)
 
-        val byId = dao.getAll().associateBy { it.photoId }
+        val byId = dao.getByIds(allIds).associateBy { it.photoId }
         assertEquals(decision(1, value = "TRASHED", at = 5_000), byId.getValue(1))
         assertEquals(decision(2, value = "TRASHED", at = 5_000), byId.getValue(2))
         assertEquals(decision(3, value = "KEEP", at = 1_000), byId.getValue(3))
@@ -122,7 +124,7 @@ class PhotoDecisionDaoTest {
     fun `updateDecisions skips a photo that has no decision`() = runTest {
         dao.updateDecisions(listOf(1), "TRASHED", 5_000)
 
-        assertTrue(dao.getAll().isEmpty())
+        assertTrue(dao.getByIds(allIds).isEmpty())
     }
 
     // --- the undated deck ---

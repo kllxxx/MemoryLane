@@ -76,14 +76,14 @@ class MigrationTest {
             assertEquals(0, it.getInt(0))
             assertEquals(0L, it.getLong(1))
         }
-        val decision = database.photoDecisionDao().getAll().single { it.photoId == 7L }
+        val decision = database.photoDecisionDao().getById(7L)!!
         assertEquals("DELETE", decision.decision)
         assertEquals(LocalDate.ofEpochDay(20001), decision.sessionDate)
     }
 
     @Test
     fun `a migrated decision is stamped with the time of the migration`() = runTest {
-        val decision = database.photoDecisionDao().getAll().single { it.photoId == 7L }
+        val decision = database.photoDecisionDao().getById(7L)!!
 
         // The real time was never recorded; any plausible clock reading is later than 2026-01-01
         assertTrue(decision.decidedAt > 1_767_225_600_000L)
@@ -147,7 +147,7 @@ class MigrationTest {
     @Test
     fun `the data of earlier versions is untouched by the cache table`() = runTest {
         assertEquals(500L, database.swipeSessionDao().observeFreedBytes().first())
-        assertNotNull(database.photoDecisionDao().getAll().singleOrNull { it.photoId == 7L })
+        assertNotNull(database.photoDecisionDao().getById(7L))
     }
 
     @Test

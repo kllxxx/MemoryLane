@@ -84,14 +84,14 @@ class SwipeReducerTest {
         val result = loaded(3, 1L to PhotoDecision.KEEP, 2L to PhotoDecision.DELETE, 3L to PhotoDecision.KEEP)
 
         assertEquals(0, result.currentIndex)
-        assertTrue(result.isDayCompleted)
+        assertTrue(result.deck.all { it.decision != null })
         assertFalse(result.isFinished)
         assertEquals(3, result.deck.size)
     }
 
     @Test
     fun `a day with an undecided photo is not completed`() {
-        assertFalse(loaded(3, 1L to PhotoDecision.KEEP).isDayCompleted)
+        assertFalse(loaded(3, 1L to PhotoDecision.KEEP).deck.all { it.decision != null })
     }
 
     @Test
@@ -99,7 +99,7 @@ class SwipeReducerTest {
         val result = loaded(0)
 
         assertTrue(result.isFinished)
-        assertFalse(result.isDayCompleted)
+        assertTrue(result.deck.isEmpty())
     }
 
     @Test
@@ -210,7 +210,7 @@ class SwipeReducerTest {
         val result = onLast.swipe(SwipeDirection.Left)
 
         assertTrue(result.isFinished)
-        assertTrue(result.isDayCompleted)
+        assertTrue(result.deck.all { it.decision != null })
         assertEquals(2, result.currentIndex)
     }
 
@@ -220,7 +220,7 @@ class SwipeReducerTest {
 
         val result = state.swipe(SwipeDirection.Right)
 
-        assertTrue(result.isDayCompleted)
+        assertTrue(result.deck.all { it.decision != null })
         assertFalse(result.isFinished)
         assertEquals(2, result.currentIndex)
     }

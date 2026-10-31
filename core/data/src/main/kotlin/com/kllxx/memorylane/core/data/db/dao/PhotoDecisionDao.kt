@@ -13,9 +13,6 @@ interface PhotoDecisionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: PhotoDecisionEntity)
 
-    @Query("SELECT * FROM photo_decisions")
-    suspend fun getAll(): List<PhotoDecisionEntity>
-
     @Query("SELECT * FROM photo_decisions WHERE sessionDate = :date")
     suspend fun getByDate(date: LocalDate): List<PhotoDecisionEntity>
 

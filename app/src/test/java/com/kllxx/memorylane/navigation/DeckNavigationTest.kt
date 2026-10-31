@@ -16,7 +16,6 @@ import com.kllxx.memorylane.feature.swipe.api.ResultRoute
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.toBeforeDeleteRoute
 import com.kllxx.memorylane.feature.swipe.impl.toResultRoute
-import com.kllxx.memorylane.feature.swipe.impl.toSwipeRoute
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -103,7 +102,7 @@ class DeckNavigationTest {
     @Test
     fun `a day leads to before-delete and result with its date`() {
         setContent()
-        navigate(DeckKey.Day(day).toSwipeRoute())
+        navigate(SwipeRoute.day(day))
 
         navigate(DeckKey.Day(day).toBeforeDeleteRoute())
         assertEquals(BeforeDeleteRoute.day(day), navController.currentBackStackEntry!!.toRoute<BeforeDeleteRoute>())

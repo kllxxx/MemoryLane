@@ -42,7 +42,7 @@ class DeletionDaoTest {
     private suspend fun decide(id: Long, decision: String) =
         database.photoDecisionDao().upsert(PhotoDecisionEntity(id, date, decision, decidedAt = 1))
 
-    private suspend fun decisions() = database.photoDecisionDao().getAll().associate { it.photoId to it.decision }
+    private suspend fun decisions() = database.photoDecisionDao().getByIds((1L..100L).toList()).associate { it.photoId to it.decision }
 
     private val sizes = mapOf(1L to 100L, 2L to 200L, 3L to 400L)
 
