@@ -74,7 +74,14 @@ class MainActivityTest {
 
     private fun givenOnboardingCompleted(completed: Boolean) = runBlocking { settings.setOnboardingCompleted(completed) }
 
-    // The scenario is not closed: closing waits for a destroy the paused main looper of Robolectric can leave pending, and Robolectric tears the activity down with the test
+    // The scenario is deliberately never closed (no `.use {}`, no `close()`):
+    // - `ActivityScenario.close()` moves the activity to DESTROYED and then waits for that on the test thread. Under
+    //   Robolectric the test thread is the main thread, and its looper is paused, so the wait only ends if the looper
+    //   is idle.
+    // - With the real screens inside the activity it did not end: a thread dump of the hung run showed the test thread in
+    //   `close()` -> `waitForActivityToBecomeAnyOf`, and the run had to be killed.
+    // - Robolectric destroys the activity and the whole application with the end of each test anyway, so nothing leaks
+    //   into the next test.
     private fun launch(intent: Intent? = null): ActivityScenario<MainActivity> {
         val launchIntent = (intent ?: Intent()).setClassName(
             RuntimeEnvironment.getApplication(),
