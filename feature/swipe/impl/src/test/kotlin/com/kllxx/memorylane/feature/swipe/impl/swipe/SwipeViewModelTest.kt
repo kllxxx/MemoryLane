@@ -21,6 +21,7 @@ import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.buildStrip
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
 import com.kllxx.memorylane.core.domain.format.formatTakenAt
 import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import io.mockk.coEvery
@@ -117,7 +118,7 @@ class SwipeViewModelTest {
             },
         )
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle, errorHandler,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, CompleteDay(swipeRepository, clock), savedStateHandle, errorHandler,
         )
     }
 
@@ -652,7 +653,7 @@ class SwipeViewModelTest {
     fun `a day finished on its own date is completed on its own date`() = runTest(dispatcher) {
         val onItsOwnDate = Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, onItsOwnDate,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, CompleteDay(swipeRepository, onItsOwnDate),
             SavedStateHandle(mapOf("date" to date.toString())), errorHandler,
         )
         advanceUntilIdle()
@@ -1011,7 +1012,7 @@ class SwipeViewModelTest {
         coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns emptyMap()
         savedStateHandle = SavedStateHandle(mapOf("deck" to DeckKind.UNDATED))
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, clock, savedStateHandle, errorHandler,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, CompleteDay(swipeRepository, clock), savedStateHandle, errorHandler,
         )
     }
 

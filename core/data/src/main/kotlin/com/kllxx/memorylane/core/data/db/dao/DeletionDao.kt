@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.kllxx.memorylane.core.data.db.entity.PhotoDecisionEntity
 import com.kllxx.memorylane.core.data.db.entity.SwipeSessionEntity
 import com.kllxx.memorylane.core.data.mapper.toDomain
+import com.kllxx.memorylane.core.data.mapper.toEntity
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import java.time.LocalDate
@@ -46,21 +47,8 @@ abstract class DeletionDao {
         applied.map { it.photoId }.chunked(SQL_VARIABLE_LIMIT).forEach { setDecisions(it, decision, decidedAt) }
         applied.groupBy { it.sessionDate }.forEach { (date, rows) ->
             val freed = rows.sumOf { bytesById.getValue(it.photoId) }
-            val existing = getSession(date)
-            putSession(
-                SwipeSessionEntity(
-                    date = date,
-                    completed = true,
-                    savedBytes = (existing?.savedBytes ?: 0) + freed,
-                    // A day completed by its swipes keeps the date it was completed on
-                    completedAt = if (existing?.completed == true) {
-                        existing.completedAt
-                    } else {
-                        SessionCompletion.completedAt(existing?.toDomain(), date, today)
-                    },
-                    deletedCount = (existing?.deletedCount ?: 0) + rows.size,
-                ),
-            )
+            val existing = getSession(date)?.toDomain()
+            putSession(SessionCompletion.afterDeletion(existing, date, today, freed, rows.size).toEntity())
         }
         return DeletionOutcome(deletedCount = applied.size, freedBytes = applied.sumOf { bytesById.getValue(it.photoId) })
     }

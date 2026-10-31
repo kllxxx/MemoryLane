@@ -18,6 +18,25 @@ object SessionCompletion {
     fun completedAt(existing: SwipeSession?, date: LocalDate, today: LocalDate): LocalDate =
         if (existing != null && existing.completed && existing.completedAt == date) date else today
 
+    /**
+     * The session of [date] once [deletedCount] photos of it were deleted, [freedBytes] in all, on [today]. The day is
+     * completed by this. A day that was completed already keeps the date it was completed on, whichever it is; any other
+     * is completed [today].
+     */
+    fun afterDeletion(
+        existing: SwipeSession?,
+        date: LocalDate,
+        today: LocalDate,
+        freedBytes: Long,
+        deletedCount: Int,
+    ): SwipeSession = SwipeSession(
+        date = date,
+        completed = true,
+        savedBytes = (existing?.savedBytes ?: 0) + freedBytes,
+        completedAt = if (existing?.completed == true) existing.completedAt else today,
+        deletedCount = (existing?.deletedCount ?: 0) + deletedCount,
+    )
+
     /** The days completed on their own date. Sessions saved before the date was tracked carry the epoch and never match. */
     fun realDays(sessions: Collection<SwipeSession>): Set<LocalDate> =
         sessions.filter { it.completed && it.completedAt == it.date }.mapTo(HashSet()) { it.date }

@@ -8,28 +8,24 @@ import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
-import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.AppSettingsRepository
 import com.kllxx.memorylane.core.domain.repository.StatsRepository
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.toDeckPhoto
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.Clock
-import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -40,7 +36,7 @@ class SwipeViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val statsRepository: StatsRepository,
     private val appSettingsRepository: AppSettingsRepository,
-    private val clock: Clock,
+    private val completeDay: CompleteDay,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
 ) : MviViewModel<SwipeState, SwipeIntent, SwipeEvent, SwipeEffect>(
@@ -230,19 +226,7 @@ class SwipeViewModel @Inject constructor(
             // The undated deck is not a day: it has no session to complete and never counts for a streak.
             val day = (state.deckKey as? DeckKey.Day)?.date
             if (day != null) {
-                runSafe("save the session of $day", fallback = {}) {
-                    val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
-                    swipeRepository.saveSession(
-                        SwipeSession(
-                            date = day,
-                            completed = true,
-                            savedBytes = existing?.savedBytes ?: 0,
-                            deletedCount = existing?.deletedCount ?: 0,
-                            // The date the day is really completed on; a day that was completed on its own date keeps it
-                            completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
-                        ),
-                    )
-                }
+                runSafe("save the session of $day", fallback = {}) { completeDay(day) }
             }
             if (!hasDeletes) {
                 hasDeletes = runSafe("read the pending deletions", fallback = { false }) {

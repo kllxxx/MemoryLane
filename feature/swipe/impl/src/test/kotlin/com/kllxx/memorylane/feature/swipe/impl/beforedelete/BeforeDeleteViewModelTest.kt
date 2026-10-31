@@ -20,6 +20,7 @@ import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
 import com.kllxx.memorylane.feature.swipe.api.DeckKind
 import io.mockk.coEvery
 import io.mockk.every
@@ -172,7 +173,7 @@ class BeforeDeleteViewModelTest {
     private fun create(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
         val route = if (undated) mapOf<String, Any>("deck" to DeckKind.UNDATED) else mapOf<String, Any>("date" to date.toString())
         savedStateHandle = SavedStateHandle(route + extra)
-        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), clock, application, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), CompleteDay(swipeRepository, clock), application, savedStateHandle, errorHandler)
     }
 
     private fun TestScope.load(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
@@ -714,7 +715,7 @@ class BeforeDeleteViewModelTest {
                 throw IllegalStateException("disk full")
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), clock, application, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), CompleteDay(failing, clock), application, savedStateHandle, errorHandler)
         advanceUntilIdle()
 
         viewModel.effects.test {

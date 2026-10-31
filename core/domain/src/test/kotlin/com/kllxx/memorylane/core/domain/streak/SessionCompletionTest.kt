@@ -58,6 +58,38 @@ class SessionCompletionTest {
         assertEquals(day, SessionCompletion.completedAt(started, day, today = day))
     }
 
+    // --- after a deletion ---
+
+    @Test
+    fun `the first deletion of a day creates a completed session completed today`() {
+        val result = SessionCompletion.afterDeletion(null, day, today = other, freedBytes = 500, deletedCount = 2)
+
+        assertEquals(SwipeSession(day, true, savedBytes = 500, completedAt = other, deletedCount = 2), result)
+    }
+
+    @Test
+    fun `a deletion adds to what the day had freed and keeps the date it was completed on`() {
+        val existing = SwipeSession(day, true, savedBytes = 100, completedAt = day, deletedCount = 1)
+
+        val result = SessionCompletion.afterDeletion(existing, day, today = other, freedBytes = 50, deletedCount = 3)
+
+        assertEquals(SwipeSession(day, true, savedBytes = 150, completedAt = day, deletedCount = 4), result)
+    }
+
+    @Test
+    fun `a completed day keeps even a completion date that is not its own`() {
+        val existing = SwipeSession(day, true, savedBytes = 0, completedAt = LocalDate.EPOCH)
+
+        assertEquals(LocalDate.EPOCH, SessionCompletion.afterDeletion(existing, day, other, 10, 1).completedAt)
+    }
+
+    @Test
+    fun `an unfinished day is completed today by a deletion`() {
+        val existing = SwipeSession(day, false, savedBytes = 0, completedAt = day)
+
+        assertEquals(other, SessionCompletion.afterDeletion(existing, day, other, 10, 1).completedAt)
+    }
+
     // --- real days ---
 
     @Test

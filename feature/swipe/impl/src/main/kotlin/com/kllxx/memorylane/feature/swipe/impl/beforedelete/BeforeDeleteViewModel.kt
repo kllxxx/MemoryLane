@@ -13,25 +13,22 @@ import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
-import com.kllxx.memorylane.core.domain.model.SwipeSession
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
-import com.kllxx.memorylane.core.domain.streak.SessionCompletion
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
+import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.Clock
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -49,7 +46,7 @@ class BeforeDeleteViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val photoRepository: PhotoRepository,
     private val adoptDatedDecisions: AdoptDatedDecisions,
-    private val clock: Clock,
+    private val completeDay: CompleteDay,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
@@ -311,19 +308,7 @@ class BeforeDeleteViewModel @Inject constructor(
             val day = (deck as? DeckKey.Day)?.date
             if (day != null) {
                 // The user has finished, so a failed write must not keep them on this screen
-                runSafe("save the session of $day", fallback = {}) {
-                    val existing = swipeRepository.getCompletedSessions().first().firstOrNull { it.date == day }
-                    swipeRepository.saveSession(
-                        SwipeSession(
-                            date = day,
-                            completed = true,
-                            savedBytes = existing?.savedBytes ?: 0,
-                            deletedCount = existing?.deletedCount ?: 0,
-                            // The date the day is really completed on; a day that was completed on its own date keeps it
-                            completedAt = SessionCompletion.completedAt(existing, day, LocalDate.now(clock)),
-                        ),
-                    )
-                }
+                runSafe("save the session of $day", fallback = {}) { completeDay(day) }
             }
             finished = true
             handOver(DeletionOutcome(deletedCount = 0, freedBytes = 0))
