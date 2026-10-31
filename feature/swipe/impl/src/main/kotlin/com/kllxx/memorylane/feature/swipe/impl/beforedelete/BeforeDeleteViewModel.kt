@@ -1,9 +1,5 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
@@ -14,6 +10,7 @@ import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
+import com.kllxx.memorylane.core.photos.domain.repository.DeleteCapabilities
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
@@ -25,7 +22,6 @@ import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -49,7 +45,7 @@ class BeforeDeleteViewModel @Inject constructor(
     private val adoptDatedDecisions: AdoptDatedDecisions,
     private val requestDeletion: RequestDeletion,
     private val finishDeletion: FinishDeletion,
-    @ApplicationContext private val context: Context,
+    private val deleteCapabilities: DeleteCapabilities,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
 ) : MviViewModel<BeforeDeleteState, BeforeDeleteIntent, BeforeDeleteEvent, BeforeDeleteEffect>(
@@ -187,7 +183,7 @@ class BeforeDeleteViewModel @Inject constructor(
         val marked = before.marked
         when {
             marked.isEmpty() -> finishWithoutDeleting()
-            trashAvailable() -> startTrashRequest(marked)
+            deleteCapabilities.canTrash -> startTrashRequest(marked)
             // No trash and no system dialog below API 30: our own confirmation comes first
             else -> reduce(BeforeDeleteEvent.PermanentDialogChanged(true))
         }
@@ -237,7 +233,7 @@ class BeforeDeleteViewModel @Inject constructor(
     private fun onPermanentDeleteConfirmed(before: BeforeDeleteState) {
         reduce(BeforeDeleteEvent.PermanentDialogChanged(false))
         if (before.isDeleting) return
-        if (!hasWritePermission()) {
+        if (!deleteCapabilities.hasWritePermission()) {
             // Deleting other apps' photos below API 30 needs it, and it is asked for only now
             reduce(BeforeDeleteEvent.DeletingChanged(true))
             sendEffect(BeforeDeleteEffect.RequestWritePermission)
@@ -318,12 +314,6 @@ class BeforeDeleteViewModel @Inject constructor(
         savedStateHandle.remove<LongArray>(PENDING_IDS)
         savedStateHandle.remove<LongArray>(PENDING_BYTES)
     }
-
-    private fun trashAvailable() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-
-    private fun hasWritePermission() =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ||
-            context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
     internal companion object {
         /** The delete failed with an error, as opposed to the user cancelling. */

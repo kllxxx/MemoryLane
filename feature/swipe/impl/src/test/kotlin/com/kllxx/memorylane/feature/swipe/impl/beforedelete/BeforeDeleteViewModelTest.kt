@@ -1,8 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
 import com.kllxx.memorylane.core.domain.model.DeckKey
-import android.Manifest
-import android.app.Application
 import android.content.IntentSender
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
@@ -18,6 +16,7 @@ import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.model.Photo
+import com.kllxx.memorylane.core.photos.domain.repository.DeleteCapabilities
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
 import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
@@ -40,6 +39,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -56,9 +56,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
-import org.robolectric.annotation.Config
 
 /** A [SwipeRepository] in memory that moves decisions and records a deletion the way the real transaction does. */
 private class FakeSwipeRepository(
@@ -124,6 +121,14 @@ private class FakeSwipeRepository(
     override fun getCompletedSessions(): Flow<List<SwipeSession>> = flowOf(emptyList())
 }
 
+/** Android 11+ with the trash unless a test says otherwise. Below it, the write permission is [writeGranted]. */
+private class FakeDeleteCapabilities : DeleteCapabilities {
+    override var canTrash = true
+    var writeGranted = false
+
+    override fun hasWritePermission() = canTrash || writeGranted
+}
+
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class BeforeDeleteViewModelTest {
@@ -132,7 +137,7 @@ class BeforeDeleteViewModelTest {
     private val date = LocalDate.of(2015, 1, 15)
     private val today = LocalDate.of(2026, 10, 29)
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
-    private val application: Application = RuntimeEnvironment.getApplication()
+    private val capabilities = FakeDeleteCapabilities()
     private val sender = mockk<IntentSender>(relaxed = true)
 
     private fun photo(id: Long, size: Long) =
@@ -175,7 +180,7 @@ class BeforeDeleteViewModelTest {
     private fun create(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
         val route = if (undated) mapOf<String, Any>("deck" to DeckKind.UNDATED) else mapOf<String, Any>("date" to date.toString())
         savedStateHandle = SavedStateHandle(route + extra)
-        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), RequestDeletion(photoRepository), FinishDeletion(photoRepository, swipeRepository, CompleteDay(swipeRepository, clock)), application, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), RequestDeletion(photoRepository), FinishDeletion(photoRepository, swipeRepository, CompleteDay(swipeRepository, clock)), capabilities, savedStateHandle, errorHandler)
     }
 
     private fun TestScope.load(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
@@ -717,7 +722,7 @@ class BeforeDeleteViewModelTest {
                 throw IllegalStateException("disk full")
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), application, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
         advanceUntilIdle()
 
         viewModel.effects.test {
@@ -730,7 +735,87 @@ class BeforeDeleteViewModelTest {
         assertFalse(state.isDeleting)
     }
 
+    @Test
+    fun `a request the system needs no confirmation for is recorded as trashed at once`() = runTest(dispatcher) {
+        coEvery { photoRepository.deletePhotos(any()) } returns DeleteResult.Deleted
+        load()
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 2, freedBytes = 400_000_000, keptCount = 1, totalCount = 3),
+                awaitItem(),
+            )
+        }
+        assertEquals(listOf(mapOf(1L to 150_000_000L, 2L to 250_000_000L) to PhotoDecision.TRASHED), swipeRepository.confirmed)
+        assertNull(savedStateHandle.get<LongArray>(BeforeDeleteViewModel.PENDING_IDS))
+        coVerify(exactly = 1) { photoRepository.refreshOnThisDayIndex() }
+    }
+
+    @Test
+    fun `a failure to save the session does not keep the user on the screen`() = runTest(dispatcher) {
+        val failing = object : SwipeRepository by swipeRepository {
+            override fun getCompletedSessions(): Flow<List<SwipeSession>> = flow { throw IllegalStateException("db") }
+        }
+        savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
+        advanceUntilIdle()
+        send(BeforeDeleteIntent.Toggle(1))
+        send(BeforeDeleteIntent.Toggle(2))
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 0, freedBytes = 0, keptCount = 3, totalCount = 3),
+                awaitItem(),
+            )
+        }
+        assertTrue(swipeRepository.sessions.isEmpty())
+    }
+
+    @Test
+    fun `decisions that cannot be read after the deletion give a result without the kept numbers`() = runTest(dispatcher) {
+        var failReads = false
+        val failing = object : SwipeRepository by swipeRepository {
+            override suspend fun getDecisions(deck: DeckKey): Map<Long, PhotoDecision> =
+                if (failReads) throw IllegalStateException("db") else swipeRepository.getDecisions(deck)
+        }
+        savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
+        advanceUntilIdle()
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+            assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
+            failReads = true
+            send(BeforeDeleteIntent.SystemDeleteResult(true))
+
+            assertEquals(
+                BeforeDeleteEffect.NavigateToResult(DeckKey.Day(date), deletedCount = 2, freedBytes = 400_000_000, keptCount = 0, totalCount = 0),
+                awaitItem(),
+            )
+        }
+        assertEquals(1, swipeRepository.confirmed.size)
+    }
+
     // --- the result arrives after the screen was recreated ---
+
+    @Test
+    fun `a recreated screen shows the saved grid, the kept photos of it included`() = runTest(dispatcher) {
+        val day = BeforeDeleteViewModel.encodeDeck(DeckKey.Day(date))
+        create(
+            mapOf(
+                BeforeDeleteViewModel.GRID_IDS to longArrayOf(1, 2, 3),
+                BeforeDeleteViewModel.GRID_DATES to arrayListOf(day, day, day),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L, 2L, 3L), state.cells.map { it.photoId }.sorted())
+        assertEquals(listOf(1L, 2L), marked())
+    }
 
     @Test
     fun `a result after the process died is understood from the saved request, and no mark is dropped meanwhile`() = runTest(dispatcher) {
@@ -792,8 +877,8 @@ class BeforeDeleteViewModelTest {
     // --- below API 30: no trash, no system dialog ---
 
     @Test
-    @Config(sdk = [29])
     fun `below API 30 the button opens our own dialog and deletes nothing yet`() = runTest(dispatcher) {
+        capabilities.canTrash = false
         load()
 
         send(BeforeDeleteIntent.DeleteClicked)
@@ -804,8 +889,8 @@ class BeforeDeleteViewModelTest {
     }
 
     @Test
-    @Config(sdk = [29])
     fun `dismissing our dialog changes nothing`() = runTest(dispatcher) {
+        capabilities.canTrash = false
         load()
         send(BeforeDeleteIntent.DeleteClicked)
 
@@ -817,9 +902,9 @@ class BeforeDeleteViewModelTest {
     }
 
     @Test
-    @Config(sdk = [29])
     fun `with the permission, confirming our dialog deletes and records the photos as DELETED`() = runTest(dispatcher) {
-        shadowOf(application).grantPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        capabilities.canTrash = false
+        capabilities.writeGranted = true
         coEvery { photoRepository.deletePhotos(any()) } returns DeleteResult.Deleted
         load()
         send(BeforeDeleteIntent.DeleteClicked)
@@ -843,9 +928,9 @@ class BeforeDeleteViewModelTest {
     }
 
     @Test
-    @Config(sdk = [28])
     fun `without the permission, confirming our dialog asks for it first and deletes once it is granted`() = runTest(dispatcher) {
-        shadowOf(application).denyPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        capabilities.canTrash = false
+        capabilities.writeGranted = false
         coEvery { photoRepository.deletePhotos(any()) } returns DeleteResult.Deleted
         load()
         send(BeforeDeleteIntent.DeleteClicked)
@@ -863,9 +948,9 @@ class BeforeDeleteViewModelTest {
     }
 
     @Test
-    @Config(sdk = [28])
     fun `a refused permission deletes nothing and says so`() = runTest(dispatcher) {
-        shadowOf(application).denyPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        capabilities.canTrash = false
+        capabilities.writeGranted = false
         load()
         send(BeforeDeleteIntent.DeleteClicked)
 
@@ -883,9 +968,9 @@ class BeforeDeleteViewModelTest {
     }
 
     @Test
-    @Config(sdk = [29])
     fun `a failed delete below API 30 keeps the marks and says so`() = runTest(dispatcher) {
-        shadowOf(application).grantPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        capabilities.canTrash = false
+        capabilities.writeGranted = true
         coEvery { photoRepository.deletePhotos(any()) } throws SecurityException("not yours")
         load()
         send(BeforeDeleteIntent.DeleteClicked)
