@@ -119,7 +119,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-30
-- fix: last used MMLN-40
+- fix: last used MMLN-41
 - refactor: last used MMLN-29
 
 **Commit format (Conventional Commits):**
