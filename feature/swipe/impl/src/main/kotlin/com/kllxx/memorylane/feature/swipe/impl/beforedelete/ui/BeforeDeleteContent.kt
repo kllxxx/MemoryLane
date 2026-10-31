@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui
 
-import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -57,9 +55,9 @@ import com.kllxx.memorylane.feature.swipe.impl.beforedelete.DeleteIntro
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toButton
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.toIntro
 import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
+import com.kllxx.memorylane.feature.swipe.impl.common.rememberDeckTitle
 import com.kllxx.memorylane.feature.swipe.impl.common.LoadError
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
-import com.kllxx.memorylane.core.domain.format.formatDayMonth
 
 private val CellShape = RoundedCornerShape(14.dp)
 private val GridGap = 8.dp
@@ -168,10 +166,7 @@ private fun PhotoGrid(state: BeforeDeleteState, onIntent: (BeforeDeleteIntent) -
 /** The day of a group; the days before the current one say they were marked earlier. */
 @Composable
 private fun GroupHeader(group: DeleteGroup) {
-    val day = when (val deck = group.deck) {
-        is DeckKey.Day -> formatDayMonth(deck.date, LocalConfiguration.current.locales[0])
-        DeckKey.Undated -> stringResource(R.string.deck_undated)
-    }
+    val day = rememberDeckTitle(group.deck)
     Text(
         text = if (group.isCurrent) day else stringResource(R.string.before_delete_earlier, day),
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag(BeforeDeleteTags.groupHeader(group.deck)),

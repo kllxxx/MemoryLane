@@ -1,6 +1,5 @@
 package com.kllxx.memorylane.feature.swipe.impl.result.ui
 
-import com.kllxx.memorylane.core.domain.model.DeckKey
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -40,10 +37,10 @@ import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.core.ui.theme.semanticColors
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.common.ReviewButton
+import com.kllxx.memorylane.feature.swipe.impl.common.rememberDeckTitle
 import com.kllxx.memorylane.feature.swipe.impl.common.labelRes
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultIntent
 import com.kllxx.memorylane.feature.swipe.impl.result.ResultState
-import com.kllxx.memorylane.core.domain.format.formatDayMonth
 
 private val CardShape = RoundedCornerShape(16.dp)
 
@@ -147,14 +144,7 @@ private fun FreedValue(state: ResultState) {
 /** «28 октября · 48 фото»: the day and how many photos it had; «Без даты · 3 фото» for the undated photos. */
 @Composable
 private fun Caption(state: ResultState) {
-    val deck = state.deck
-    val dayMonth = when (deck) {
-        is DeckKey.Day -> {
-            val locale = LocalConfiguration.current.locales[0]
-            remember(deck, locale) { formatDayMonth(deck.date, locale) }
-        }
-        DeckKey.Undated -> stringResource(R.string.deck_undated)
-    }
+    val dayMonth = rememberDeckTitle(state.deck)
     Text(
         text = stringResource(
             R.string.result_caption,
