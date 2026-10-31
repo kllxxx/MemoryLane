@@ -2,7 +2,7 @@ package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.ui.theme.MemoryLaneTheme
 import com.kllxx.memorylane.core.ui.theme.semanticColors

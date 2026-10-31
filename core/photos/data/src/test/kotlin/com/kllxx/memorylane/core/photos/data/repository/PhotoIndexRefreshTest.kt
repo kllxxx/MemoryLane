@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package com.kllxx.memorylane.core.photos.data.repository
 
 import android.Manifest

@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,7 +75,7 @@ fun ProfileScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 ProfileEffect.RequestNotificationPermission ->
-                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    permissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
                 ProfileEffect.OpenNotificationSettings ->
                     context.startActivity(NotificationSystem.settingsIntent(context.packageName))
                 is ProfileEffect.RequestPermissions -> permissionRequester.request(effect.permissions)
@@ -110,7 +110,7 @@ fun ProfileScreen(
 private fun Context.canRequestNotificationPermission(permissionRequested: Boolean): Boolean {
     val granted = ContextCompat.checkSelfPermission(
         this,
-        Manifest.permission.POST_NOTIFICATIONS,
+        POST_NOTIFICATIONS_PERMISSION,
     ) == PackageManager.PERMISSION_GRANTED
     val activity = findActivity()
     return NotificationSystem.canRequestPermission(
@@ -118,7 +118,7 @@ private fun Context.canRequestNotificationPermission(permissionRequested: Boolea
         granted = granted,
         permissionRequested = permissionRequested,
         shouldShowRationale = activity != null &&
-            ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS),
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, POST_NOTIFICATIONS_PERMISSION),
     )
 }
 
@@ -130,3 +130,8 @@ private fun Context.findActivity(): Activity? {
     }
     return null
 }
+
+// A compile-time constant of API 33, inlined by the compiler, so reading it on an older system is safe.
+// Every use is behind NotificationSystem.canRequestPermission, which needs API 33.
+@Suppress("InlinedApi")
+private const val POST_NOTIFICATIONS_PERMISSION = Manifest.permission.POST_NOTIFICATIONS

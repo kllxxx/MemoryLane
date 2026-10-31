@@ -87,9 +87,7 @@ dependencies {
     implementation(project(":core:ui"))
 
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.kotlinx.serialization.core)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.bundles.lifecycle)
     implementation(platform(libs.androidx.compose.bom))

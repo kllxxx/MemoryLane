@@ -24,6 +24,8 @@ internal object NotificationSystem {
         shouldShowRationale: Boolean,
     ): Boolean = sdkInt >= Build.VERSION_CODES.TIRAMISU && !granted && (!permissionRequested || shouldShowRationale)
 
+    // The two constants are from API 26 and inlined by the compiler; they are only read from API 26 on (sdkInt check)
+    @Suppress("InlinedApi")
     fun settingsIntent(packageName: String, sdkInt: Int = Build.VERSION.SDK_INT): Intent =
         if (sdkInt >= Build.VERSION_CODES.O) {
             Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
