@@ -11,15 +11,16 @@ import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
-import com.kllxx.memorylane.core.domain.model.DeletionOutcome
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import com.kllxx.memorylane.core.domain.repository.SwipeRepository
 import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedException
-import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
-import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
+import com.kllxx.memorylane.core.photos.domain.usecase.DeckResult
+import com.kllxx.memorylane.core.photos.domain.usecase.DeletionRequest
+import com.kllxx.memorylane.core.photos.domain.usecase.FinishDeletion
+import com.kllxx.memorylane.core.photos.domain.usecase.RequestDeletion
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
@@ -46,7 +47,8 @@ class BeforeDeleteViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val photoRepository: PhotoRepository,
     private val adoptDatedDecisions: AdoptDatedDecisions,
-    private val completeDay: CompleteDay,
+    private val requestDeletion: RequestDeletion,
+    private val finishDeletion: FinishDeletion,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
@@ -202,16 +204,14 @@ class BeforeDeleteViewModel @Inject constructor(
                 sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
             },
         ) {
-            val ids = marked.map { it.photoId }
-            val bytes = sizesBeforeRequest(marked)
+            val request = requestDeletion(marked.toSizes())
             // Before the dialog opens: after a recreation the result is understood from this
-            savedStateHandle[PENDING_IDS] = ids.toLongArray()
-            savedStateHandle[PENDING_BYTES] = ids.map { bytes.getValue(it) }.toLongArray()
-            when (val result = photoRepository.deletePhotos(ids)) {
-                is DeleteResult.RequiresConfirmation ->
-                    sendEffect(BeforeDeleteEffect.LaunchTrashRequest(result.intentSender))
+            savedStateHandle[PENDING_IDS] = request.bytesById.keys.toLongArray()
+            savedStateHandle[PENDING_BYTES] = request.bytesById.values.toLongArray()
+            when (request) {
+                is DeletionRequest.NeedsConfirmation -> sendEffect(BeforeDeleteEffect.LaunchTrashRequest(request.intentSender))
                 // Nothing asked for a confirmation, so the photos are already handled
-                DeleteResult.Deleted -> confirm(bytes, PhotoDecision.TRASHED)
+                is DeletionRequest.Done -> confirm(request.bytesById, PhotoDecision.TRASHED)
             }
         }
     }
@@ -259,18 +259,11 @@ class BeforeDeleteViewModel @Inject constructor(
                 sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
             },
         ) {
-            val ids = marked.map { it.photoId }
-            val bytes = sizesBeforeRequest(marked)
-            photoRepository.deletePhotos(ids)
-            confirm(bytes, PhotoDecision.DELETED)
+            confirm(requestDeletion(marked.toSizes()).bytesById, PhotoDecision.DELETED)
         }
     }
 
-    /** The sizes are read before the request: afterwards trashed photos are no longer in a normal query. */
-    private suspend fun sizesBeforeRequest(marked: List<DeleteCell>): Map<Long, Long> {
-        val read = photoRepository.getPhotoSizes(marked.map { it.photoId })
-        return marked.associate { it.photoId to (read[it.photoId] ?: it.sizeBytes) }
-    }
+    private fun List<DeleteCell>.toSizes(): Map<Long, Long> = associate { it.photoId to it.sizeBytes }
 
     /**
      * Records the deletion in one transaction, refreshes the index and hands over to «Итоги» with what was really
@@ -292,8 +285,7 @@ class BeforeDeleteViewModel @Inject constructor(
                 val outcome = swipeRepository.confirmDeletion(bytesById, decision)
                 clearPending()
                 finished = true
-                refreshPhotoIndex()
-                handOver(outcome)
+                handOver(finishDeletion.afterDeletion(deck, outcome))
             }
         } catch (e: CancellationException) {
             confirming = false
@@ -304,37 +296,22 @@ class BeforeDeleteViewModel @Inject constructor(
     /** Nothing is marked any more: the day is finished without deleting anything. */
     private fun finishWithoutDeleting() {
         viewModelScope.launch {
-            // The undated deck is not a day: it has no session to complete
-            val day = (deck as? DeckKey.Day)?.date
-            if (day != null) {
-                // The user has finished, so a failed write must not keep them on this screen
-                runSafe("save the session of $day", fallback = {}) { completeDay(day) }
-            }
+            val result = finishDeletion.withoutDeleting(deck)
             finished = true
-            handOver(DeletionOutcome(deletedCount = 0, freedBytes = 0))
+            handOver(result)
         }
     }
 
-    private suspend fun handOver(outcome: DeletionOutcome) {
-        val decisions = runSafe("read the decisions of $deck", fallback = { emptyMap() }) {
-            swipeRepository.getDecisions(deck)
-        }
+    private fun handOver(result: DeckResult) {
         sendEffect(
             BeforeDeleteEffect.NavigateToResult(
                 deck = deck,
-                deletedCount = outcome.deletedCount,
-                freedBytes = outcome.freedBytes,
-                keptCount = decisions.count { it.value == PhotoDecision.KEEP },
-                totalCount = decisions.size,
+                deletedCount = result.deletedCount,
+                freedBytes = result.freedBytes,
+                keptCount = result.keptCount,
+                totalCount = result.totalCount,
             ),
         )
-    }
-
-    private suspend fun refreshPhotoIndex() {
-        // The deleted photos must be gone from the Calendar when it opens; only a failure is allowed to skip this
-        runSafe("refresh the photo index after the deletion", fallback = {}) {
-            photoRepository.refreshOnThisDayIndex()
-        }
     }
 
     private fun clearPending() {

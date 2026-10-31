@@ -15,7 +15,8 @@ import com.kllxx.memorylane.core.photos.domain.exception.PermissionDeniedExcepti
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.repository.PhotoRepository
 import com.kllxx.memorylane.core.photos.domain.usecase.AdoptDatedDecisions
-import com.kllxx.memorylane.core.photos.domain.usecase.CompleteDay
+import com.kllxx.memorylane.core.photos.domain.usecase.DeckEnd
+import com.kllxx.memorylane.core.photos.domain.usecase.ResolveDeckEnd
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
 import com.kllxx.memorylane.feature.swipe.impl.R
@@ -36,7 +37,7 @@ class SwipeViewModel @Inject constructor(
     private val swipeRepository: SwipeRepository,
     private val statsRepository: StatsRepository,
     private val appSettingsRepository: AppSettingsRepository,
-    private val completeDay: CompleteDay,
+    private val resolveDeckEnd: ResolveDeckEnd,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
 ) : MviViewModel<SwipeState, SwipeIntent, SwipeEvent, SwipeEffect>(
@@ -220,24 +221,11 @@ class SwipeViewModel @Inject constructor(
      */
     private fun onAllSwiped(state: SwipeState) {
         viewModelScope.launch {
-            // The marks of this day are in the deck already; the stored ones add those of the days before
-            var hasDeletes = state.deck.any { it.decision == PhotoDecision.DELETE }
-            // The user has finished swiping, so a failed session write must not keep them on this screen.
-            // The undated deck is not a day: it has no session to complete and never counts for a streak.
-            val day = (state.deckKey as? DeckKey.Day)?.date
-            if (day != null) {
-                runSafe("save the session of $day", fallback = {}) { completeDay(day) }
-            }
-            if (!hasDeletes) {
-                hasDeletes = runSafe("read the pending deletions", fallback = { false }) {
-                    swipeRepository.getPendingDeletes().isNotEmpty()
-                }
-            }
+            val end = resolveDeckEnd(state.deckKey, hasMarksInDeck = state.deck.any { it.decision == PhotoDecision.DELETE })
             sendEffect(
-                if (hasDeletes) {
-                    SwipeEffect.NavigateToBeforeDelete(state.deckKey, totalPhotosCount = state.deck.size)
-                } else {
-                    SwipeEffect.NavigateToResult(
+                when (end) {
+                    DeckEnd.BeforeDelete -> SwipeEffect.NavigateToBeforeDelete(state.deckKey, totalPhotosCount = state.deck.size)
+                    DeckEnd.Result -> SwipeEffect.NavigateToResult(
                         state.deckKey,
                         keptCount = state.deck.count { it.decision == PhotoDecision.KEEP },
                         totalCount = state.deck.size + state.trashed.size,

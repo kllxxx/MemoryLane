@@ -7,4 +7,5 @@ dependencies {
     api(project(":core:domain"))
     api(libs.kotlinx.coroutines.core)
     implementation(libs.javax.inject)
+    implementation(libs.timber)
 }
