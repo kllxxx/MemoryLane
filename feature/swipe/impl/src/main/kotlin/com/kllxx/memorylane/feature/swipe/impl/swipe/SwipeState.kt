@@ -49,7 +49,4 @@ data class SwipeState(
     val canUndo: Boolean get() = undoStack.isNotEmpty()
 
     val currentPhoto: DeckPhoto? get() = deck.getOrNull(currentIndex)
-
-    /** Every photo of the day that still exists has a decision. */
-    val isDayCompleted: Boolean get() = deck.isNotEmpty() && deck.all { it.decision != null }
 }

@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import com.haroncode.lazycardstack.swiper.SwipeDirection
+import com.kllxx.memorylane.core.domain.model.DayCompletion
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -90,7 +91,12 @@ object SwipeReducer {
             deck = deck,
             currentIndex = nextIndex,
             undoStack = state.undoStack.toPersistentList().add(UndoEntry(current.id, current.decision)),
-            isFinished = nextIndex >= deck.size,
+            // The day ends on the last card once everything is decided; completing it on a middle card leaves the
+            // rest of the deck to look through
+            isFinished = state.currentIndex == deck.lastIndex && DayCompletion.isCompleted(
+                deck.map { it.id },
+                deck.mapNotNull { photo -> photo.decision?.let { photo.id to it } }.toMap(),
+            ),
         )
     }
 
