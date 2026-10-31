@@ -67,6 +67,9 @@ class CalendarViewModel @Inject constructor(
     private var partialAccess = false
     private var todayJob: Job? = null
     private var undatedJob: Job? = null
+    // A failure ends the collection for good, so a retry has to start whichever of them has died
+    private var todayObserver: Job? = null
+    private var indexObserver: Job? = null
 
     init {
         CalendarPerf.onViewModelCreated()
@@ -91,7 +94,11 @@ class CalendarViewModel @Inject constructor(
                 refreshTodayBanner()
                 if (granted) refresh()
             }
-            CalendarIntent.LoadDays -> if (currentState.hasPermission) refresh()
+            CalendarIntent.LoadDays -> {
+                if (todayObserver?.isActive != true) observeToday()
+                if (indexObserver?.isActive != true) observePhotoIndex()
+                if (currentState.hasPermission) refresh()
+            }
             CalendarIntent.RequestPermission -> requestPermission()
             is CalendarIntent.PermissionChecked -> onPermissionChecked(intent)
             is CalendarIntent.PermissionResult -> if (intent.granted) refresh()
@@ -148,7 +155,7 @@ class CalendarViewModel @Inject constructor(
      * in a new year, the whole grid follow it.
      */
     private fun observeToday() {
-        viewModelScope.launch {
+        todayObserver = launchSafe("follow the date", onError = { reduce(CalendarEvent.LoadFailed) }) {
             todayProvider.today.collect { today ->
                 val current = currentState
                 if (today == current.today) return@collect
@@ -163,7 +170,7 @@ class CalendarViewModel @Inject constructor(
 
     /** The last loaded index is shown at once; every new one replaces it in a single state update. */
     private fun observePhotoIndex() {
-        viewModelScope.launch {
+        indexObserver = launchSafe("follow the photo index", onError = { reduce(CalendarEvent.LoadFailed) }) {
             photoRepository.onThisDayIndex.filterNotNull().collect { index ->
                 lastIndex = index
                 refreshUndatedBanner(index)

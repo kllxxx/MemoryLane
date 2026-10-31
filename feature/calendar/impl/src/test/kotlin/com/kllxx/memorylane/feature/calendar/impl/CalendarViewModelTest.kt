@@ -30,6 +30,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import com.kllxx.memorylane.core.domain.time.TodayProvider
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.MonthDay
@@ -40,6 +41,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,8 +73,19 @@ private class FakePhotoRepository : PhotoRepository {
     var failure: Exception? = null
     var queries = 0
 
+    /** Thrown to whoever collects [onThisDayIndex], the way a flow that dies does. */
+    var indexFailure: Exception? = null
+
     private val _index = MutableStateFlow<OnThisDayIndex?>(null)
-    override val onThisDayIndex: StateFlow<OnThisDayIndex?> = _index
+    override val onThisDayIndex: StateFlow<OnThisDayIndex?> = object : StateFlow<OnThisDayIndex?> {
+        override val value: OnThisDayIndex? get() = _index.value
+        override val replayCache: List<OnThisDayIndex?> get() = _index.replayCache
+
+        override suspend fun collect(collector: FlowCollector<OnThisDayIndex?>): Nothing {
+            indexFailure?.let { throw it }
+            _index.collect(collector)
+        }
+    }
 
 
     fun publishCached() {
@@ -1094,6 +1107,104 @@ class CalendarViewModelTest {
         showIndex(indexWithUndated(1, 2))
 
         verify { errorHandler.handle(any<IllegalStateException>(), "work out the banner of the undated photos") }
+    }
+
+    // --- the flows the screen follows can die ---
+
+    /** A [TodayProvider] whose [today] throws while [failing]. */
+    private inner class FailingTodayProvider : TodayProvider {
+        var failing = true
+        override val today: Flow<LocalDate> get() = if (failing) flow { throw IllegalStateException("clock") } else flowOf(this@CalendarViewModelTest.today)
+        override fun now(): LocalDate = this@CalendarViewModelTest.today
+    }
+
+    private fun createViewModel(provider: TodayProvider) = CalendarViewModel(
+        repository, swipeRepository, appSettingsRepository, statsRepository,
+        PhotosToReview(repository, swipeRepository), AdoptDatedDecisions(repository, swipeRepository), provider, errorHandler,
+    )
+
+    @Test
+    fun `a failing date flow is a failed load with a retry, not a crash`() = runTest(dispatcher) {
+        viewModel = createViewModel(FailingTodayProvider())
+        advanceUntilIdle()
+
+        assertEquals(CalendarError.LoadFailed, viewModel.state.value.error)
+        assertEquals(CalendarPhase.Content, viewModel.state.value.phase)
+        verify { errorHandler.handle(any<IllegalStateException>(), "follow the date") }
+    }
+
+    @Test
+    fun `a failing photo index flow is a failed load with a retry, not a crash`() = runTest(dispatcher) {
+        repository.indexFailure = IllegalStateException("db")
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(CalendarError.LoadFailed, viewModel.state.value.error)
+        assertEquals(CalendarPhase.Content, viewModel.state.value.phase)
+        verify { errorHandler.handle(any<IllegalStateException>(), "follow the photo index") }
+    }
+
+    @Test
+    fun `a retry follows the date again and clears the error`() = runTest(dispatcher) {
+        val provider = FailingTodayProvider()
+        viewModel = createViewModel(provider)
+        advanceUntilIdle()
+        provider.failing = false
+
+        viewModel.onIntent(CalendarIntent.LoadDays)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.error)
+        assertEquals(today, viewModel.state.value.today)
+    }
+
+    @Test
+    fun `a retry follows the photo index again and shows it`() = runTest(dispatcher) {
+        repository.indexFailure = IllegalStateException("db")
+        repository.next = indexWith(MonthDay.of(10, 15) to 3)
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        repository.indexFailure = null
+
+        viewModel.onIntent(CalendarIntent.LoadDays)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.error)
+        assertEquals(1, repository.queries)
+        assertEquals(3, viewModel.state.value.days().first { it.date == LocalDate.of(2026, 10, 15) }.memory?.count)
+    }
+
+    @Test
+    fun `a retry does not follow a flow that is still alive twice`() = runTest(dispatcher) {
+        repository.indexFailure = IllegalStateException("db")
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        repository.indexFailure = null
+        viewModel.onIntent(CalendarIntent.LoadDays)
+        advanceUntilIdle()
+
+        viewModel.onIntent(CalendarIntent.LoadDays)
+        advanceUntilIdle()
+
+        // Each refresh publishes one index: followed twice, the screen would be told twice per query
+        assertEquals(2, repository.queries)
+        verify(exactly = 1) { errorHandler.handle(any(), "follow the photo index") }
+    }
+
+    @Test
+    fun `cancelled date and index flows are neither an error nor a failed load`() = runTest(dispatcher) {
+        val waiting = object : TodayProvider {
+            override val today: Flow<LocalDate> = flow { awaitCancellation() }
+            override fun now(): LocalDate = this@CalendarViewModelTest.today
+        }
+        viewModel = createViewModel(waiting)
+        advanceUntilIdle()
+
+        viewModel.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.error)
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
     }
 
     @Test
