@@ -14,7 +14,6 @@ import androidx.annotation.RequiresApi
 import androidx.exifinterface.media.ExifInterface
 import com.kllxx.memorylane.core.common.PerfLog
 import com.kllxx.memorylane.core.domain.permission.PermissionRules
-import com.kllxx.memorylane.core.photos.data.PhotosConstants
 import com.kllxx.memorylane.core.photos.data.di.IoDispatcher
 import com.kllxx.memorylane.core.photos.data.date.CacheLookup
 import com.kllxx.memorylane.core.photos.data.date.ExifDateReader
@@ -30,6 +29,7 @@ import com.kllxx.memorylane.core.photos.domain.model.CachedPhotoLocation
 import com.kllxx.memorylane.core.photos.domain.model.DayCover
 import com.kllxx.memorylane.core.photos.domain.model.DayMemories
 import com.kllxx.memorylane.core.photos.domain.model.DeleteResult
+import com.kllxx.memorylane.core.photos.domain.model.MAX_YEARS_BACK
 import com.kllxx.memorylane.core.photos.domain.model.OnThisDayIndex
 import com.kllxx.memorylane.core.photos.domain.model.Photo
 import com.kllxx.memorylane.core.photos.domain.model.PhotoLocation
@@ -163,7 +163,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         val startedAt = PerfLog.nanoTime()
         val zone = ZoneId.systemDefault()
         val currentYear = LocalDate.now(clock).year
-        val builder = OnThisDayIndexBuilder(currentYear, PhotosConstants.MAX_YEARS_BACK, zone)
+        val builder = OnThisDayIndexBuilder(currentYear, MAX_YEARS_BACK, zone)
         val undated = ArrayList<UndatedPhoto>()
         val stats = IndexLoadStats()
 
@@ -213,7 +213,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         PerfLog.d {
             "index: query=${queryMs}ms total=${PerfLog.sinceMs(startedAt)}ms rows=${stats.rows} " +
                 "dateTakenNullOrZero=${stats.dateTakenMissing} inWindow=${builder.counted} " +
-                "entries=${builder.entries().size} years=${currentYear - PhotosConstants.MAX_YEARS_BACK}..${currentYear - 1}"
+                "entries=${builder.entries().size} years=${currentYear - MAX_YEARS_BACK}..${currentYear - 1}"
         }
         PerfLog.d { "index: by mime type ${stats.byMime.toSortedMap()}" }
         PerfLog.d { "index: by relative path ${stats.byPath.toSortedMap()}" }
@@ -442,7 +442,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
     /** The undated photos whose cached date is this month/day in the look-back window, as long as their file is unchanged. */
     private suspend fun photosFromCache(date: LocalDate, zone: ZoneId): List<Photo> {
         val monthDay = MonthDay.from(date)
-        val years = (date.year - PhotosConstants.MAX_YEARS_BACK)..(date.year - 1)
+        val years = (date.year - MAX_YEARS_BACK)..(date.year - 1)
         val onThisDay = HashMap<Long, CachedDay>()
         for (entry in dateCache.getAllDated()) {
             val takenAt = ResolvedDate.fromCached(entry)?.toInstant(zone)?.atZone(zone)?.toLocalDateTime() ?: continue
@@ -696,7 +696,7 @@ internal class PhotoRepositoryImpl @Inject constructor(
         // Without the permission MediaStore returns an empty cursor, which must not look like an empty day
         if (!hasMediaPermission()) throw PermissionDeniedException("Media read permission is not granted")
         val monthDay = MonthDay.from(date)
-        val ranges = (date.year - 1 downTo date.year - PhotosConstants.MAX_YEARS_BACK)
+        val ranges = (date.year - 1 downTo date.year - MAX_YEARS_BACK)
             // A Feb 29 photo is only looked up in leap years, by design: other years are skipped,
             // not mapped to Feb 28 or Mar 1
             .filter { monthDay.isValidYear(it) }

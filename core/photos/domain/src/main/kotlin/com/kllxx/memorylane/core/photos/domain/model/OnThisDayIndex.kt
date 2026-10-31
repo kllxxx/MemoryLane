@@ -4,6 +4,9 @@ import android.net.Uri
 import java.time.LocalDate
 import java.time.MonthDay
 
+/** How many earlier years "On This Day" looks back: the 30 years before a date. */
+const val MAX_YEARS_BACK = 30
+
 /** The oldest photo taken on a month/day, used as its thumbnail. */
 data class DayCover(
     val id: Long,
@@ -46,14 +49,9 @@ data class OnThisDayIndex(
      * Only photos from years before [currentYear] are known, which is every year that can be in the window of a date
      * that has happened.
      */
-    fun hasPhotosFor(date: LocalDate, maxYearsBack: Int = DEFAULT_YEARS_BACK): Boolean {
+    fun hasPhotosFor(date: LocalDate, maxYearsBack: Int = MAX_YEARS_BACK): Boolean {
         val years = photoYears[MonthDay.from(date)] ?: return false
         val window = (date.year - maxYearsBack)..(date.year - 1)
         return years.any { it in window }
-    }
-
-    companion object {
-        /** The look-back of the app: the 30 years before a date. */
-        const val DEFAULT_YEARS_BACK = 30
     }
 }
