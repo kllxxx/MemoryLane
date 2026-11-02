@@ -11,6 +11,7 @@ coreKtx = "1.19.1"
 annotation = "1.11.0"
 coreSplashscreen = "1.2.0"
 activityCompose = "1.13.0"
+appcompat = "1.7.1"
 exifinterface = "1.4.2"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
@@ -50,6 +51,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 # Lifecycle
