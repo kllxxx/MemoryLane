@@ -25,12 +25,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowToast
 
 /** The stateful [SwipeScreen] with a fake ViewModel: navigation callbacks, share and open intents, the resume hook. */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "ru")
 class SwipeScreenTest {
 
     @get:Rule

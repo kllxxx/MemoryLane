@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MemoryLane</string>
+    <string name="app_name" translatable="false">MemoryLane</string>
     <string name="nav_calendar">Calendar</string>
     <string name="nav_achievements">Achievements</string>
     <string name="nav_profile">Profile</string>

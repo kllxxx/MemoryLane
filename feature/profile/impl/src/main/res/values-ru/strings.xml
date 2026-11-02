@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="profile_title">Профиль</string>
+
+    <string name="profile_section_streak">Цель стрика</string>
+    <string name="profile_streak_current">Текущий стрик</string>
+    <plurals name="profile_streak_of_goal">
+        <item quantity="one">из %d дня</item>
+        <item quantity="few">из %d дней</item>
+        <item quantity="many">из %d дней</item>
+        <item quantity="other">из %d дня</item>
+    </plurals>
+    <plurals name="profile_streak_days_left">
+        <item quantity="one">Ещё %d день до цели</item>
+        <item quantity="few">Ещё %d дня до цели</item>
+        <item quantity="many">Ещё %d дней до цели</item>
+        <item quantity="other">Ещё %d дня до цели</item>
+    </plurals>
+    <string name="profile_streak_goal_reached">Цель достигнута</string>
+    <string name="profile_goal_label">Цель</string>
+    <string name="profile_goal_unit">дней подряд</string>
+
+    <string name="profile_section_notifications">Напоминания</string>
+    <string name="profile_notifications_on">Придет один раз в день в выбранное время</string>
+    <string name="profile_notifications_off">Выключены</string>
+    <string name="profile_reminder_time">Время</string>
+    <string name="profile_reminder_time_dialog_title">Время напоминания</string>
+
+    <string name="profile_section_review">Разбор фото</string>
+    <string name="profile_buttons_mode_title">Использовать кнопки\n✕ и ✓ вместо жестов</string>
+    <string name="profile_buttons_mode_subtitle"></string>
+
+    <string name="profile_section_permissions">Разрешения</string>
+    <string name="profile_permission_photos">Доступ к фото</string>
+    <string name="profile_permission_location">Место съёмки</string>
+    <string name="profile_permission_notifications">Уведомления</string>
+    <string name="profile_permission_delete">Удаление фото</string>
+    <string name="profile_permission_on">Включено</string>
+    <string name="profile_permission_off">Выключено</string>
+    <string name="profile_permission_allowed">Разрешено</string>
+    <string name="profile_permission_denied">Нет</string>
+
+    <string name="profile_section_appearance">Оформление</string>
+    <string name="profile_theme_title">Тема</string>
+    <string name="profile_theme_subtitle">По умолчанию — тёмная</string>
+    <string name="profile_theme_system">Системная</string>
+    <string name="profile_theme_light">Светлая</string>
+    <string name="profile_theme_dark">Тёмная</string>
+
+    <string name="profile_section_about">О приложении</string>
+    <string name="profile_replay_onboarding">Пройти онбординг заново</string>
+    <string name="profile_help_title">Нужна помощь?</string>
+    <string name="profile_help_subtitle">Напишите нам</string>
+    <string name="profile_version">Версия</string>
+
+    <string name="profile_support_subject">MemoryLane — помощь</string>
+    <string name="profile_support_body">Версия приложения: %1$s\nAndroid: %2$s\nУстройство: %3$s\n\n</string>
+    <string name="profile_no_mail_app">Не найдено почтовое приложение</string>
+    <string name="profile_settings_error">Не удалось сохранить настройку</string>
+</resources>

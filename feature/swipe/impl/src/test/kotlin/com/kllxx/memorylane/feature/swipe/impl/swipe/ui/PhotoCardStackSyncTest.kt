@@ -30,7 +30,7 @@ import org.robolectric.annotation.Config
  * [SwipeReducer], so the stack and the state are checked in step the way they run on a device.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w360dp-h780dp-xhdpi")
+@Config(qualifiers = "ru-w360dp-h780dp-xhdpi")
 class PhotoCardStackSyncTest {
 
     @get:Rule

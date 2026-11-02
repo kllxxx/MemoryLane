@@ -18,9 +18,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** The rows of «Разрешения»: the status each shows and the intent a tap sends, per API level. */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "ru")
 class PermissionsCardTest {
 
     @get:Rule

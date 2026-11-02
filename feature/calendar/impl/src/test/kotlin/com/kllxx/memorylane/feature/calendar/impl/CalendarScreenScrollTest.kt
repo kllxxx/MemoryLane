@@ -51,13 +51,22 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import com.kllxx.memorylane.feature.calendar.impl.ui.bannerOverlineTag
 
 /**
  * The screen is composed, left and composed again with the same ViewModel, as happens when a day is opened and the
  * user comes back: the list must be where it was left, not on the current month.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "en")
 class CalendarScreenScrollTest {
+    private fun string(id: Int) = RuntimeEnvironment.getApplication().getString(id)
+
+    private fun plural(id: Int, count: Int) =
+        RuntimeEnvironment.getApplication().resources.getQuantityString(id, count, count)
+
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -206,9 +215,9 @@ class CalendarScreenScrollTest {
         scrollToEnd()
 
         composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("БЕЗ ДАТЫ").assertDoesNotExist()
-        composeRule.onNodeWithText("Фото без даты").assertIsDisplayed()
-        composeRule.onNodeWithTag(UNDATED_BANNER_COUNT_TAG, useUnmergedTree = true).assertTextEquals("3 фото")
+        composeRule.onNodeWithTag(bannerOverlineTag(UNDATED_BANNER_TAG), useUnmergedTree = true).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.calendar_undated_title)).assertIsDisplayed()
+        composeRule.onNodeWithTag(UNDATED_BANNER_COUNT_TAG, useUnmergedTree = true).assertTextEquals(plural(R.plurals.calendar_today_photos, 3))
     }
 
     @Test
@@ -293,7 +302,7 @@ class CalendarScreenScrollTest {
         show(viewModel(withTodayPhotos = true))
 
         composeRule.onNodeWithTag(TODAY_BANNER_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("Сегодняшние фото").assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.calendar_today_title)).assertIsDisplayed()
         composeRule.onNodeWithText("OCTOBER 2026").assertIsDisplayed()
     }
 

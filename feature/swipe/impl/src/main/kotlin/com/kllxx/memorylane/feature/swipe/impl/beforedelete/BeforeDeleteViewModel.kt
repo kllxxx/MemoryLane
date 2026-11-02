@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
@@ -96,7 +97,7 @@ class BeforeDeleteViewModel @Inject constructor(
 
     private fun load() = launchSafe(
         what = "load the marked photos",
-        onError = { reduce(BeforeDeleteEvent.LoadFailed(UiError(R.string.before_delete_load_error))) },
+        onError = { reduce(BeforeDeleteEvent.LoadFailed(UiError(UiR.string.common_photos_load_error))) },
     ) {
         try {
             // A photo that was marked in the undated deck and has a date now is a mark of its day

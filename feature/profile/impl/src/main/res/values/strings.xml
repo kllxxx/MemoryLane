@@ -1,62 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="profile_title">Профиль</string>
+    <string name="profile_title">Profile</string>
 
-    <string name="profile_section_streak">Цель стрика</string>
-    <string name="profile_streak_current">Текущий стрик</string>
+    <string name="profile_section_streak">Streak goal</string>
+    <string name="profile_streak_current">Current streak</string>
     <plurals name="profile_streak_of_goal">
-        <item quantity="one">из %d дня</item>
-        <item quantity="few">из %d дней</item>
-        <item quantity="many">из %d дней</item>
-        <item quantity="other">из %d дня</item>
+        <item quantity="one">of %d day</item>
+        <item quantity="other">of %d days</item>
     </plurals>
     <plurals name="profile_streak_days_left">
-        <item quantity="one">Ещё %d день до цели</item>
-        <item quantity="few">Ещё %d дня до цели</item>
-        <item quantity="many">Ещё %d дней до цели</item>
-        <item quantity="other">Ещё %d дня до цели</item>
+        <item quantity="one">%d more day to the goal</item>
+        <item quantity="other">%d more days to the goal</item>
     </plurals>
-    <string name="profile_streak_goal_reached">Цель достигнута</string>
-    <string name="profile_goal_label">Цель</string>
-    <string name="profile_goal_unit">дней подряд</string>
+    <string name="profile_streak_goal_reached">Goal reached</string>
+    <string name="profile_goal_label">Goal</string>
+    <string name="profile_goal_unit">days in a row</string>
 
-    <string name="profile_section_notifications">Напоминания</string>
-    <string name="profile_notifications_on">Придет один раз в день в выбранное время</string>
-    <string name="profile_notifications_off">Выключены</string>
-    <string name="profile_reminder_time">Время</string>
-    <string name="profile_reminder_time_dialog_title">Время напоминания</string>
-    <string name="profile_time_picker_confirm">Готово</string>
-    <string name="profile_time_picker_cancel">Отмена</string>
+    <string name="profile_section_notifications">Reminders</string>
+    <string name="profile_notifications_on">Once a day at the chosen time</string>
+    <string name="profile_notifications_off">Off</string>
+    <string name="profile_reminder_time">Time</string>
+    <string name="profile_reminder_time_dialog_title">Reminder time</string>
 
-    <string name="profile_section_review">Разбор фото</string>
-    <string name="profile_buttons_mode_title">Использовать кнопки\n✕ и ✓ вместо жестов</string>
+    <string name="profile_section_review">Photo sorting</string>
+    <string name="profile_buttons_mode_title">Use ✕ and ✓\nbuttons instead of gestures</string>
     <string name="profile_buttons_mode_subtitle"></string>
 
-    <string name="profile_section_permissions">Разрешения</string>
-    <string name="profile_permission_photos">Доступ к фото</string>
-    <string name="profile_permission_location">Место съёмки</string>
-    <string name="profile_permission_notifications">Уведомления</string>
-    <string name="profile_permission_delete">Удаление фото</string>
-    <string name="profile_permission_on">Включено</string>
-    <string name="profile_permission_off">Выключено</string>
-    <string name="profile_permission_allowed">Разрешено</string>
-    <string name="profile_permission_denied">Нет</string>
+    <string name="profile_section_permissions">Permissions</string>
+    <string name="profile_permission_photos">Photo access</string>
+    <string name="profile_permission_location">Photo location</string>
+    <string name="profile_permission_notifications">Notifications</string>
+    <string name="profile_permission_delete">Photo deletion</string>
+    <string name="profile_permission_on">On</string>
+    <string name="profile_permission_off">Off</string>
+    <string name="profile_permission_allowed">Allowed</string>
+    <string name="profile_permission_denied">No</string>
 
-    <string name="profile_section_appearance">Оформление</string>
-    <string name="profile_theme_title">Тема</string>
-    <string name="profile_theme_subtitle">По умолчанию — тёмная</string>
-    <string name="profile_theme_system">Системная</string>
-    <string name="profile_theme_light">Светлая</string>
-    <string name="profile_theme_dark">Тёмная</string>
+    <string name="profile_section_appearance">Appearance</string>
+    <string name="profile_theme_title">Theme</string>
+    <string name="profile_theme_subtitle">Dark by default</string>
+    <string name="profile_theme_system">System</string>
+    <string name="profile_theme_light">Light</string>
+    <string name="profile_theme_dark">Dark</string>
 
-    <string name="profile_section_about">О приложении</string>
-    <string name="profile_replay_onboarding">Пройти онбординг заново</string>
-    <string name="profile_help_title">Нужна помощь?</string>
-    <string name="profile_help_subtitle">Напишите нам</string>
-    <string name="profile_version">Версия</string>
+    <string name="profile_section_about">About</string>
+    <string name="profile_replay_onboarding">Replay onboarding</string>
+    <string name="profile_help_title">Need help?</string>
+    <string name="profile_help_subtitle">Write to us</string>
+    <string name="profile_version">Version</string>
 
-    <string name="profile_support_subject">MemoryLane — помощь</string>
-    <string name="profile_support_body">Версия приложения: %1$s\nAndroid: %2$s\nУстройство: %3$s\n\n</string>
-    <string name="profile_no_mail_app">Не найдено почтовое приложение</string>
-    <string name="profile_settings_error">Не удалось сохранить настройку</string>
+    <string name="profile_support_subject">MemoryLane — help</string>
+    <string name="profile_support_body">App version: %1$s\nAndroid: %2$s\nDevice: %3$s\n\n</string>
+    <string name="profile_no_mail_app">No email app found</string>
+    <string name="profile_settings_error">Couldn\'t save the setting</string>
 </resources>

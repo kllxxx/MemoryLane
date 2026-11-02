@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.onboarding.impl.ui
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,7 +70,7 @@ internal fun OnboardingTopBar(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.onboarding_back),
+                    contentDescription = stringResource(UiR.string.common_back),
                     tint = Licorice.copy(alpha = 0.7f),
                 )
             }

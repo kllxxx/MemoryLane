@@ -1,5 +1,6 @@
 package com.kllxx.memorylane
 
+import com.kllxx.memorylane.feature.onboarding.impl.R as OnboardingR
 import android.content.Intent
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -43,8 +44,11 @@ import javax.inject.Inject
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
-@Config(application = HiltTestApplication::class)
+@Config(application = HiltTestApplication::class, qualifiers = "en")
 class MainActivityTest {
+    private val skip get() = RuntimeEnvironment.getApplication().getString(OnboardingR.string.onboarding_skip)
+    private val calendarLabel get() = RuntimeEnvironment.getApplication().getString(R.string.nav_calendar)
+
 
     private val hilt = HiltAndroidRule(this)
     private val compose = createEmptyComposeRule()
@@ -111,9 +115,9 @@ class MainActivityTest {
 
         launch().let {
             compose.waitUntil(timeoutMillis = 5_000) {
-                compose.onAllNodesWithContentDescription("Calendar").fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodesWithContentDescription(calendarLabel).fetchSemanticsNodes().isNotEmpty()
             }
-            compose.onNodeWithContentDescription("Calendar").assertExists()
+            compose.onNodeWithContentDescription(calendarLabel).assertExists()
         }
     }
 
@@ -122,9 +126,9 @@ class MainActivityTest {
         givenOnboardingCompleted(false)
 
         launch().let {
-            compose.waitUntil(timeoutMillis = 5_000) { compose.onAllNodesWithText("Пропустить").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Пропустить").assertExists()
-            compose.onNodeWithContentDescription("Calendar").assertDoesNotExist()
+            compose.waitUntil(timeoutMillis = 5_000) { compose.onAllNodesWithText(skip).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(skip).assertExists()
+            compose.onNodeWithContentDescription(calendarLabel).assertDoesNotExist()
         }
     }
 
@@ -195,7 +199,7 @@ class MainActivityTest {
         givenOnboardingCompleted(false)
 
         launch(openToday()).let {
-            compose.waitUntil(timeoutMillis = 5_000) { compose.onAllNodesWithText("Пропустить").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(timeoutMillis = 5_000) { compose.onAllNodesWithText(skip).fetchSemanticsNodes().isNotEmpty() }
             // The activity asks the ViewModel; the ViewModel drops it before the app is set up
             verifyReminderTaps(0)
         }

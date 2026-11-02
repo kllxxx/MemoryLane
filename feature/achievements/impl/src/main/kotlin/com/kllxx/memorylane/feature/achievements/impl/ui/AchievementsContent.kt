@@ -183,9 +183,9 @@ private fun FreedSpaceCard(size: FormattedSize, modifier: Modifier = Modifier) {
                 Text(
                     text = stringResource(
                         when (size.unit) {
-                            SizeUnit.KB -> R.string.achievements_unit_kb
-                            SizeUnit.MB -> R.string.achievements_unit_mb
-                            SizeUnit.GB -> R.string.achievements_unit_gb
+                            SizeUnit.KB -> UiR.string.common_unit_kb
+                            SizeUnit.MB -> UiR.string.common_unit_mb
+                            SizeUnit.GB -> UiR.string.common_unit_gb
                         },
                     ),
                     color = MaterialTheme.colorScheme.primary,
@@ -241,7 +241,7 @@ private fun AchievementsError(
         modifier = modifier.testTag(ERROR_STATE_TAG),
         action = {
             PrimaryButton(
-                text = stringResource(R.string.achievements_error_retry),
+                text = stringResource(UiR.string.common_retry),
                 onClick = { onIntent(AchievementsIntent.Retry) },
                 modifier = Modifier.testTag(RETRY_TAG),
             )

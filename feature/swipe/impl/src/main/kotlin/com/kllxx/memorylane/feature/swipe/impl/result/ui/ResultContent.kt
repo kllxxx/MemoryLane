@@ -79,7 +79,7 @@ fun ResultContent(
             Spacer(Modifier.height(16.dp))
         }
         ReviewButton(
-            text = stringResource(R.string.result_done),
+            text = stringResource(UiR.string.common_done),
             containerColor = colors.primary,
             contentColor = colors.onPrimary,
             onClick = { onIntent(ResultIntent.Done) },

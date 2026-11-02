@@ -1,30 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="achievements_title">Достижения</string>
+    <string name="achievements_title">Achievements</string>
 
-    <string name="achievements_section_streak">Стрик</string>
-    <string name="achievements_current">Текущий</string>
-    <string name="achievements_best">Лучший</string>
+    <string name="achievements_section_streak">Streak</string>
+    <string name="achievements_current">Current</string>
+    <string name="achievements_best">Best</string>
     <plurals name="achievements_streak_unit">
-        <item quantity="one">день</item>
-        <item quantity="few">дня</item>
-        <item quantity="many">дней</item>
-        <item quantity="other">дня</item>
+        <item quantity="one">day</item>
+        <item quantity="other">days</item>
     </plurals>
 
-    <string name="achievements_section_stats">Статистика</string>
-    <string name="achievements_freed_label">Освобождено места</string>
-    <string name="achievements_freed_caption">за всё время</string>
-    <string name="achievements_unit_kb">КБ</string>
-    <string name="achievements_unit_mb">МБ</string>
-    <string name="achievements_unit_gb">ГБ</string>
-    <string name="achievements_viewed">Просмотрено фото</string>
-    <string name="achievements_deleted">Удалено фото</string>
+    <string name="achievements_section_stats">Stats</string>
+    <string name="achievements_freed_label">Space freed</string>
+    <string name="achievements_freed_caption">all time</string>
+    <string name="achievements_viewed">Photos viewed</string>
+    <string name="achievements_deleted">Photos deleted</string>
 
-    <string name="achievements_empty_title">Здесь появится твоя статистика</string>
-    <string name="achievements_empty_body">Разбери первый день в календаре — и здесь появятся стрик, просмотренные фото и освобождённое место.</string>
-    <string name="achievements_empty_button">Перейти в календарь</string>
+    <string name="achievements_empty_title">Your stats will show up here</string>
+    <string name="achievements_empty_body">Sort your first day in the calendar — and your streak, viewed photos and freed space will appear here.</string>
+    <string name="achievements_empty_button">Go to calendar</string>
 
-    <string name="achievements_error_title">Не удалось загрузить статистику</string>
-    <string name="achievements_error_retry">Повторить</string>
+    <string name="achievements_error_title">Couldn\'t load stats</string>
 </resources>

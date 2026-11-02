@@ -263,11 +263,11 @@ private fun ErrorBanner(error: CalendarError, onRetry: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            text = stringResource(R.string.calendar_error_text),
+            text = stringResource(UiR.string.common_photos_load_error),
             color = MaterialTheme.colorScheme.error,
             fontSize = 13.sp,
         )
-        TextButton(onClick = onRetry) { Text(stringResource(R.string.calendar_error_retry)) }
+        TextButton(onClick = onRetry) { Text(stringResource(UiR.string.common_retry)) }
     }
 }
 

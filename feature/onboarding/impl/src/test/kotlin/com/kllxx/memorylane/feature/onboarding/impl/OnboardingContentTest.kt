@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.onboarding.impl
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +48,7 @@ class OnboardingContentTest {
     @Test
     fun `first slide has no back button and a next button`() {
         show(page = 0)
-        composeRule.onNodeWithContentDescription(string(R.string.onboarding_back)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(string(UiR.string.common_back)).assertDoesNotExist()
         composeRule.onNodeWithText(string(R.string.onboarding_skip)).assertExists()
         composeRule.onNodeWithText(string(R.string.onboarding_next)).performClick()
         assertEquals(listOf<OnboardingIntent>(OnboardingIntent.NextPage), intents)
@@ -56,7 +57,7 @@ class OnboardingContentTest {
     @Test
     fun `second slide shows back and next`() {
         show(page = 1)
-        composeRule.onNodeWithContentDescription(string(R.string.onboarding_back)).performClick()
+        composeRule.onNodeWithContentDescription(string(UiR.string.common_back)).performClick()
         composeRule.onNodeWithText(string(R.string.onboarding_next)).performClick()
         assertEquals(listOf(OnboardingIntent.PreviousPage, OnboardingIntent.NextPage), intents)
     }

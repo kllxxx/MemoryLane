@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.calendar.impl
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import android.net.Uri
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.test.assertCountEquals
@@ -31,9 +32,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "en")
 class CalendarContentTest {
 
     @get:Rule
@@ -114,7 +117,7 @@ class CalendarContentTest {
     fun `without permission a prompt replaces the grid`() {
         show(baseState().copy(hasPermission = false))
         composeRule.onNodeWithTag(WEEKDAY_HEADER_TAG).assertDoesNotExist()
-        composeRule.onNodeWithText("Нужен доступ ко всем фото").assertExists()
+        composeRule.onNodeWithText(string(R.string.calendar_permission_text)).assertExists()
         composeRule.onNodeWithText(string(R.string.calendar_permission_button)).performClick()
         assertEquals(listOf<CalendarIntent>(CalendarIntent.RequestPermission), intents)
     }
@@ -122,7 +125,7 @@ class CalendarContentTest {
     @Test
     fun `a load error offers a retry`() {
         show(baseState().copy(error = CalendarError.LoadFailed))
-        composeRule.onNodeWithText(string(R.string.calendar_error_retry)).performClick()
+        composeRule.onNodeWithText(string(UiR.string.common_retry)).performClick()
         assertEquals(listOf<CalendarIntent>(CalendarIntent.LoadDays), intents)
     }
 
@@ -150,18 +153,18 @@ class CalendarContentTest {
     fun `an empty gallery with photos that have no date says there are none from earlier years`() {
         show(baseState().copy(phase = CalendarPhase.Empty, undatedBanner = UndatedBanner(3)))
 
-        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title_undated)).assertIsDisplayed()
         composeRule.onNodeWithText(string(R.string.calendar_empty_body)).assertIsDisplayed()
-        composeRule.onNodeWithText("Пока нет фото", substring = false).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title), substring = false).assertDoesNotExist()
         composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertIsDisplayed()
     }
 
     @Test
-    fun `an empty gallery with no photos at all keeps Пока нет фото and has no banner`() {
+    fun `an empty gallery with no photos at all keeps the plain empty title and has no banner`() {
         show(baseState().copy(phase = CalendarPhase.Empty, undatedBanner = null))
 
-        composeRule.onNodeWithText("Пока нет фото").assertIsDisplayed()
-        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title_undated)).assertDoesNotExist()
         composeRule.onNodeWithTag(UNDATED_BANNER_TAG).assertDoesNotExist()
     }
 
@@ -169,8 +172,8 @@ class CalendarContentTest {
     fun `a gallery with photos from earlier years never says there are none`() {
         show(baseState().copy(undatedBanner = UndatedBanner(3)))
 
-        composeRule.onNodeWithText("Пока нет фото из прошлых лет").assertDoesNotExist()
-        composeRule.onNodeWithText("Пока нет фото").assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title_undated)).assertDoesNotExist()
+        composeRule.onNodeWithText(string(R.string.calendar_empty_title)).assertDoesNotExist()
     }
     @Test
     fun `a list started on the current month shows it and not January`() {

@@ -1,24 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="calendar_title">Календарь</string>
+    <string name="calendar_title">Calendar</string>
     <plurals name="calendar_streak_days">
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
     </plurals>
-    <string name="calendar_streak_icon">Стрик</string>
-    <string name="calendar_empty_day">Нет фото</string>
-    <string name="calendar_photo_count">Фото: %d</string>
-    <string name="calendar_permission_text">Нужен доступ ко всем фото</string>
-    <string name="calendar_permission_button">Разрешить доступ</string>
-    <string name="calendar_error_text">Не удалось загрузить фото</string>
-    <string name="calendar_error_retry">Повторить</string>
-    <string name="calendar_empty_title">Пока нет фото</string>
-    <string name="calendar_empty_title_undated">Пока нет фото из прошлых лет</string>
-    <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
-    <string name="calendar_today_title">Сегодняшние фото</string>
-    <string name="calendar_undated_title">Фото без даты</string>
+    <string name="calendar_streak_icon">Streak</string>
+    <string name="calendar_empty_day">No photos</string>
+    <string name="calendar_photo_count">Photos: %d</string>
+    <string name="calendar_permission_text">Access to all photos is required</string>
+    <string name="calendar_permission_button">Allow access</string>
+    <string name="calendar_empty_title">No photos yet</string>
+    <string name="calendar_empty_title_undated">No photos from past years yet</string>
+    <string name="calendar_empty_body">Capture moments — in a year they will come back here as memories.</string>
+    <string name="calendar_today_title">Today\'s photos</string>
+    <string name="calendar_undated_title">Undated photos</string>
     <plurals name="calendar_today_photos">
-        <item quantity="one">%d фото</item>
-        <item quantity="other">%d фото</item>
+        <item quantity="one">%d photo</item>
+        <item quantity="other">%d photos</item>
     </plurals>
 </resources>

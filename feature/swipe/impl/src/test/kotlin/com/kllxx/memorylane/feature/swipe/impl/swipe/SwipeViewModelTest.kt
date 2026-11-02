@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
@@ -278,7 +279,7 @@ class SwipeViewModelTest {
             expectNoEvents()
         }
         assertFalse(state.isLoading)
-        assertEquals(UiError(R.string.swipe_load_error), state.loadError)
+        assertEquals(UiError(UiR.string.common_photos_load_error), state.loadError)
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 
@@ -1186,7 +1187,7 @@ class SwipeViewModelTest {
 
             expectNoEvents()
         }
-        assertEquals(UiError(R.string.swipe_load_error), state.loadError)
+        assertEquals(UiError(UiR.string.common_photos_load_error), state.loadError)
         coVerify(exactly = 0) { swipeRepository.saveSession(any()) }
     }
 

@@ -39,7 +39,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w360dp-h780dp-xhdpi")
+@Config(qualifiers = "ru-w360dp-h780dp-xhdpi")
 class SwipeContentTest {
 
     @get:Rule

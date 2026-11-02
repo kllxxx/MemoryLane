@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
@@ -117,7 +118,7 @@ class SwipeViewModel @Inject constructor(
     /** From init, and again for every retry: the saved index and undo stack are only written once a load has succeeded. */
     private fun loadPhotos() {
         // A failed load is not an empty day, so no session is recorded for it and the screen offers a retry
-        launchSafe("load the photos for $deckKey", onError = { reduce(SwipeEvent.LoadFailed(UiError(R.string.swipe_load_error))) }) {
+        launchSafe("load the photos for $deckKey", onError = { reduce(SwipeEvent.LoadFailed(UiError(UiR.string.common_photos_load_error))) }) {
             val event = try {
                 readDeck()
             } catch (e: PermissionDeniedException) {

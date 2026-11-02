@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.common
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -33,7 +34,7 @@ internal fun LoadError(error: UiError, onRetry: () -> Unit, modifier: Modifier =
             textAlign = TextAlign.Center,
         )
         PrimaryButton(
-            text = stringResource(R.string.load_error_retry),
+            text = stringResource(UiR.string.common_retry),
             onClick = onRetry,
             modifier = Modifier.testTag(LOAD_ERROR_RETRY_TAG),
         )

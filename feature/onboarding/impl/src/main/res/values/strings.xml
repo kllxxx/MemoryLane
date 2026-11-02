@@ -1,40 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="onboarding_skip">Пропустить</string>
-    <string name="onboarding_back">Назад</string>
-    <string name="onboarding_next">Далее →</string>
-    <string name="onboarding_allow">Разрешить →</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next →</string>
+    <string name="onboarding_allow">Allow →</string>
 
-    <string name="onboarding_slide1_title">Сохраняем важное</string>
-    <string name="onboarding_slide1_subtitle">Показываем фото за этот день из предыдущих лет.</string>
-    <string name="onboarding_slide1_caption">18 окт · Сегодня</string>
+    <string name="onboarding_slide1_title">Keep what matters</string>
+    <string name="onboarding_slide1_subtitle">We show you photos from this day in previous years.</string>
+    <string name="onboarding_slide1_caption">Oct 18 · Today</string>
 
-    <string name="onboarding_slide2_title">Как разобрать фото?</string>
-    <string name="onboarding_slide2_subtitle">Смахни вправо, чтобы оставить фото, влево — чтобы удалить.</string>
-    <string name="onboarding_slide2_caption">Июль 2022 · 14:32</string>
-    <string name="onboarding_slide2_delete">УДАЛИТЬ</string>
-    <string name="onboarding_slide2_keep">СОХРАНИТЬ</string>
-    <string name="onboarding_slide2_row_streak">Разбери все фото за день</string>
-    <string name="onboarding_slide2_row_request">Подтверди удаление фото, чтобы начать стрик</string>
+    <string name="onboarding_slide2_title">How do you sort photos?</string>
+    <string name="onboarding_slide2_subtitle">Swipe right to keep a photo, left to delete it.</string>
+    <string name="onboarding_slide2_caption">July 2022 · 14:32</string>
+    <string name="onboarding_slide2_delete">DELETE</string>
+    <string name="onboarding_slide2_keep">KEEP</string>
+    <string name="onboarding_slide2_row_streak">Sort all the photos of the day</string>
+    <string name="onboarding_slide2_row_request">Confirm the deletion to start a streak</string>
 
-    <string name="onboarding_slide3_title">Доступ к галерее</string>
-    <string name="onboarding_slide3_subtitle">Приложению нужен доступ к твоим фото. Разреши, чтобы пользоваться приложением.</string>
-    <string name="onboarding_slide3_row_access">Просмотр и удаление фото из галереи</string>
-    <string name="onboarding_slide3_row_local">Фото хранятся только локально и не уходят в сеть</string>
+    <string name="onboarding_slide3_title">Gallery access</string>
+    <string name="onboarding_slide3_subtitle">The app needs access to your photos. Allow it to start using the app.</string>
+    <string name="onboarding_slide3_row_access">View and delete photos from your gallery</string>
+    <string name="onboarding_slide3_row_local">Photos stay on your device and never go online</string>
 
-    <string name="onboarding_slide4_title">Напоминания</string>
-    <string name="onboarding_slide4_subtitle">Раз в день пришлём уведомление, чтобы не терять стрик. Выключить можно в настройках.</string>
-    <string name="onboarding_notification_app">MemoryLane</string>
-    <string name="onboarding_notification_app_now">MemoryLane · сейчас</string>
-    <string name="onboarding_notification_unsorted">17 июня — посмотри, что было в этот день!</string>
-    <string name="onboarding_notification_unsorted_time">Позавчера</string>
-    <string name="onboarding_notification_waiting">18 июня — 7 воспоминаний ждут тебя!</string>
-    <string name="onboarding_notification_waiting_time">Вчера</string>
-    <string name="onboarding_notification_streak">🔥 Стрик 7 дней! Не пропусти сегодня</string>
-    <string name="onboarding_notification_streak_time">сейчас</string>
+    <string name="onboarding_slide4_title">Reminders</string>
+    <string name="onboarding_slide4_subtitle">We\'ll send one notification a day so you don\'t lose your streak. You can turn it off in settings.</string>
+    <string name="onboarding_notification_app" translatable="false">MemoryLane</string>
+    <string name="onboarding_notification_app_now">MemoryLane · now</string>
+    <string name="onboarding_notification_unsorted">June 17 — see what happened on this day!</string>
+    <string name="onboarding_notification_unsorted_time">2 days ago</string>
+    <string name="onboarding_notification_waiting">June 18 — 7 memories are waiting for you!</string>
+    <string name="onboarding_notification_waiting_time">Yesterday</string>
+    <string name="onboarding_notification_streak">🔥 7-day streak! Don\'t miss today</string>
+    <string name="onboarding_notification_streak_time">now</string>
 
-    <string name="onboarding_rationale_title">Доступ к фото</string>
-    <string name="onboarding_rationale_text">Без доступа к галерее приложение не будет работать. Дай доступ сейчас и попробуй приложение. Если не понравится, отозвать разрешение можно в настройках.</string>
-    <string name="onboarding_rationale_settings">Открыть настройки</string>
-    <string name="onboarding_rationale_continue">Продолжить без доступа</string>
+    <string name="onboarding_rationale_title">Photo access</string>
+    <string name="onboarding_rationale_text">The app won\'t work without access to your gallery. Allow it now and try the app. If you don\'t like it, you can revoke the permission in settings.</string>
+    <string name="onboarding_rationale_settings">Open settings</string>
+    <string name="onboarding_rationale_continue">Continue without access</string>
 </resources>

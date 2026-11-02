@@ -104,7 +104,7 @@ private fun TopBar(onBack: () -> Unit) {
         IconButton(onClick = onBack, modifier = Modifier.testTag(BeforeDeleteTags.BACK)) {
             Icon(
                 painter = painterResource(UiR.drawable.ic_arrow_back),
-                contentDescription = stringResource(R.string.before_delete_back),
+                contentDescription = stringResource(UiR.string.common_back),
                 modifier = Modifier.size(24.dp),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
@@ -234,7 +234,7 @@ private fun DeleteActionButton(state: BeforeDeleteState, onIntent: (BeforeDelete
     val content: Color
     when (val button = state.toButton()) {
         DeleteButton.Done -> {
-            text = stringResource(R.string.before_delete_done)
+            text = stringResource(UiR.string.common_done)
             container = colors.primary
             content = colors.onPrimary
         }
@@ -280,7 +280,7 @@ private fun PermanentDeleteDialog(state: BeforeDeleteState, onIntent: (BeforeDel
                 onClick = { onIntent(BeforeDeleteIntent.PermanentDeleteDismissed) },
                 modifier = Modifier.testTag(BeforeDeleteTags.DIALOG_DISMISS),
             ) {
-                Text(stringResource(R.string.before_delete_dialog_dismiss))
+                Text(stringResource(UiR.string.common_cancel))
             }
         },
     )

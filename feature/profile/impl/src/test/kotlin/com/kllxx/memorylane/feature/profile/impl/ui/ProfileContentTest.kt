@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.feature.profile.impl.R
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,10 +33,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 /** Renders the screen content with a state that follows the intents, as the ViewModel would. */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "ru")
 class ProfileContentTest {
+    private fun string(id: Int) = RuntimeEnvironment.getApplication().getString(id)
+
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -194,9 +200,8 @@ class ProfileContentTest {
     fun `the review section sits between notifications and appearance with its texts`() {
         setContent(ProfileState.Content())
 
-        composeRule.onNodeWithText("РАЗБОР ФОТО").performScrollTo().assertExists()
-        composeRule.onNodeWithText("Кнопки на экране свайпа").assertExists()
-        composeRule.onNodeWithText("Показывать ✕ и ✓ на фото вместо одних свайпов").assertExists()
+        composeRule.onNodeWithText(string(R.string.profile_section_review).uppercase()).performScrollTo().assertExists()
+        composeRule.onNodeWithText(string(R.string.profile_buttons_mode_title)).assertExists()
         val notifications = composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).getUnclippedBoundsInRoot().bottom
         val review = composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).getUnclippedBoundsInRoot().top
         val appearance = composeRule.onNodeWithTag(themeSegmentTag(ThemeMode.Dark)).getUnclippedBoundsInRoot().top

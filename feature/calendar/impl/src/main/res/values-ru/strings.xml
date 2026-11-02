@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="calendar_title">Календарь</string>
     <plurals name="calendar_streak_days">
         <item quantity="one">%d день</item>
         <item quantity="few">%d дня</item>
         <item quantity="many">%d дней</item>
         <item quantity="other">%d дня</item>
     </plurals>
+    <string name="calendar_streak_icon">Стрик</string>
+    <string name="calendar_empty_day">Нет фото</string>
+    <string name="calendar_photo_count">Фото: %d</string>
+    <string name="calendar_permission_text">Нужен доступ ко всем фото</string>
+    <string name="calendar_permission_button">Разрешить доступ</string>
     <string name="calendar_empty_title">Пока нет фото</string>
     <string name="calendar_empty_title_undated">Пока нет фото из прошлых лет</string>
     <string name="calendar_empty_body">Снимай моменты — через год они вернутся сюда воспоминаниями.</string>
+    <string name="calendar_today_title">Сегодняшние фото</string>
+    <string name="calendar_undated_title">Фото без даты</string>
     <plurals name="calendar_today_photos">
         <item quantity="one">%d фото</item>
         <item quantity="few">%d фото</item>

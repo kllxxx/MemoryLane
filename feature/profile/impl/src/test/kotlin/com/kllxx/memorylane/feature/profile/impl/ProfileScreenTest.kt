@@ -27,11 +27,13 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 
 /** The stateful [ProfileScreen] with a fake ViewModel and a registry that answers the permission launchers. */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "ru")
 class ProfileScreenTest {
 
     @get:Rule

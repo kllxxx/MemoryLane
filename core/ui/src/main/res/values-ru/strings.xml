@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_cancel">Отмена</string>
+    <string name="common_done">Готово</string>
+    <string name="common_retry">Повторить</string>
+    <string name="common_back">Назад</string>
+    <string name="common_photos_load_error">Не удалось загрузить фото</string>
+    <string name="common_unit_kb">КБ</string>
+    <string name="common_unit_mb">МБ</string>
+    <string name="common_unit_gb">ГБ</string>
+</resources>

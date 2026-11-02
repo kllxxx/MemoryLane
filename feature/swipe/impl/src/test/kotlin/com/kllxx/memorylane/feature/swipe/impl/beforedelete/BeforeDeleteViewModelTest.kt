@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.beforedelete
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import android.content.IntentSender
 import android.net.Uri
@@ -1024,7 +1025,7 @@ class BeforeDeleteViewModelTest {
             expectNoEvents()
         }
         assertFalse(state.isLoading)
-        assertEquals(UiError(R.string.before_delete_load_error), state.loadError)
+        assertEquals(UiError(UiR.string.common_photos_load_error), state.loadError)
         verify(exactly = 1) { errorHandler.handle(any<IllegalStateException>(), "load the marked photos") }
     }
 

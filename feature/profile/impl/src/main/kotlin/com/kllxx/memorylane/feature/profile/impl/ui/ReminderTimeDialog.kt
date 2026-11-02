@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
+import com.kllxx.memorylane.core.ui.R as UiR
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,10 +60,10 @@ internal fun ReminderTimeDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text(stringResource(R.string.profile_time_picker_cancel))
+                        Text(stringResource(UiR.string.common_cancel))
                     }
                     TextButton(onClick = { onConfirm(LocalTime.of(pickerState.hour, pickerState.minute)) }) {
-                        Text(stringResource(R.string.profile_time_picker_confirm))
+                        Text(stringResource(UiR.string.common_done))
                     }
                 }
             }
