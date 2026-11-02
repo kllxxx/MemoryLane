@@ -13,7 +13,7 @@
     <string name="swipe_button_keep">Keep photo</string>
     <string name="swipe_action_undo">Undo</string>
     <string name="swipe_action_share">Share</string>
-    <string name="swipe_action_gallery">Open in gallery</string>
+    <string name="swipe_action_gallery">In gallery</string>
     <string name="swipe_action_buttons">Buttons</string>
     <string name="swipe_action_undo_description">Undo the last decision</string>
     <string name="swipe_action_share_description">Share photo</string>

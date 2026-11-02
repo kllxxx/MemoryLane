@@ -8,7 +8,7 @@
     <string name="onboarding_slide1_subtitle">We show you photos from this day in previous years.</string>
     <string name="onboarding_slide1_caption">Oct 18 · Today</string>
 
-    <string name="onboarding_slide2_title">How do you sort photos?</string>
+    <string name="onboarding_slide2_title">How does it work?</string>
     <string name="onboarding_slide2_subtitle">Swipe right to keep a photo, left to delete it.</string>
     <string name="onboarding_slide2_caption">July 2022 · 14:32</string>
     <string name="onboarding_slide2_delete">DELETE</string>

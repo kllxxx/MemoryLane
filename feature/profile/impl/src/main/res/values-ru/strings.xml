@@ -27,7 +27,7 @@
     <string name="profile_reminder_time_dialog_title">Время напоминания</string>
 
     <string name="profile_section_review">Разбор фото</string>
-    <string name="profile_buttons_mode_title">Использовать кнопки вместо свайпов</string>
+    <string name="profile_buttons_mode_title">Использовать кнопки вместо жестов</string>
 
     <string name="profile_section_permissions">Разрешения</string>
     <string name="profile_permission_photos">Доступ к фото</string>
