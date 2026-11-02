@@ -37,7 +37,7 @@ All processing is local — no network, no cloud, no uploads.
 :feature:achievements:api  — achievements route
 :feature:achievements:impl — streak, freed space stats, MVI
 :feature:profile:api       — profile route
-:feature:profile:impl      — theme, notifications, streak goal settings, MVI
+:feature:profile:impl      — theme, language, notifications, streak goal settings, MVI
 :core:photos:domain         — repository interfaces, photo domain models, use cases over photos and decisions (PhotosToReview, CompleteDay, ResolveDeckEnd, RequestDeletion, FinishDeletion), DeleteCapabilities; depends on :core:domain
 :core:photos:data           — MediaStore access, reading and deleting photos
 :core:ui                    — shared Compose components, theme, the shared words (Cancel, Done, Retry, Back, units; `common_*` strings) (the swipe drag overlay is in :feature:swipe:impl)
@@ -126,8 +126,8 @@ Each prefix has its own independent counter:
 - chore, test, docs — no ticket number
 
 Current counters (update as you go):
-- feat: last used MMLN-32
-- fix: last used MMLN-41
+- feat: last used MMLN-33
+- fix: last used MMLN-42
 - refactor: last used MMLN-32
 
 **Commit format (Conventional Commits):**

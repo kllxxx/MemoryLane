@@ -1,22 +1,22 @@
 package com.kllxx.memorylane.feature.profile.impl.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.kllxx.memorylane.core.domain.language.AppLanguage
 import com.kllxx.memorylane.core.ui.component.RowsCard
-import com.kllxx.memorylane.core.ui.component.SettingsRow
 import com.kllxx.memorylane.feature.profile.impl.ProfileIntent
 import com.kllxx.memorylane.feature.profile.impl.ProfileState
 import com.kllxx.memorylane.feature.profile.impl.R
 
 internal fun languageSegmentTag(language: AppLanguage) = "language-segment-${language.name}"
 
-/** The language of the app, the same segmented control as the theme. */
+/** The language of the app under its own header, the same segmented control as the theme. */
 @Composable
 internal fun LanguageCard(
     state: ProfileState.Content,
@@ -25,10 +25,7 @@ internal fun LanguageCard(
 ) {
     RowsCard(modifier) {
         Column {
-            SettingsRow(
-                icon = Icons.Filled.Language,
-                title = stringResource(R.string.profile_language_title),
-            )
+            Spacer(Modifier.height(16.dp))
             SegmentedRow {
                 AppLanguage.entries.forEach { language ->
                     Segment(

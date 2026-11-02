@@ -40,7 +40,7 @@ class ProfileContentLanguagesTest {
 
         composeRule.onNodeWithText("Profile").assertIsDisplayed()
         composeRule.onNodeWithText("APPEARANCE").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Language").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("LANGUAGE").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("PERMISSIONS").assertExists()
     }
 
@@ -51,7 +51,7 @@ class ProfileContentLanguagesTest {
 
         composeRule.onNodeWithText("Профиль").assertIsDisplayed()
         composeRule.onNodeWithText("ОФОРМЛЕНИЕ").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Язык").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("ЯЗЫК").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("РАЗРЕШЕНИЯ").assertExists()
     }
 }

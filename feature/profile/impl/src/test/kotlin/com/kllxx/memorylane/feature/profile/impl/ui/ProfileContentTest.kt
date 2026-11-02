@@ -13,6 +13,12 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import com.kllxx.memorylane.core.ui.component.SETTINGS_ROW_ICON_TAG
+import kotlin.math.abs
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -197,15 +203,37 @@ class ProfileContentTest {
     }
 
     @Test
-    fun `the review section sits between notifications and appearance with its texts`() {
+    fun `the sections follow one another in the agreed order`() {
         setContent(ProfileState.Content())
 
-        composeRule.onNodeWithText(string(R.string.profile_section_review).uppercase()).performScrollTo().assertExists()
+        val headers = listOf(
+            R.string.profile_section_streak,
+            R.string.profile_section_review,
+            R.string.profile_section_notifications,
+            R.string.profile_section_permissions,
+            R.string.profile_section_appearance,
+            R.string.profile_section_language,
+            R.string.profile_section_about,
+        ).map { composeRule.onNodeWithText(string(it).uppercase()).getUnclippedBoundsInRoot().top }
+
+        assertEquals(headers.sorted(), headers)
+        assertEquals(headers.size, headers.toSet().size)
+    }
+
+    @Test
+    fun `the review row has the title alone, centred between the icon and the switch`() {
+        setContent(ProfileState.Content())
+
         composeRule.onNodeWithText(string(R.string.profile_buttons_mode_title)).assertExists()
-        val notifications = composeRule.onNodeWithTag(REMINDER_TIME_ROW_TAG).getUnclippedBoundsInRoot().bottom
-        val review = composeRule.onNodeWithTag(BUTTONS_MODE_ROW_TAG).getUnclippedBoundsInRoot().top
-        val appearance = composeRule.onNodeWithTag(themeSegmentTag(ThemeMode.Dark)).getUnclippedBoundsInRoot().top
-        assertTrue(notifications < review && review < appearance)
+        val inRow = hasAnyAncestor(hasTestTag(BUTTONS_MODE_ROW_TAG))
+        fun centre(node: androidx.compose.ui.test.SemanticsNodeInteraction) =
+            node.getBoundsInRoot().let { (it.top + it.bottom) / 2 }
+        val title = centre(composeRule.onNode(hasText(string(R.string.profile_buttons_mode_title)) and inRow, useUnmergedTree = true))
+        val icon = centre(composeRule.onNode(hasTestTag(SETTINGS_ROW_ICON_TAG) and inRow, useUnmergedTree = true))
+        val switch = centre(composeRule.onNode(hasTestTag(BUTTONS_MODE_SWITCH_TAG), useUnmergedTree = true))
+
+        assertTrue("title , icon ", abs((title - icon).value) <= 0.5f)
+        assertTrue("title , switch ", abs((title - switch).value) <= 0.5f)
     }
 
     @Test

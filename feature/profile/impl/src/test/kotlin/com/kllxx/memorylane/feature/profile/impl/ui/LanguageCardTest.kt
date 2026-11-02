@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The language row of «Оформление»: three segments, the chosen one selected, a tap sends the intent. */
+/** The language card under its own header: three segments, the chosen one selected, a tap sends the intent. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "en")
 class LanguageCardTest {
@@ -61,7 +61,6 @@ class LanguageCardTest {
     fun `the two languages are named in their own language, the system one in the language of the screen`() {
         show(AppLanguage.System)
 
-        composeRule.onNodeWithText("Language").assertExists()
         composeRule.onNodeWithText("System").assertExists()
         composeRule.onNodeWithText("Русский").assertExists()
         composeRule.onNodeWithText("English").assertExists()
@@ -72,7 +71,6 @@ class LanguageCardTest {
     fun `on a Russian screen the title and the system segment are Russian, the names of the languages stay`() {
         show(AppLanguage.System)
 
-        composeRule.onNodeWithText("Язык").assertExists()
         composeRule.onNodeWithText("Системный").assertExists()
         composeRule.onNodeWithText("Русский").assertExists()
         composeRule.onNodeWithText("English").assertExists()

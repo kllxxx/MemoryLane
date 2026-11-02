@@ -23,8 +23,7 @@
     <string name="profile_reminder_time_dialog_title">Reminder time</string>
 
     <string name="profile_section_review">Photo sorting</string>
-    <string name="profile_buttons_mode_title">Use ✕ and ✓\nbuttons instead of gestures</string>
-    <string name="profile_buttons_mode_subtitle"></string>
+    <string name="profile_buttons_mode_title">Use buttons instead of swipes</string>
 
     <string name="profile_section_permissions">Permissions</string>
     <string name="profile_permission_photos">Photo access</string>
@@ -43,7 +42,7 @@
     <string name="profile_theme_light">Light</string>
     <string name="profile_theme_dark">Dark</string>
 
-    <string name="profile_language_title">Language</string>
+    <string name="profile_section_language">Language</string>
     <string name="profile_language_system">System</string>
     <string name="profile_language_russian" translatable="false">Русский</string>
     <string name="profile_language_english" translatable="false">English</string>
