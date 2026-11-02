@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import com.kllxx.memorylane.core.domain.language.AppLanguage
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.permission.AppPermission
@@ -22,6 +23,8 @@ sealed interface ProfileState {
         val permissionRequested: Boolean = false,
         val reminderTime: LocalTime = LocalTime.of(20, 0),
         val themeMode: ThemeMode = ThemeMode.Dark,
+        /** The language of the app, kept by the platform and not by the settings. */
+        val language: AppLanguage = AppLanguage.System,
         /** The ✕ and ✓ buttons on the Swipe screen; the setting the Swipe screen shows as its «Кнопки» action. */
         val swipeButtonsEnabled: Boolean = false,
         val versionName: String = "",

@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import com.kllxx.memorylane.core.domain.language.AppLanguage
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.permission.AppPermission
@@ -27,6 +28,10 @@ sealed interface ProfileIntent {
     data object DismissTimePicker : ProfileIntent
     data class ConfirmTime(val time: LocalTime) : ProfileIntent
     data class SelectTheme(val mode: ThemeMode) : ProfileIntent
+    data class SelectLanguage(val language: AppLanguage) : ProfileIntent
+
+    /** Sent when the language of the screen changes: it may have been changed in the system settings. */
+    data object LanguageChecked : ProfileIntent
     data class SwipeButtonsToggled(val on: Boolean) : ProfileIntent
     data object ReplayOnboardingClicked : ProfileIntent
     data object ContactSupportClicked : ProfileIntent

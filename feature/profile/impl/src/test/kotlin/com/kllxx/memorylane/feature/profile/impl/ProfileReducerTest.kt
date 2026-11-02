@@ -1,6 +1,7 @@
 package com.kllxx.memorylane.feature.profile.impl
 
 import com.kllxx.memorylane.core.domain.model.AppSettings
+import com.kllxx.memorylane.core.domain.language.AppLanguage
 import com.kllxx.memorylane.core.domain.model.StreakGoal
 import com.kllxx.memorylane.core.domain.model.ThemeMode
 import com.kllxx.memorylane.core.domain.permission.AppPermission
@@ -43,6 +44,15 @@ class ProfileReducerTest {
             initial.copy(themeMode = ThemeMode.System),
             ProfileReducer.reduce(initial, ProfileIntent.SelectTheme(ThemeMode.System)),
         )
+    }
+
+    @Test
+    fun `SelectLanguage changes only the language`() {
+        assertEquals(
+            initial.copy(language = AppLanguage.Russian),
+            ProfileReducer.reduce(initial, ProfileIntent.SelectLanguage(AppLanguage.Russian)),
+        )
+        assertEquals(initial, ProfileReducer.reduce(initial, ProfileIntent.LanguageChecked))
     }
 
     @Test

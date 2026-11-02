@@ -8,6 +8,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import com.kllxx.memorylane.MainActivity
+import com.kllxx.memorylane.core.domain.language.AppLanguage
+import com.kllxx.memorylane.core.domain.language.AppLanguageController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -26,7 +28,16 @@ class ReminderNotifierTest {
 
     private val context: Context = RuntimeEnvironment.getApplication()
     private val manager: NotificationManager get() = context.getSystemService(NotificationManager::class.java)
-    private val notifier = ReminderNotifier(context)
+    private val language = FakeLanguage()
+    private val notifier = ReminderNotifier(context, language)
+
+    private class FakeLanguage(var chosen: AppLanguage = AppLanguage.System) : AppLanguageController {
+        override fun current() = chosen
+
+        override fun set(language: AppLanguage) {
+            chosen = language
+        }
+    }
 
     private fun allowNotifications() {
         shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
@@ -130,6 +141,29 @@ class ReminderNotifierTest {
             assertEquals("Фото ждут разбора", posted().single().title())
             assertEquals("Сегодня $count фото из прошлых лет", posted().single().text())
         }
+    }
+
+    @Test
+    fun `the language chosen in the app wins over the language of the system`() {
+        allowNotifications()
+        language.chosen = AppLanguage.Russian
+
+        notifier.post(3)
+
+        assertEquals("Фото ждут разбора", posted().single().title())
+        assertEquals("Сегодня 3 фото из прошлых лет", posted().single().text())
+    }
+
+    @Test
+    @Config(qualifiers = "ru")
+    fun `English chosen in the app is used on a Russian system`() {
+        allowNotifications()
+        language.chosen = AppLanguage.English
+
+        notifier.post(3)
+
+        assertEquals("Photos are waiting", posted().single().title())
+        assertEquals("3 photos from past years today", posted().single().text())
     }
 
     @Test

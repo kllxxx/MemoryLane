@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -69,6 +70,10 @@ fun ProfileScreen(
             ),
         )
     }
+
+    // The language may be changed from the system settings too; the control follows what is in force
+    val locale = LocalConfiguration.current.locales[0]
+    LaunchedEffect(locale) { viewModel.onIntent(ProfileIntent.LanguageChecked) }
 
     val resources = LocalResources.current
     LaunchedEffect(viewModel) {

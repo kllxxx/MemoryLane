@@ -31,8 +31,11 @@ object ProfileReducer {
         is ProfileIntent.ConfirmTime -> state.copy(isTimePickerVisible = false, reminderTime = intent.time)
         is ProfileIntent.SelectGoal -> state.copy(goal = intent.goal)
         is ProfileIntent.SelectTheme -> state.copy(themeMode = intent.mode)
+        is ProfileIntent.SelectLanguage -> state.copy(language = intent.language)
         is ProfileIntent.SwipeButtonsToggled -> state.copy(swipeButtonsEnabled = intent.on)
         // Acted on by the ViewModel: asking for a permission or opening the settings changes no state
+        // The controller is asked by the ViewModel
+        ProfileIntent.LanguageChecked,
         is ProfileIntent.PermissionRowClicked,
         is ProfileIntent.PermissionsChecked,
         ProfileIntent.ReplayOnboardingClicked,
@@ -46,8 +49,10 @@ object ProfileReducer {
             systemNotificationsEnabled = event.systemNotificationsEnabled,
             versionName = event.versionName,
             permissions = event.permissions,
+            language = event.language,
         ).withSettings(event.settings)
         is ProfileEvent.SettingsLoaded -> state.ifContent { it.withSettings(event.settings) }
+        is ProfileEvent.LanguageLoaded -> state.ifContent { it.copy(language = event.language) }
         is ProfileEvent.StreakLoaded -> state.ifContent { it.copy(currentStreak = event.currentStreak) }
         // Waiting for the user to come back from the system settings
         ProfileEvent.AwaitingSystemSettings -> state.ifContent { it.copy(pendingEnable = true) }

@@ -2,7 +2,7 @@
 <resources>
 
     <!-- Vendor force-dark would otherwise recolor the splash background and the app -->
-    <style name="Base.Theme.MemoryLane" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Base.Theme.MemoryLane" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:forceDarkAllowed">false</item>
     </style>
 

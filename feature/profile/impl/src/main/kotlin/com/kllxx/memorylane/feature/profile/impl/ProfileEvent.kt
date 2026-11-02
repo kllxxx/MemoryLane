@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.profile.impl
 
+import com.kllxx.memorylane.core.domain.language.AppLanguage
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.permission.PermissionsState
 
@@ -10,10 +11,12 @@ sealed interface ProfileEvent {
         val currentStreak: Int,
         val systemNotificationsEnabled: Boolean,
         val versionName: String,
+        val language: AppLanguage = AppLanguage.System,
         val permissions: PermissionsState = PermissionsState(),
     ) : ProfileEvent
 
     data class SettingsLoaded(val settings: AppSettings) : ProfileEvent
+    data class LanguageLoaded(val language: AppLanguage) : ProfileEvent
     data class StreakLoaded(val currentStreak: Int) : ProfileEvent
     data object AwaitingSystemSettings : ProfileEvent
 

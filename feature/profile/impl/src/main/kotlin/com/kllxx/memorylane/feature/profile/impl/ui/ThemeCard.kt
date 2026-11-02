@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,18 +51,9 @@ internal fun ThemeCard(
                 title = stringResource(R.string.profile_theme_title),
                 subtitle = stringResource(R.string.profile_theme_subtitle),
             )
-            Row(
-                modifier = Modifier
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(SegmentedShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, SegmentedShape)
-                    .padding(4.dp),
-            ) {
+            SegmentedRow {
                 ThemeMode.entries.forEach { mode ->
-                    ThemeSegment(
+                    Segment(
                         label = stringResource(mode.labelRes()),
                         selected = mode == state.themeMode,
                         onClick = { onIntent(ProfileIntent.SelectTheme(mode)) },
@@ -75,6 +67,22 @@ internal fun ThemeCard(
     }
 }
 
+/** The frame of a segmented control: one row of [Segment]s, the chosen one filled. */
+@Composable
+internal fun SegmentedRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(SegmentedShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, SegmentedShape)
+            .padding(4.dp),
+        content = content,
+    )
+}
+
 private fun ThemeMode.labelRes(): Int = when (this) {
     ThemeMode.System -> R.string.profile_theme_system
     ThemeMode.Light -> R.string.profile_theme_light
@@ -82,7 +90,7 @@ private fun ThemeMode.labelRes(): Int = when (this) {
 }
 
 @Composable
-private fun ThemeSegment(
+internal fun Segment(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,

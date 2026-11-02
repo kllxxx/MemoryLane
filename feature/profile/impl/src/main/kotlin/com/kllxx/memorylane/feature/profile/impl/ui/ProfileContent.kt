@@ -72,6 +72,7 @@ internal fun ProfileContent(
                     PermissionsCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_appearance))
                     ThemeCard(state, onIntent)
+                    LanguageCard(state, onIntent)
                     SectionHeader(stringResource(R.string.profile_section_about))
                     AboutCard(state, onIntent)
                 }

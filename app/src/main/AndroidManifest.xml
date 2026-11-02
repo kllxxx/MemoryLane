@@ -38,6 +38,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Below Android 13 the per-app language is stored by AppCompat, not by the platform -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
         <receiver
             android:name=".reminder.ReminderReceiver"
             android:exported="false" />

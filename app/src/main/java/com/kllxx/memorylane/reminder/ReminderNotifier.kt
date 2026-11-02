@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -14,7 +15,9 @@ import androidx.core.app.NotificationManagerCompat
 import com.kllxx.memorylane.MainActivity
 import com.kllxx.memorylane.R
 import com.kllxx.memorylane.core.ui.R as UiR
+import com.kllxx.memorylane.core.domain.language.AppLanguageController
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Locale
 import javax.inject.Inject
 
 /** The names the reminder is told apart by. */
@@ -36,7 +39,20 @@ object ReminderConstants {
  */
 class ReminderNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val language: AppLanguageController,
 ) {
+
+    /**
+     * The texts are in the language the person chose in the app: the application context follows the system language
+     * below Android 13, so the choice is applied to a copy of it. The reminder is posted from a receiver, with no
+     * activity around.
+     */
+    private val texts: Context
+        get() {
+            val tag = language.current().tag ?: return context
+            val configuration = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(tag)) }
+            return context.createConfigurationContext(configuration)
+        }
 
     /** Whether a notification can be shown at all: the system switch and, from Android 13, the permission. */
     fun canNotify(): Boolean =
@@ -53,8 +69,8 @@ class ReminderNotifier @Inject constructor(
         ensureChannel()
         val notification = NotificationCompat.Builder(context, ReminderConstants.CHANNEL_ID)
             .setSmallIcon(UiR.drawable.ic_nav_calendar_filled)
-            .setContentTitle(context.getString(R.string.reminder_title))
-            .setContentText(context.resources.getQuantityString(R.plurals.reminder_text, photoCount, photoCount))
+            .setContentTitle(texts.getString(R.string.reminder_title))
+            .setContentText(texts.resources.getQuantityString(R.plurals.reminder_text, photoCount, photoCount))
             .setContentIntent(openTodayIntent())
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -67,13 +83,13 @@ class ReminderNotifier @Inject constructor(
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (manager.getNotificationChannel(ReminderConstants.CHANNEL_ID) != null) return
+        // Created again on every post: for a channel that exists this renews the name and the description in the language now chosen
         manager.createNotificationChannel(
             NotificationChannel(
                 ReminderConstants.CHANNEL_ID,
-                context.getString(R.string.reminder_channel_name),
+                texts.getString(R.string.reminder_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = context.getString(R.string.reminder_channel_description) },
+            ).apply { description = texts.getString(R.string.reminder_channel_description) },
         )
     }
 

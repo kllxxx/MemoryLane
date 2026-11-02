@@ -43,6 +43,11 @@
     <string name="profile_theme_light">Light</string>
     <string name="profile_theme_dark">Dark</string>
 
+    <string name="profile_language_title">Language</string>
+    <string name="profile_language_system">System</string>
+    <string name="profile_language_russian" translatable="false">Русский</string>
+    <string name="profile_language_english" translatable="false">English</string>
+
     <string name="profile_section_about">About</string>
     <string name="profile_replay_onboarding">Replay onboarding</string>
     <string name="profile_help_title">Need help?</string>

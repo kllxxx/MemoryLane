@@ -3,6 +3,8 @@ package com.kllxx.memorylane.feature.profile.impl
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.MviViewModel
 import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.core.domain.language.AppLanguage
+import com.kllxx.memorylane.core.domain.language.AppLanguageController
 import com.kllxx.memorylane.core.domain.model.AppInfo
 import com.kllxx.memorylane.core.domain.model.AppSettings
 import com.kllxx.memorylane.core.domain.notification.NotificationStatusProvider
@@ -22,6 +24,7 @@ class ProfileViewModel @Inject constructor(
     private val statsRepository: StatsRepository,
     private val notificationStatusProvider: NotificationStatusProvider,
     private val permissionsRepository: PermissionsRepository,
+    private val appLanguageController: AppLanguageController,
     appInfo: AppInfo,
     errorHandler: ErrorHandler,
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEvent, ProfileEffect>(
@@ -67,6 +70,8 @@ class ProfileViewModel @Inject constructor(
             ProfileIntent.ReplayOnboardingClicked -> sendEffect(ProfileEffect.NavigateToOnboarding)
             ProfileIntent.ContactSupportClicked ->
                 sendEffect(ProfileEffect.ContactSupport(after.versionName))
+            is ProfileIntent.SelectLanguage -> switchLanguage(intent.language)
+            ProfileIntent.LanguageChecked -> reduce(ProfileEvent.LanguageLoaded(appLanguageController.current()))
             is ProfileIntent.SystemNotificationsChecked,
             is ProfileIntent.PermissionsChecked,
             is ProfileIntent.PermissionResult,
@@ -100,6 +105,20 @@ class ProfileViewModel @Inject constructor(
             }
             else -> sendEffect(ProfileEffect.OpenAppSettings)
         }
+    }
+
+    /**
+     * The platform stores the choice and recreates the activities, so this is no setting to persist. When it cannot be
+     * applied the control goes back to what is in force.
+     */
+    private fun switchLanguage(language: AppLanguage) {
+        launchSafe(
+            what = "switch the language to $language",
+            onError = {
+                reduce(ProfileEvent.LanguageLoaded(appLanguageController.current()))
+                sendEffect(ProfileEffect.ShowError(UiError(R.string.profile_settings_error)))
+            },
+        ) { appLanguageController.set(language) }
     }
 
     /** The system blocks notifications: ask for the permission while that is possible, else send the user to the settings. */
@@ -166,6 +185,7 @@ class ProfileViewModel @Inject constructor(
                     currentStreak = streak,
                     systemNotificationsEnabled = notificationStatusProvider.areNotificationsEnabled(),
                     permissions = permissionsRepository.state.value,
+                    language = appLanguageController.current(),
                     versionName = versionName,
                 ),
             )

@@ -47,6 +47,9 @@
     <string name="profile_theme_light">Светлая</string>
     <string name="profile_theme_dark">Тёмная</string>
 
+    <string name="profile_language_title">Язык</string>
+    <string name="profile_language_system">Системный</string>
+
     <string name="profile_section_about">О приложении</string>
     <string name="profile_replay_onboarding">Пройти онбординг заново</string>
     <string name="profile_help_title">Нужна помощь?</string>
