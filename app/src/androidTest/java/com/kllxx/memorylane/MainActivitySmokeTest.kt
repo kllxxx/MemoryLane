@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -61,7 +62,8 @@ class MainActivitySmokeTest {
             compose.onAllNodesWithTag(CALENDAR_WEEKDAYS_TAG).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag(CALENDAR_WEEKDAYS_TAG).assertIsDisplayed()
-        compose.onNodeWithText(targetContext.getString(CalendarR.string.calendar_title)).assertIsDisplayed()
+        // The title and the label of the bottom bar tab read the same, so the first of them is the one checked
+        compose.onAllNodesWithText(targetContext.getString(CalendarR.string.calendar_title)).onFirst().assertIsDisplayed()
     }
 
     private companion object {
