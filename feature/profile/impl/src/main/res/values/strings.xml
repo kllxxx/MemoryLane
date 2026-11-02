@@ -20,9 +20,8 @@
     <string name="profile_goal_label">Цель</string>
     <string name="profile_goal_unit">дней подряд</string>
 
-    <string name="profile_section_notifications">Уведомления</string>
-    <string name="profile_notifications_title">Уведомления</string>
-    <string name="profile_notifications_on">Раз в день, если день не разобран</string>
+    <string name="profile_section_notifications">Напоминания</string>
+    <string name="profile_notifications_on">Придет один раз в день в выбранное время</string>
     <string name="profile_notifications_off">Выключены</string>
     <string name="profile_reminder_time">Время</string>
     <string name="profile_reminder_time_dialog_title">Время напоминания</string>
@@ -30,8 +29,8 @@
     <string name="profile_time_picker_cancel">Отмена</string>
 
     <string name="profile_section_review">Разбор фото</string>
-    <string name="profile_buttons_mode_title">Кнопки на экране свайпа</string>
-    <string name="profile_buttons_mode_subtitle">Показывать ✕ и ✓ на фото вместо одних свайпов</string>
+    <string name="profile_buttons_mode_title">Использовать кнопки\n✕ и ✓ вместо жестов</string>
+    <string name="profile_buttons_mode_subtitle"></string>
 
     <string name="profile_section_permissions">Разрешения</string>
     <string name="profile_permission_photos">Доступ к фото</string>

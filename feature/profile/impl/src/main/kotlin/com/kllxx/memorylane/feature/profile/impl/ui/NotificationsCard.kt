@@ -48,7 +48,7 @@ internal fun NotificationsCard(
     RowsCard(modifier) {
         SettingsRow(
             icon = Icons.Filled.Notifications,
-            title = stringResource(R.string.profile_notifications_title),
+            title = stringResource(R.string.profile_section_notifications),
             subtitle = stringResource(
                 if (state.notificationsOn) R.string.profile_notifications_on else R.string.profile_notifications_off,
             ),

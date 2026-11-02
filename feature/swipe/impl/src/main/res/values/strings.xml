@@ -32,8 +32,8 @@
     <string name="before_delete_title">Перед удалением</string>
     <string name="before_delete_back">Назад</string>
     <plurals name="before_delete_description">
-        <item quantity="one">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
-        <item quantity="other">Отмечено на удаление %d фото. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="one">%d фото отмечено на удаление. Нажми на фото, чтобы оставить его.</item>
+        <item quantity="other">%d фото отмечено на удаление. Нажми на фото, чтобы оставить его.</item>
     </plurals>
     <string name="before_delete_earlier">Отмечено ранее · %1$s</string>
     <string name="before_delete_description_none">Ничего не отмечено. Нажми на фото, чтобы отметить его снова.</string>
