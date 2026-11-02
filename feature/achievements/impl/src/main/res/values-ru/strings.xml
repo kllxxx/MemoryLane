@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="achievements_title">Достижения</string>
 
     <string name="achievements_section_streak">Стрик</string>
     <string name="achievements_current">Текущий</string>
     <string name="achievements_best">Лучший</string>
-    <plurals name="achievements_streak_unit">
+    <plurals name="achievements_streak_unit" tools:ignore="ImpliedQuantity">
         <item quantity="one">день</item>
         <item quantity="few">дня</item>
         <item quantity="many">дней</item>

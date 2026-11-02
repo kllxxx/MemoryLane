@@ -1,5 +1,6 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe.ui
 
+import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.core.common.UiError
 import com.kllxx.memorylane.core.domain.model.DeckKey
 import com.kllxx.memorylane.feature.swipe.impl.common.LOAD_ERROR_RETRY_TAG
@@ -36,11 +37,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "ru-w360dp-h780dp-xhdpi")
 class SwipeContentTest {
+    private fun string(id: Int, vararg args: Any) = RuntimeEnvironment.getApplication().getString(id, *args)
+
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -87,7 +91,7 @@ class SwipeContentTest {
     fun `the strip has a description for screen readers`() {
         show(swipeState(count = 3))
 
-        composeRule.onNodeWithTag(SwipeTags.STRIP).assertContentDescriptionEquals("Все фото дня")
+        composeRule.onNodeWithTag(SwipeTags.STRIP).assertContentDescriptionEquals(string(R.string.swipe_strip_description))
     }
 
     @Test
@@ -101,11 +105,11 @@ class SwipeContentTest {
 
 
     @Test
-    fun `the undated deck says Без даты in the top bar, with the place when the photo has one`() {
+    fun `the undated deck says the undated label in the top bar, with the place when the photo has one`() {
         val state = swipeState(count = 2, location = "Светлогорск, Россия").copy(deckKey = DeckKey.Undated)
         show(state)
 
-        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals(string(R.string.deck_undated))
         composeRule.onNodeWithTag(SwipeTags.TOP_BAR_LOCATION).assertTextEquals("Светлогорск, Россия")
     }
 
@@ -113,15 +117,15 @@ class SwipeContentTest {
     fun `the undated deck without a place has the label alone`() {
         show(swipeState(count = 2).copy(deckKey = DeckKey.Undated))
 
-        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals(string(R.string.deck_undated))
         composeRule.onAllNodesWithTag(SwipeTags.TOP_BAR_LOCATION).assertCountEquals(0)
     }
 
     @Test
-    fun `the undated deck keeps saying Без даты whichever photo is on top`() {
+    fun `the undated deck keeps saying the undated label whichever photo is on top`() {
         show(swipeState(count = 3, currentIndex = 2).copy(deckKey = DeckKey.Undated))
 
-        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals("Без даты")
+        composeRule.onNodeWithTag(SwipeTags.TOP_BAR_DATE).assertTextEquals(string(R.string.deck_undated))
     }
     @Test
     fun `the date is not shown for a photo that has none`() {
@@ -168,36 +172,36 @@ class SwipeContentTest {
     fun `the strip items describe their photo and its state`() {
         show(swipeState(count = 2, decisions = mapOf(1L to PhotoDecision.KEEP)))
 
-        composeRule.onNodeWithContentDescription("Фото 1 из 2, оставлено").assertExists()
-        composeRule.onNodeWithContentDescription("Фото 2 из 2, не разобрано").assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_strip_item_description, 1, 2, string(R.string.swipe_state_keep))).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_strip_item_description, 2, 2, string(R.string.swipe_state_undecided))).assertExists()
     }
 
     // --- accessibility actions on the card ---
 
     @Test
-    fun `the card offers Удалить and Оставить as accessibility actions`() {
+    fun `the card offers Delete and Keep as accessibility actions`() {
         show(swipeState(count = 2))
 
         val labels = composeRule.onNodeWithTag(SwipeTags.CARD).fetchSemanticsNode()
             .config[SemanticsActions.CustomActions].map { it.label }
-        assertEquals(listOf("Удалить", "Оставить"), labels)
+        assertEquals(listOf(string(R.string.swipe_action_delete), string(R.string.swipe_action_keep)), labels)
     }
 
     @Test
-    fun `the Удалить action sends a left swipe, with buttons mode off`() {
+    fun `the Delete action sends a left swipe, with buttons mode off`() {
         show(swipeState(count = 2, buttonsMode = false))
 
-        invokeCardAction("Удалить")
+        invokeCardAction(string(R.string.swipe_action_delete))
         waitForIntent()
 
         assertEquals(listOf<SwipeIntent>(SwipeIntent.Swipe(SwipeDirection.Left)), sent)
     }
 
     @Test
-    fun `the Оставить action sends a right swipe, with buttons mode off`() {
+    fun `the Keep action sends a right swipe, with buttons mode off`() {
         show(swipeState(count = 2, buttonsMode = false))
 
-        invokeCardAction("Оставить")
+        invokeCardAction(string(R.string.swipe_action_keep))
         waitForIntent()
 
         assertEquals(listOf<SwipeIntent>(SwipeIntent.Swipe(SwipeDirection.Right)), sent)
@@ -237,8 +241,8 @@ class SwipeContentTest {
     fun `the buttons have content descriptions`() {
         show(swipeState(count = 2, buttonsMode = true))
 
-        composeRule.onNodeWithContentDescription("Удалить фото").assertExists()
-        composeRule.onNodeWithContentDescription("Оставить фото").assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_button_delete)).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_button_keep)).assertExists()
     }
 
     // --- the strip ---
@@ -339,11 +343,11 @@ class SwipeContentTest {
     fun `every quick action has a content description`() {
         show(swipeState(count = 2))
 
-        composeRule.onNodeWithContentDescription("Отменить последнее решение").assertExists()
-        composeRule.onNodeWithContentDescription("Поделиться фото").assertExists()
-        composeRule.onNodeWithContentDescription("Открыть фото в галерее").assertExists()
-        composeRule.onNodeWithContentDescription("Кнопки «Удалить» и «Оставить» на карточке").assertExists()
-        composeRule.onNodeWithContentDescription("Закрыть").assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_action_undo_description)).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_action_share_description)).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_action_gallery_description)).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_action_buttons_description)).assertExists()
+        composeRule.onNodeWithContentDescription(string(R.string.swipe_close)).assertExists()
     }
 
     @Test
