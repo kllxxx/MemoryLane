@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.feature.swipe.impl.PendingDecisionWrites
 import com.kllxx.memorylane.feature.swipe.impl.R
 import app.cash.turbine.test
 import com.haroncode.lazycardstack.swiper.SwipeDirection
@@ -37,7 +38,9 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
@@ -66,6 +69,7 @@ import org.robolectric.RobolectricTestRunner
 class SwipeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+    private val appScope = CoroutineScope(dispatcher + SupervisorJob())
     private val date = LocalDate.of(2026, 10, 15)
     private val today = LocalDate.of(2026, 10, 20)
     private val earlier = LocalDate.of(2026, 10, 16)
@@ -83,6 +87,7 @@ class SwipeViewModelTest {
     private lateinit var statsRepository: StatsRepository
     private lateinit var appSettingsRepository: AppSettingsRepository
     private lateinit var viewModel: SwipeViewModel
+    private lateinit var pendingWrites: PendingDecisionWrites
     private val errorHandler = mockk<ErrorHandler> { every { handle(any(), any()) } returns UiError.Generic }
     private lateinit var savedStateHandle: SavedStateHandle
     private val locationRequests = mutableListOf<List<Long>>()
@@ -92,6 +97,7 @@ class SwipeViewModelTest {
         Dispatchers.setMain(dispatcher)
         photoRepository = mockk()
         swipeRepository = mockk(relaxed = true)
+        pendingWrites = PendingDecisionWrites(swipeRepository, errorHandler, appScope)
         statsRepository = mockk(relaxed = true)
         appSettingsRepository = mockk(relaxed = true)
         coEvery { photoRepository.getPhotosForDate(date) } answers { photos }
@@ -120,7 +126,7 @@ class SwipeViewModelTest {
             },
         )
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, clock), swipeRepository), savedStateHandle, errorHandler,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, clock), swipeRepository), pendingWrites, savedStateHandle, errorHandler,
         )
     }
 
@@ -655,7 +661,7 @@ class SwipeViewModelTest {
     fun `a day finished on its own date is completed on its own date`() = runTest(dispatcher) {
         val onItsOwnDate = Clock.fixed(date.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, onItsOwnDate), swipeRepository),
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, onItsOwnDate), swipeRepository), pendingWrites,
             SavedStateHandle(mapOf("date" to date.toString())), errorHandler,
         )
         advanceUntilIdle()
@@ -1014,7 +1020,7 @@ class SwipeViewModelTest {
         coEvery { swipeRepository.getDecisions(DeckKey.Undated) } returns emptyMap()
         savedStateHandle = SavedStateHandle(mapOf("deck" to DeckKind.UNDATED))
         viewModel = SwipeViewModel(
-            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, clock), swipeRepository), savedStateHandle, errorHandler,
+            photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), swipeRepository, statsRepository, appSettingsRepository, ResolveDeckEnd(CompleteDay(swipeRepository, clock), swipeRepository), pendingWrites, savedStateHandle, errorHandler,
         )
     }
 
@@ -1242,5 +1248,153 @@ class SwipeViewModelTest {
 
         assertEquals(1, state.currentIndex)
         verify(exactly = 0) { errorHandler.handle(any(), any()) }
+    }
+
+    // --- a decision that cannot be stored is retried, queued and announced once ---
+
+    private val stored = mutableListOf<Long>()
+    private val events = mutableListOf<String>()
+    private var diskFailing = false
+
+    private fun stubFlakyDisk() {
+        coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } coAnswers {
+            if (diskFailing) throw IllegalStateException("disk full")
+            stored += firstArg<Long>()
+            events += "save ${firstArg<Long>()}"
+        }
+        coEvery { swipeRepository.saveSession(any()) } coAnswers { events += "session" }
+    }
+
+    @Test
+    fun `a write that fails once is retried and saved, with no message`() = runTest(dispatcher) {
+        coEvery { swipeRepository.saveDecision(any(), any(), any(), any()) } throws IllegalStateException("busy") andThen Unit
+        load()
+
+        swipe(SwipeDirection.Left)
+
+        coVerify(exactly = 2) { swipeRepository.saveDecision(1L, DeckKey.Day(date), PhotoDecision.DELETE, photo1.takenAt) }
+        assertFalse(state.saveFailed)
+        assertTrue(pendingWrites.pending.isEmpty())
+        verify(exactly = 0) { errorHandler.handle(any(), any()) }
+    }
+
+    @Test
+    fun `a write that fails twice stays on the deck, is queued and raises the flag`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+
+        swipe(SwipeDirection.Left)
+
+        assertEquals(PhotoDecision.DELETE, state.deck[0].decision)
+        assertTrue(state.saveFailed)
+        assertEquals(setOf(1L), pendingWrites.pending.keys)
+    }
+
+    @Test
+    fun `several failed swipes give one message, and none again once it was shown`() = runTest(dispatcher) {
+        photos = listOf(photo1, photo2, photo3)
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+
+        swipe(SwipeDirection.Left)
+        assertTrue(state.saveFailed)
+        viewModel.onIntent(SwipeIntent.SaveFailureShown)
+        assertFalse(state.saveFailed)
+        swipe(SwipeDirection.Right, SwipeDirection.Left)
+
+        assertFalse(state.saveFailed)
+        assertEquals(setOf(1L, 2L, 3L), pendingWrites.pending.keys)
+    }
+
+    @Test
+    fun `the next write stores the queue first`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+        swipe(SwipeDirection.Left)
+
+        diskFailing = false
+        swipe(SwipeDirection.Right)
+
+        assertEquals(listOf(1L, 2L), stored)
+        assertTrue(pendingWrites.pending.isEmpty())
+    }
+
+    @Test
+    fun `closing the screen stores what waits`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+        swipe(SwipeDirection.Left)
+        diskFailing = false
+
+        viewModel.effects.test {
+            viewModel.onIntent(SwipeIntent.Close)
+            advanceUntilIdle()
+
+            assertEquals(SwipeEffect.NavigateToCalendar, awaitItem())
+        }
+        assertEquals(listOf(1L), stored)
+        assertTrue(pendingWrites.pending.isEmpty())
+    }
+
+    @Test
+    fun `undo of a queued decision takes it out of the queue instead of storing it`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+        swipe(SwipeDirection.Left)
+        diskFailing = false
+
+        viewModel.onIntent(SwipeIntent.Undo)
+        advanceUntilIdle()
+
+        assertTrue(pendingWrites.pending.isEmpty())
+        assertTrue(stored.isEmpty())
+        coVerify(exactly = 1) { swipeRepository.removeDecision(1L) }
+        assertNull(state.deck[0].decision)
+    }
+
+    @Test
+    fun `the end of the deck stores what waits before the day is completed`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+        swipe(SwipeDirection.Left)
+        diskFailing = false
+
+        swipe(SwipeDirection.Right)
+
+        assertEquals(listOf("save 1", "save 2", "session"), events)
+    }
+
+    @Test
+    fun `a queue that cannot be stored does not hold back the end of the deck`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+
+        viewModel.effects.test {
+            swipe(SwipeDirection.Left, SwipeDirection.Right)
+
+            assertEquals(SwipeEffect.NavigateToBeforeDelete(DeckKey.Day(date), totalPhotosCount = 2), awaitItem())
+        }
+        assertEquals(setOf(1L, 2L), pendingWrites.pending.keys)
+    }
+
+    @Test
+    fun `clearing the ViewModel stores what waits`() = runTest(dispatcher) {
+        stubFlakyDisk()
+        diskFailing = true
+        load()
+        swipe(SwipeDirection.Left)
+        diskFailing = false
+
+        SwipeViewModel::class.java.getDeclaredMethod("onCleared").apply { isAccessible = true }.invoke(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L), stored)
     }
 }

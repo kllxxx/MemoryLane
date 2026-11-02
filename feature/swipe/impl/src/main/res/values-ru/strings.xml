@@ -26,6 +26,7 @@
     <string name="swipe_state_delete">отмечено на удаление</string>
     <string name="swipe_state_trashed">в корзине</string>
     <string name="swipe_share_chooser">Поделиться фото</string>
+    <string name="swipe_save_failed">Не удалось сохранить решение. Попробуем ещё раз.</string>
     <string name="swipe_no_app">Нет приложения, чтобы открыть фото</string>
     <string name="before_delete_title">Перед удалением</string>
     <plurals name="before_delete_description">

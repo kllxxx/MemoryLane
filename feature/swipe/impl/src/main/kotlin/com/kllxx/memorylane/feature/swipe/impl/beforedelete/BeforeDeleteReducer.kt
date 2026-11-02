@@ -10,6 +10,7 @@ object BeforeDeleteReducer {
         is BeforeDeleteIntent.Toggle -> toggle(state, intent.photoId)
         BeforeDeleteIntent.PermanentDeleteDismissed -> state.copy(showPermanentDialog = false)
         BeforeDeleteIntent.Retry -> state.copy(isLoading = true, loadError = null)
+        BeforeDeleteIntent.SaveFailureShown -> state.copy(saveFailed = false)
         // Handled by the ViewModel, which does the work and reports it with an event
         BeforeDeleteIntent.DeleteClicked,
         BeforeDeleteIntent.PermanentDeleteConfirmed,
@@ -23,6 +24,7 @@ object BeforeDeleteReducer {
         is BeforeDeleteEvent.LoadFailed -> state.copy(isLoading = false, loadError = event.error)
         is BeforeDeleteEvent.DeletingChanged -> state.copy(isDeleting = event.deleting)
         is BeforeDeleteEvent.PermanentDialogChanged -> state.copy(showPermanentDialog = event.shown)
+        BeforeDeleteEvent.SaveFailed -> state.copy(saveFailed = true)
     }
 
     private fun toggle(state: BeforeDeleteState, photoId: Long): BeforeDeleteState {
@@ -41,4 +43,7 @@ sealed interface BeforeDeleteEvent {
     data class LoadFailed(val error: UiError) : BeforeDeleteEvent
     data class DeletingChanged(val deleting: Boolean) : BeforeDeleteEvent
     data class PermanentDialogChanged(val shown: Boolean) : BeforeDeleteEvent
+
+    /** A mark could not be stored and waits in the queue. Sent once per visit. */
+    data object SaveFailed : BeforeDeleteEvent
 }

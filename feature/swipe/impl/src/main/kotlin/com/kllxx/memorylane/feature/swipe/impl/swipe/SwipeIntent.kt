@@ -25,6 +25,9 @@ sealed interface SwipeIntent {
      */
     data object ReturnedToDeck : SwipeIntent
 
+    /** The message that a decision could not be saved was shown, so the flag in the state goes. */
+    data object SaveFailureShown : SwipeIntent
+
     /**
      * The language of the app changed, e.g. in Profile: the dates on the cards are written again. The ViewModel outlives
      * the recreation of the activity, so the texts it holds would otherwise stay in the old language.

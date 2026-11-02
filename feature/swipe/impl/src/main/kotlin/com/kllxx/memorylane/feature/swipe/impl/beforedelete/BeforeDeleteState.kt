@@ -31,6 +31,8 @@ data class BeforeDeleteState(
     val isDeleting: Boolean = false,
     val showPermanentDialog: Boolean = false,
     val currentDeck: DeckKey = DeckKey.Day(LocalDate.EPOCH),
+    /** A mark could not be stored: set once per visit, cleared by [BeforeDeleteIntent.SaveFailureShown] when the message was shown. */
+    val saveFailed: Boolean = false,
 ) {
     val marked: List<DeleteCell> get() = cells.filter { it.marked }
 

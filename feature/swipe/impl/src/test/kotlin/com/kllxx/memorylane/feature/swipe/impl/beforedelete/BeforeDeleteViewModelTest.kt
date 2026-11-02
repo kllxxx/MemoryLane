@@ -8,6 +8,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.kllxx.memorylane.core.common.ErrorHandler
 import com.kllxx.memorylane.core.common.UiError
+import com.kllxx.memorylane.feature.swipe.impl.PendingDecisionWrites
 import com.kllxx.memorylane.feature.swipe.impl.R
 import app.cash.turbine.test
 import com.kllxx.memorylane.core.domain.model.DeletionOutcome
@@ -35,7 +36,9 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
@@ -75,7 +78,11 @@ private class FakeSwipeRepository(
     var deletedCount = 0
     var freedBytes = 0L
 
+    /** While set, storing a decision fails the way a full disk does. */
+    var failSaves = false
+
     override suspend fun saveDecision(photoId: Long, deck: DeckKey, decision: PhotoDecision, takenAt: LocalDateTime?) {
+        if (failSaves) throw IllegalStateException("disk full")
         saved += photoId to decision
         decisions[photoId] = decision
         days[photoId] = deck
@@ -134,6 +141,7 @@ private class FakeDeleteCapabilities : DeleteCapabilities {
 class BeforeDeleteViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
+    private val appScope = CoroutineScope(dispatcher + SupervisorJob())
     private val date = LocalDate.of(2015, 1, 15)
     private val today = LocalDate.of(2026, 10, 29)
     private val clock = Clock.fixed(today.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
@@ -180,7 +188,7 @@ class BeforeDeleteViewModelTest {
     private fun create(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
         val route = if (undated) mapOf<String, Any>("deck" to DeckKind.UNDATED) else mapOf<String, Any>("date" to date.toString())
         savedStateHandle = SavedStateHandle(route + extra)
-        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), RequestDeletion(photoRepository), FinishDeletion(photoRepository, swipeRepository, CompleteDay(swipeRepository, clock)), capabilities, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(swipeRepository, photoRepository, AdoptDatedDecisions(photoRepository, swipeRepository), RequestDeletion(photoRepository), FinishDeletion(photoRepository, swipeRepository, CompleteDay(swipeRepository, clock)), capabilities, PendingDecisionWrites(swipeRepository, errorHandler, appScope), savedStateHandle, errorHandler)
     }
 
     private fun TestScope.load(extra: Map<String, Any> = emptyMap(), undated: Boolean = false) {
@@ -722,7 +730,7 @@ class BeforeDeleteViewModelTest {
                 throw IllegalStateException("disk full")
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, PendingDecisionWrites(failing, errorHandler, appScope), savedStateHandle, errorHandler)
         advanceUntilIdle()
 
         viewModel.effects.test {
@@ -759,7 +767,7 @@ class BeforeDeleteViewModelTest {
             override fun getCompletedSessions(): Flow<List<SwipeSession>> = flow { throw IllegalStateException("db") }
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, PendingDecisionWrites(failing, errorHandler, appScope), savedStateHandle, errorHandler)
         advanceUntilIdle()
         send(BeforeDeleteIntent.Toggle(1))
         send(BeforeDeleteIntent.Toggle(2))
@@ -783,7 +791,7 @@ class BeforeDeleteViewModelTest {
                 if (failReads) throw IllegalStateException("db") else swipeRepository.getDecisions(deck)
         }
         savedStateHandle = SavedStateHandle(mapOf("date" to date.toString()))
-        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, savedStateHandle, errorHandler)
+        viewModel = BeforeDeleteViewModel(failing, photoRepository, AdoptDatedDecisions(photoRepository, failing), RequestDeletion(photoRepository), FinishDeletion(photoRepository, failing, CompleteDay(failing, clock)), capabilities, PendingDecisionWrites(failing, errorHandler, appScope), savedStateHandle, errorHandler)
         advanceUntilIdle()
 
         viewModel.effects.test {
@@ -1063,5 +1071,88 @@ class BeforeDeleteViewModelTest {
             expectNoEvents()
         }
         assertTrue(swipeRepository.confirmed.isEmpty())
+    }
+
+    // --- a mark that cannot be stored is retried, queued and announced once ---
+
+    @Test
+    fun `a mark that cannot be stored stays on the grid and raises the flag`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+
+        send(BeforeDeleteIntent.Toggle(2))
+
+        assertEquals(listOf(1L), marked())
+        assertTrue(state.saveFailed)
+    }
+
+    @Test
+    fun `several marks that cannot be stored give one message, and none again once it was shown`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+
+        send(BeforeDeleteIntent.Toggle(2))
+        send(BeforeDeleteIntent.SaveFailureShown)
+        send(BeforeDeleteIntent.Toggle(1))
+
+        assertFalse(state.saveFailed)
+        assertEquals(emptyList<Long>(), marked())
+    }
+
+    @Test
+    fun `the next mark stores the queue first`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+        send(BeforeDeleteIntent.Toggle(2))
+
+        swipeRepository.failSaves = false
+        send(BeforeDeleteIntent.Toggle(1))
+
+        assertEquals(listOf(2L to PhotoDecision.KEEP, 1L to PhotoDecision.KEEP), swipeRepository.saved)
+    }
+
+    @Test
+    fun `the deletion works on the flushed marks`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+        send(BeforeDeleteIntent.Toggle(2))
+        swipeRepository.failSaves = false
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            assertEquals(BeforeDeleteEffect.LaunchTrashRequest(sender), awaitItem())
+        }
+        // Photo 2 was kept by the user, so it is kept in the database before the request is made
+        assertEquals(PhotoDecision.KEEP, swipeRepository.decisions[2L])
+        coVerify(exactly = 1) { photoRepository.deletePhotos(listOf(1L)) }
+    }
+
+    @Test
+    fun `a queue that cannot be stored deletes nothing and says so`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+        send(BeforeDeleteIntent.Toggle(2))
+
+        viewModel.effects.test {
+            send(BeforeDeleteIntent.DeleteClicked)
+
+            assertEquals(BeforeDeleteEffect.ShowError(UiError(R.string.before_delete_error)), awaitItem())
+        }
+        assertFalse(state.isDeleting)
+        coVerify(exactly = 0) { photoRepository.deletePhotos(any()) }
+    }
+
+    @Test
+    fun `leaving the screen stores what waits`() = runTest(dispatcher) {
+        load()
+        swipeRepository.failSaves = true
+        send(BeforeDeleteIntent.Toggle(2))
+        swipeRepository.failSaves = false
+
+        BeforeDeleteViewModel::class.java.getDeclaredMethod("onCleared").apply { isAccessible = true }.invoke(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(PhotoDecision.KEEP, swipeRepository.decisions[2L])
     }
 }

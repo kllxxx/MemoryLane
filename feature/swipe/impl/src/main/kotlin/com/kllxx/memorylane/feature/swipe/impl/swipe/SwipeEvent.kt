@@ -23,6 +23,9 @@ sealed interface SwipeEvent {
     /** The photos could not be read. Nothing is recorded for the day and the screen offers a retry. */
     data class LoadFailed(val error: UiError) : SwipeEvent
 
+    /** A decision could not be stored and waits in the queue. Sent once per visit. */
+    data object SaveFailed : SwipeEvent
+
     /** The decisions of the day as stored now, by photo id. */
     data class DecisionsReloaded(val decisions: Map<Long, com.kllxx.memorylane.core.domain.model.PhotoDecision>) : SwipeEvent
 }

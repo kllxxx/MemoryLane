@@ -132,4 +132,12 @@ class BeforeDeleteReducerTest {
         assertTrue(result.isLoading)
         assertEquals(null, result.loadError)
     }
+
+    @Test
+    fun `a failed save raises the flag and its message clears it`() {
+        val failed = BeforeDeleteReducer.reduce(BeforeDeleteState(), BeforeDeleteEvent.SaveFailed)
+
+        assertTrue(failed.saveFailed)
+        assertFalse(BeforeDeleteReducer.reduce(failed, BeforeDeleteIntent.SaveFailureShown).saveFailed)
+    }
 }

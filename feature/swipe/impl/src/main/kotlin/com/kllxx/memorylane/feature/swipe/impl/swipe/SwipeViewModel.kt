@@ -20,7 +20,8 @@ import com.kllxx.memorylane.core.photos.domain.usecase.DeckEnd
 import com.kllxx.memorylane.core.photos.domain.usecase.ResolveDeckEnd
 import com.kllxx.memorylane.core.photos.domain.repository.getPhotos
 import com.kllxx.memorylane.feature.swipe.api.SwipeRoute
-import com.kllxx.memorylane.feature.swipe.impl.R
+import com.kllxx.memorylane.feature.swipe.impl.DecisionWrite
+import com.kllxx.memorylane.feature.swipe.impl.PendingDecisionWrites
 import com.kllxx.memorylane.feature.swipe.impl.swipe.mapper.toDeckPhoto
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +40,7 @@ class SwipeViewModel @Inject constructor(
     private val statsRepository: StatsRepository,
     private val appSettingsRepository: AppSettingsRepository,
     private val resolveDeckEnd: ResolveDeckEnd,
+    private val pendingWrites: PendingDecisionWrites,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
 ) : MviViewModel<SwipeState, SwipeIntent, SwipeEvent, SwipeEffect>(
@@ -53,6 +55,9 @@ class SwipeViewModel @Inject constructor(
     // is started again (the user jumped) skips what has already arrived
     private var locationJob: Job? = null
     private val resolvedLocations = mutableSetOf<Long>()
+
+    // One message per visit: a burst of failed writes while swiping shows it once
+    private var saveFailureReported = false
 
     // Read before anything is saved, so the loading state can never overwrite them
     private val restoredIndex: Int? = savedStateHandle[CURRENT_INDEX_KEY]
@@ -78,9 +83,12 @@ class SwipeViewModel @Inject constructor(
             SwipeIntent.Share -> before.currentPhoto?.let { sendEffect(SwipeEffect.ShareImage(it.photo.uri)) }
             SwipeIntent.OpenInGallery ->
                 before.currentPhoto?.let { sendEffect(SwipeEffect.OpenInGallery(it.photo.uri)) }
-            SwipeIntent.Close -> sendEffect(SwipeEffect.NavigateToCalendar)
+            SwipeIntent.Close -> {
+                pendingWrites.flushOnLeave()
+                sendEffect(SwipeEffect.NavigateToCalendar)
+            }
             SwipeIntent.Retry -> loadPhotos()
-            is SwipeIntent.LocaleChanged -> Unit
+            is SwipeIntent.LocaleChanged, SwipeIntent.SaveFailureShown -> Unit
             SwipeIntent.ReturnedToDeck -> reloadDecisions()
         }
     }
@@ -138,6 +146,8 @@ class SwipeViewModel @Inject constructor(
     }
 
     private suspend fun readDeck(): SwipeEvent.PhotosLoaded {
+        // What an earlier visit could not store goes first, so the decisions read below are the user's
+        pendingWrites.flush()
         val photos = photoRepository.getPhotos(deckKey)
         // Photos that got a date since they were decided in the undated deck keep their decision on their day
         if (deckKey is DeckKey.Day) adoptDatedDecisions.forDay(deckKey.date, photos.map { it.id })
@@ -154,6 +164,7 @@ class SwipeViewModel @Inject constructor(
     }
 
     private fun reloadDecisions() = launchSafe("read the decisions of $deckKey again") {
+        pendingWrites.flush()
         onEvent(SwipeEvent.DecisionsReloaded(swipeRepository.getDecisions(deckKey)))
     }
 
@@ -209,13 +220,26 @@ class SwipeViewModel @Inject constructor(
     private fun saveDecision(photoId: Long, decision: PhotoDecision) {
         // The capture time goes with the decision: once the photo is trashed the gallery cannot tell it any more
         val takenAt = currentState.deck.firstOrNull { it.id == photoId }?.photo?.takenAt
-        launchSafe("save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, deckKey, decision, takenAt)
-        }
+        write(DecisionWrite.Save(photoId, deckKey, decision, takenAt))
     }
 
-    private fun removeDecision(photoId: Long) =
-        launchSafe("remove the decision of photo $photoId") { swipeRepository.removeDecision(photoId) }
+    private fun removeDecision(photoId: Long) = write(DecisionWrite.Remove(photoId))
+
+    /** The decision stays on the screen either way; one that cannot be stored waits in the queue and the user is told once. */
+    private fun write(write: DecisionWrite) = launchSafe("store the decision of photo ${write.photoId}") {
+        if (!pendingWrites.write(write)) reportSaveFailure()
+    }
+
+    private fun reportSaveFailure() {
+        if (saveFailureReported) return
+        saveFailureReported = true
+        reduce(SwipeEvent.SaveFailed)
+    }
+
+    override fun onCleared() {
+        pendingWrites.flushOnLeave()
+        super.onCleared()
+    }
 
     /**
      * Every photo of the day has a decision, a mark for deletion included, so the day is completed now. Marks left
@@ -223,6 +247,9 @@ class SwipeViewModel @Inject constructor(
      */
     private fun onAllSwiped(state: SwipeState) {
         viewModelScope.launch {
+            // «Перед удалением» and the session read what is stored: the decisions of this deck go in first. If they
+            // cannot, the user is not held back; they stay queued and are tried again
+            pendingWrites.flush()
             val end = resolveDeckEnd(state.deckKey, hasMarksInDeck = state.deck.any { it.decision == PhotoDecision.DELETE })
             sendEffect(
                 when (end) {

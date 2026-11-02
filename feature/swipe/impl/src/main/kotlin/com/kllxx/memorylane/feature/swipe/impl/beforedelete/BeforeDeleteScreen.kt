@@ -15,6 +15,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.beforedelete.ui.BeforeDeleteContent
+import com.kllxx.memorylane.feature.swipe.impl.common.SaveFailedSnackbar
 import com.kllxx.memorylane.core.domain.model.DeckKey
 
 /**
@@ -57,5 +58,11 @@ fun BeforeDeleteScreen(
         }
     }
 
-    BeforeDeleteContent(state = state, onIntent = viewModel::onIntent, onBack = onBack, modifier = modifier)
+    SaveFailedSnackbar(
+        saveFailed = state.saveFailed,
+        onShown = { viewModel.onIntent(BeforeDeleteIntent.SaveFailureShown) },
+        modifier = modifier,
+    ) {
+        BeforeDeleteContent(state = state, onIntent = viewModel::onIntent, onBack = onBack)
+    }
 }

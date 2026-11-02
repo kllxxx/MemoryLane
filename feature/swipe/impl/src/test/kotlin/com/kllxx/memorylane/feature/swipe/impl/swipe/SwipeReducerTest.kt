@@ -478,4 +478,14 @@ class SwipeReducerTest {
         assertEquals(state.currentIndex, changed.currentIndex)
         assertEquals(state.deck.map { it.decision }, changed.deck.map { it.decision })
     }
+
+    // --- a decision that could not be stored ---
+
+    @Test
+    fun `a failed save raises the flag and its message clears it`() {
+        val failed = reduce(loaded(2), SwipeEvent.SaveFailed)
+
+        assertTrue(failed.saveFailed)
+        assertFalse(reduce(failed, SwipeIntent.SaveFailureShown).saveFailed)
+    }
 }

@@ -26,6 +26,7 @@
     <string name="swipe_state_delete">marked for deletion</string>
     <string name="swipe_state_trashed">in trash</string>
     <string name="swipe_share_chooser">Share photo</string>
+    <string name="swipe_save_failed">Couldn\'t save your choice. We\'ll try again.</string>
     <string name="swipe_no_app">No app to open the photo</string>
     <string name="before_delete_title">Before deleting</string>
     <plurals name="before_delete_description">

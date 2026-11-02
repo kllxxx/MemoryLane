@@ -19,6 +19,8 @@ import com.kllxx.memorylane.core.photos.domain.usecase.DeckResult
 import com.kllxx.memorylane.core.photos.domain.usecase.DeletionRequest
 import com.kllxx.memorylane.core.photos.domain.usecase.FinishDeletion
 import com.kllxx.memorylane.core.photos.domain.usecase.RequestDeletion
+import com.kllxx.memorylane.feature.swipe.impl.DecisionWrite
+import com.kllxx.memorylane.feature.swipe.impl.PendingDecisionWrites
 import com.kllxx.memorylane.feature.swipe.impl.R
 import com.kllxx.memorylane.feature.swipe.impl.toDeckKey
 import com.kllxx.memorylane.feature.swipe.api.BeforeDeleteRoute
@@ -47,6 +49,7 @@ class BeforeDeleteViewModel @Inject constructor(
     private val requestDeletion: RequestDeletion,
     private val finishDeletion: FinishDeletion,
     private val deleteCapabilities: DeleteCapabilities,
+    private val pendingWrites: PendingDecisionWrites,
     private val savedStateHandle: SavedStateHandle,
     errorHandler: ErrorHandler,
 ) : MviViewModel<BeforeDeleteState, BeforeDeleteIntent, BeforeDeleteEvent, BeforeDeleteEffect>(
@@ -65,6 +68,9 @@ class BeforeDeleteViewModel @Inject constructor(
     // Set when the screen has handed over to «Итоги», so nothing that arrives later can start it again
     private var finished = false
 
+    // One message per visit: several marks that cannot be stored show it once
+    private var saveFailureReported = false
+
     init {
         loadJob = load()
     }
@@ -77,7 +83,7 @@ class BeforeDeleteViewModel @Inject constructor(
             is BeforeDeleteIntent.Toggle -> onToggled(before, intent.photoId)
             BeforeDeleteIntent.DeleteClicked -> onDeleteClicked(before)
             BeforeDeleteIntent.PermanentDeleteConfirmed -> onPermanentDeleteConfirmed(before)
-            BeforeDeleteIntent.PermanentDeleteDismissed -> Unit
+            BeforeDeleteIntent.PermanentDeleteDismissed, BeforeDeleteIntent.SaveFailureShown -> Unit
             BeforeDeleteIntent.Retry -> {
                 loadJob?.cancel()
                 loadJob = load()
@@ -100,6 +106,8 @@ class BeforeDeleteViewModel @Inject constructor(
         onError = { reduce(BeforeDeleteEvent.LoadFailed(UiError(UiR.string.common_photos_load_error))) },
     ) {
         try {
+            // What the swipe screen could not store goes first, so the grid is built from the user's marks
+            pendingWrites.flush()
             // A photo that was marked in the undated deck and has a date now is a mark of its day
             adoptDatedMarks()
             val pending = swipeRepository.getPendingDeletes()
@@ -172,9 +180,31 @@ class BeforeDeleteViewModel @Inject constructor(
         if (before.isDeleting) return
         val cell = before.cells.firstOrNull { it.photoId == photoId } ?: return
         val decision = if (cell.marked) PhotoDecision.KEEP else PhotoDecision.DELETE
-        launchSafe("save the $decision decision of photo $photoId") {
-            swipeRepository.saveDecision(photoId, cell.deck, decision)
+        launchSafe("store the $decision decision of photo $photoId") {
+            if (!pendingWrites.write(DecisionWrite.Save(photoId, cell.deck, decision))) reportSaveFailure()
         }
+    }
+
+    private fun reportSaveFailure() {
+        if (saveFailureReported) return
+        saveFailureReported = true
+        reduce(BeforeDeleteEvent.SaveFailed)
+    }
+
+    /**
+     * Deleting acts on the marks that are stored, so the marks the user sees must be stored first. If they cannot be,
+     * nothing is deleted: a photo the user kept could still be stored as marked.
+     */
+    private suspend fun storeMarksOrAbort(): Boolean {
+        if (pendingWrites.flush()) return true
+        reduce(BeforeDeleteEvent.DeletingChanged(false))
+        sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
+        return false
+    }
+
+    override fun onCleared() {
+        pendingWrites.flushOnLeave()
+        super.onCleared()
     }
 
     // --- deleting ---
@@ -201,6 +231,7 @@ class BeforeDeleteViewModel @Inject constructor(
                 sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
             },
         ) {
+            if (!storeMarksOrAbort()) return@launchSafe
             val request = requestDeletion(marked.toSizes())
             // Before the dialog opens: after a recreation the result is understood from this
             savedStateHandle[PENDING_IDS] = request.bytesById.keys.toLongArray()
@@ -256,6 +287,7 @@ class BeforeDeleteViewModel @Inject constructor(
                 sendEffect(BeforeDeleteEffect.ShowError(DeleteError))
             },
         ) {
+            if (!storeMarksOrAbort()) return@launchSafe
             confirm(requestDeletion(marked.toSizes()).bytesById, PhotoDecision.DELETED)
         }
     }
@@ -293,6 +325,8 @@ class BeforeDeleteViewModel @Inject constructor(
     /** Nothing is marked any more: the day is finished without deleting anything. */
     private fun finishWithoutDeleting() {
         viewModelScope.launch {
+            // Nothing is deleted here, so a mark that cannot be stored does not hold the user back
+            pendingWrites.flush()
             val result = finishDeletion.withoutDeleting(deck)
             finished = true
             handOver(result)

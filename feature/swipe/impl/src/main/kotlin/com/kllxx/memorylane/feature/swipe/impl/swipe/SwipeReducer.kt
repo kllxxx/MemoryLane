@@ -17,6 +17,7 @@ object SwipeReducer {
         is SwipeIntent.JumpTo -> jumpTo(state, intent.index)
         SwipeIntent.Retry -> state.copy(isLoading = true, loadError = null)
         is SwipeIntent.LocaleChanged -> relocalize(state, intent.locale)
+        SwipeIntent.SaveFailureShown -> state.copy(saveFailed = false)
         // Handled by the ViewModel: the setting is stored first, the screen follows the stored value
         SwipeIntent.ToggleButtonsMode,
         SwipeIntent.Share,
@@ -41,6 +42,7 @@ object SwipeReducer {
         is SwipeEvent.ButtonsModeChanged -> state.copy(buttonsMode = event.enabled)
         is SwipeEvent.LoadFailed -> state.copy(isLoading = false, loadError = event.error)
         is SwipeEvent.DecisionsReloaded -> reloadDecisions(state, event)
+        SwipeEvent.SaveFailed -> state.copy(saveFailed = true)
     }
 
     private fun relocalize(state: SwipeState, locale: Locale): SwipeState {

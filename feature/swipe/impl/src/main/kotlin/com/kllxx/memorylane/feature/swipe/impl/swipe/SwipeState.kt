@@ -45,6 +45,8 @@ data class SwipeState(
     /** The photos could not be read: [SwipeIntent.Retry] starts over, the close button leaves. */
     val loadError: UiError? = null,
     val isFinished: Boolean = false,
+    /** A decision could not be stored: set once per visit, cleared by [SwipeIntent.SaveFailureShown] when the message was shown. */
+    val saveFailed: Boolean = false,
 ) {
     val canUndo: Boolean get() = undoStack.isNotEmpty()
 

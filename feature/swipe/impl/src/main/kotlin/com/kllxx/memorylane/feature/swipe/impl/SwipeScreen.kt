@@ -14,6 +14,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.kllxx.memorylane.feature.swipe.impl.common.SaveFailedSnackbar
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeEffect
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntentFactory
 import com.kllxx.memorylane.feature.swipe.impl.swipe.SwipeIntent
@@ -58,7 +59,12 @@ fun SwipeScreen(
     val locale = LocalConfiguration.current.locales[0]
     LaunchedEffect(locale) { viewModel.onIntent(SwipeIntent.LocaleChanged(locale)) }
 
-    SwipeContent(state = state, onIntent = viewModel::onIntent)
+    SaveFailedSnackbar(
+        saveFailed = state.saveFailed,
+        onShown = { viewModel.onIntent(SwipeIntent.SaveFailureShown) },
+    ) {
+        SwipeContent(state = state, onIntent = viewModel::onIntent)
+    }
 }
 
 /** Starts [intent]; when no app can handle it the user gets a short message instead of a crash. */

@@ -17,6 +17,9 @@ sealed interface BeforeDeleteIntent {
     /** Retry after the photos could not be loaded. */
     data object Retry : BeforeDeleteIntent
 
+    /** The message that a mark could not be saved was shown, so the flag in the state goes. */
+    data object SaveFailureShown : BeforeDeleteIntent
+
     /** The system dialog of the trash request closed: [confirmed] is `RESULT_OK`, anything else is a cancel. */
     data class SystemDeleteResult(val confirmed: Boolean) : BeforeDeleteIntent
 }
