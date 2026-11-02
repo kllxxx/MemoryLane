@@ -80,6 +80,7 @@ Intent → ViewModel → State → UI
 | Load (the screen cannot show its content) | An error in State with a Retry intent. Leaving stays possible through the screen's own close/back button. |
 | Write / action (the user asked for something) | A one-shot `ShowError(UiError)` effect: snackbar or toast, text from resources. |
 | Best-effort (the screen is complete without it, or the user is already leaving) | Logged and falls back; nothing is shown. |
+| Decision write (swipe, undo, a mark in «Перед удалением») | `PendingDecisionWrites` (`:feature:swipe:impl`, runs in `@ApplicationScope`): retried once, then queued in memory by photo (the latest wins) and flushed before the next write, before the deck end / a deletion reads what is stored, and on leaving the screen. One snackbar per visit through a flag in State (`saveFailed`); a deletion is not started while the marks cannot be stored. |
 
 A failed load is never a silent navigation away and never an endless spinner. Settings that cannot be read fall back to the defaults.
 
@@ -127,7 +128,7 @@ Each prefix has its own independent counter:
 
 Current counters (update as you go):
 - feat: last used MMLN-33
-- fix: last used MMLN-42
+- fix: last used MMLN-43
 - refactor: last used MMLN-33
 
 **Commit format (Conventional Commits):**
