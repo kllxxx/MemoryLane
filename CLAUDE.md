@@ -27,7 +27,7 @@ All processing is local — no network, no cloud, no uploads.
 ## Module Structure
 
 ```
-:app                        — entry point, DI setup, bottom navigation
+:app                        — entry point, DI setup, bottom navigation, the AppCompat binding of the app language
 :feature:onboarding:api       — onboarding route
 :feature:onboarding:impl      — onboarding screens
 :feature:calendar:api       — calendar route (CalendarRoute)
@@ -40,7 +40,7 @@ All processing is local — no network, no cloud, no uploads.
 :feature:profile:impl      — theme, notifications, streak goal settings, MVI
 :core:photos:domain         — repository interfaces, photo domain models, use cases over photos and decisions (PhotosToReview, CompleteDay, ResolveDeckEnd, RequestDeletion, FinishDeletion), DeleteCapabilities; depends on :core:domain
 :core:photos:data           — MediaStore access, reading and deleting photos
-:core:ui                    — shared Compose components, theme (the swipe drag overlay is in :feature:swipe:impl)
+:core:ui                    — shared Compose components, theme, the shared words (Cancel, Done, Retry, Back, units; `common_*` strings) (the swipe drag overlay is in :feature:swipe:impl)
 :core:domain                — repository interfaces, domain models, shared formatters (date, size)
 :core:common                — MviViewModel, ErrorHandler and UiError, the injected dispatchers and @ApplicationScope (di), PerfLog, the performance logging (CalendarPerf), a no-op in release
 :core:data                  — Room database, repository implementations
@@ -98,6 +98,14 @@ A failed load is never a silent navigation away and never an endless spinner. Se
 
 **Theme:** Dark by default. User can override in Profile. Stored in DataStore.
 
+**Localization (RU + EN):**
+
+- English is the default language: `res/values/strings.xml`; Russian is `res/values-ru/strings.xml` and is always complete. Plurals: ru one/few/many/other, en one/other, in the same file as the strings.
+- Each module owns its strings (one `strings.xml` per module and language). Only genuinely shared words live once in `:core:ui` (`common_*`); `error_generic` is in `:core:common`.
+- Nothing user-visible is hard-coded in Kotlin: texts, content descriptions, notifications, errors. Dates go through `PhotoDateFormatter` (Russian genitive table, English pattern `d MMMM yyyy, HH:mm`), sizes through `FormattedSize.text(locale)`; never in a Composable beyond that call.
+- The language is the platform per-app language (`AppLanguageController` in `:core:domain`, bound in `:app` to `AppCompatDelegate.setApplicationLocales`; `LocaleManager` on API 33+, AppCompat storage below). `generateLocaleConfig` lists the languages for the system settings. `MainActivity` is an `AppCompatActivity` for this. A ViewModel that holds locale-dependent text re-writes it on a locale-changed intent (`SwipeIntent.LocaleChanged`).
+- Tests do not depend on the device locale: pin it with `@Config(qualifiers = "en")` or `"ru"`, and prefer string resources and test tags to literal text. A literal is fine where the text itself is what is tested (plurals, date and size formats) in a class pinned to its language.
+
 **Permissions:** `PermissionsRepository` (`:core:domain`) is the one source of what the system allows; `PermissionRules` says which permission exists on which API level and whether the system can still show its prompt. Screens ask through `rememberPermissionRequester` (`:core:ui`): photos and their location (API 29+) always together. Photo access is all-or-nothing: "select photos" (API 34+) counts as no access. While the gallery is unreadable the last streaks computed with access are shown; they are never recomputed without it. Profile lists the permissions in «Разрешения».
 
 ## Git Conventions
@@ -118,9 +126,9 @@ Each prefix has its own independent counter:
 - chore, test, docs — no ticket number
 
 Current counters (update as you go):
-- feat: last used MMLN-30
+- feat: last used MMLN-32
 - fix: last used MMLN-41
-- refactor: last used MMLN-31
+- refactor: last used MMLN-32
 
 **Commit format (Conventional Commits):**
 
@@ -222,18 +230,19 @@ Icon license (Material Symbols, Apache 2.0): `core/ui/LICENSE-MaterialSymbols.tx
 
 ## Done when
 
-A task is done only when all three pass, with the real exit code of Gradle:
+A task is done only when all four pass, with the real exit code of Gradle:
 
 ```
 ./gradlew testDebugUnitTest
 ./gradlew :app:assembleDebug
 ./gradlew :app:assembleRelease
+./gradlew lintDebug
 ```
 
 - Never pipe a verifying Gradle command through `tail`, `head`, `grep` or anything else: the pipe returns its own exit code and hides a failed build. Redirect the output to a file, read `$?` of Gradle itself, and look at the file afterwards.
 - `:app:assembleRelease` is required because it is the only step that builds with R8. A broken keep rule (for example the `PerfLog` rule in `app/release-rules.pro`) shows up only there.
 - Run one Gradle command at a time. `gradle.properties` limits Gradle to 2 workers (`org.gradle.workers.max=2`) with parallel execution and the build cache on; a full run needs about 4 GB of heap and was killed for lack of memory when several ran at once.
-- Lint (`./gradlew lintDebug`) is not part of "done" yet: it still fails on `MissingTranslation` until the localization is finished.
+- `lintDebug` must report no errors; a missing translation (`MissingTranslation`) is an error. A text that is deliberately not translated (a name, an endonym) is marked `translatable="false"`, not suppressed.
 
 ## Conventions learned in batch 3
 
