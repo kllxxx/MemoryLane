@@ -446,4 +446,36 @@ class SwipeReducerTest {
         assertTrue(result.isLoading)
         assertNull(result.loadError)
     }
+
+    // --- the language of the app changed ---
+
+    @Test
+    fun `a new language writes the dates of the deck and of the trashed photos again`() {
+        val state = loaded(2, trashed = listOf(deckPhoto(3)))
+
+        val russian = reduce(state, SwipeIntent.LocaleChanged(java.util.Locale.forLanguageTag("ru")))
+        val english = reduce(russian, SwipeIntent.LocaleChanged(java.util.Locale.US))
+
+        assertEquals("15 октября 2024, 10:01", russian.deck[0].takenAtText)
+        assertEquals("15 октября 2024, 10:03", russian.trashed[0].takenAtText)
+        assertEquals("15 October 2024, 10:01", english.deck[0].takenAtText)
+        assertEquals("15 October 2024, 10:03", english.trashed[0].takenAtText)
+    }
+
+    @Test
+    fun `the language of the dates already shown leaves the state as it is`() {
+        val english = reduce(loaded(2), SwipeIntent.LocaleChanged(java.util.Locale.US))
+
+        assertSame(english, reduce(english, SwipeIntent.LocaleChanged(java.util.Locale.US)))
+    }
+
+    @Test
+    fun `a new language keeps the position and the decisions`() {
+        val state = reduce(loaded(3), SwipeIntent.Swipe(SwipeDirection.Left))
+
+        val changed = reduce(state, SwipeIntent.LocaleChanged(java.util.Locale.forLanguageTag("ru")))
+
+        assertEquals(state.currentIndex, changed.currentIndex)
+        assertEquals(state.deck.map { it.decision }, changed.deck.map { it.decision })
+    }
 }

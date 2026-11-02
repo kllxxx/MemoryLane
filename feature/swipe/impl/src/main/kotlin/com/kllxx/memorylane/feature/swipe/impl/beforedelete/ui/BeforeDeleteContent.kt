@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -243,7 +244,7 @@ private fun DeleteActionButton(state: BeforeDeleteState, onIntent: (BeforeDelete
                 R.plurals.before_delete_button,
                 button.count,
                 button.count,
-                button.size.value,
+                button.size.text(LocalConfiguration.current.locales[0]),
                 stringResource(button.size.unit.labelRes()),
             )
             container = colors.error

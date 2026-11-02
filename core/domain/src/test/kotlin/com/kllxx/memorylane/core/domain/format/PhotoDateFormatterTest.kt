@@ -69,20 +69,31 @@ class PhotoDateFormatterTest {
     }
 
     @Test
-    fun `another language uses its own long date with the year and a short time`() {
-        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.US)
-
-        assertTrue(text, text.contains("January"))
-        assertTrue(text, text.contains("2016"))
-        assertTrue(text, text.contains("9:15"))
+    fun `English reads day first with the month name, the year and a 24-hour time`() {
+        assertEquals("7 January 2016, 21:15", formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.US))
+        assertEquals("7 January 2016, 21:15", formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.UK))
+        assertEquals("8 January 2016, 00:07", formatTakenAt(LocalDateTime.of(2016, 1, 8, 0, 7), Locale.ENGLISH))
     }
 
     @Test
-    fun `English follows the locale rather than the Russian pattern`() {
-        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.UK)
+    fun `the English text does not depend on the default locale`() {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(ru)
+            assertEquals("7 January 2016, 21:15", formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.US))
+            assertEquals("28 October", formatDayMonth(java.time.LocalDate.of(2026, 10, 28), Locale.US))
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
 
-        assertTrue(text, text.contains("January"))
+    @Test
+    fun `another language uses its own long date with the year and a short time`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 21, 15), Locale.FRANCE)
+
+        assertTrue(text, text.contains("2016"))
         assertTrue(text, text.contains("21:15"))
+        assertTrue(text, !text.contains("January"))
     }
 
     // --- a photo that has only a day ---
@@ -118,10 +129,15 @@ class PhotoDateFormatterTest {
     }
 
     @Test
-    fun `another language without a time is its long date alone`() {
-        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), Locale.US, hasTime = false)
+    fun `English without a time is the date alone`() {
+        assertEquals("7 January 2016", formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), Locale.US, hasTime = false))
+    }
 
-        assertTrue(text, text.contains("January"))
+    @Test
+    fun `another language without a time is its long date alone`() {
+        val text = formatTakenAt(LocalDateTime.of(2016, 1, 7, 12, 0), Locale.FRANCE, hasTime = false)
+
+        assertTrue(text, text.contains("janvier"))
         assertTrue(text, text.contains("2016"))
         assertTrue(text, !text.contains(":"))
     }

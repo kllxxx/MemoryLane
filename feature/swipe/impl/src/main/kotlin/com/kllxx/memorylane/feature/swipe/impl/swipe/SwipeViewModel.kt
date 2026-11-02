@@ -80,6 +80,7 @@ class SwipeViewModel @Inject constructor(
                 before.currentPhoto?.let { sendEffect(SwipeEffect.OpenInGallery(it.photo.uri)) }
             SwipeIntent.Close -> sendEffect(SwipeEffect.NavigateToCalendar)
             SwipeIntent.Retry -> loadPhotos()
+            is SwipeIntent.LocaleChanged -> Unit
             SwipeIntent.ReturnedToDeck -> reloadDecisions()
         }
     }

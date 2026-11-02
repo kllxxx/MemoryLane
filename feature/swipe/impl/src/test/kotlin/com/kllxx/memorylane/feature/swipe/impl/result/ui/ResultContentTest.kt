@@ -68,7 +68,7 @@ class ResultContentTest {
 
     @Test
     fun `a size in gigabytes has its own unit`() {
-        show(freedState.copy(freed = FormattedSize("2,5", SizeUnit.GB)))
+        show(freedState.copy(freed = FormattedSize("2.5", SizeUnit.GB)))
 
         text(ResultTags.VALUE).assertTextEquals("2,5")
         text(ResultTags.UNIT).assertTextEquals("ГБ")

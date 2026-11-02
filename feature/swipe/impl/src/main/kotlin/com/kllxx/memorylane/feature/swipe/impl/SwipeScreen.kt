@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -52,6 +53,10 @@ fun SwipeScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         if (state.isFinished) viewModel.onIntent(SwipeIntent.ReturnedToDeck)
     }
+
+    // The ViewModel outlives a change of language, and the dates it holds are already written
+    val locale = LocalConfiguration.current.locales[0]
+    LaunchedEffect(locale) { viewModel.onIntent(SwipeIntent.LocaleChanged(locale)) }
 
     SwipeContent(state = state, onIntent = viewModel::onIntent)
 }

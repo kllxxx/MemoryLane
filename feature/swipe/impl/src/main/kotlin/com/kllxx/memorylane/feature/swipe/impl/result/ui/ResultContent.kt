@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -123,7 +124,7 @@ private fun FreedValue(state: ResultState) {
     } else {
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 2.dp)) {
             Text(
-                text = state.freed.value,
+                text = state.freed.text(LocalConfiguration.current.locales[0]),
                 modifier = Modifier.testTag(ResultTags.VALUE),
                 color = primary,
                 fontSize = 56.sp,

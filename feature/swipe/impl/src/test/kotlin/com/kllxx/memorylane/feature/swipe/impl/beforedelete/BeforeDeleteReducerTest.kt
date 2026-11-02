@@ -98,7 +98,7 @@ class BeforeDeleteReducerTest {
     fun `a size from a gigabyte up is in gigabytes`() {
         val button = state(cell(1, size = 1_500_000_000), cell(2, size = 1_000_000_000)).toButton()
 
-        assertEquals(DeleteButton.Delete(2, FormattedSize("2,5", SizeUnit.GB)), button)
+        assertEquals(DeleteButton.Delete(2, FormattedSize("2.5", SizeUnit.GB)), button)
     }
 
     @Test

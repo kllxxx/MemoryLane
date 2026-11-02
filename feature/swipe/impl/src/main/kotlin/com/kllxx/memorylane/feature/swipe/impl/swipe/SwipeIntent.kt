@@ -24,4 +24,10 @@ sealed interface SwipeIntent {
      * read again, because the marks may have changed there, and the deck goes back to the last photo.
      */
     data object ReturnedToDeck : SwipeIntent
+
+    /**
+     * The language of the app changed, e.g. in Profile: the dates on the cards are written again. The ViewModel outlives
+     * the recreation of the activity, so the texts it holds would otherwise stay in the old language.
+     */
+    data class LocaleChanged(val locale: java.util.Locale) : SwipeIntent
 }

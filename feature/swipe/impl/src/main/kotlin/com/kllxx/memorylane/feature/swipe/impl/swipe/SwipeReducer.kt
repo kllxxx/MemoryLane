@@ -1,11 +1,13 @@
 package com.kllxx.memorylane.feature.swipe.impl.swipe
 
 import com.haroncode.lazycardstack.swiper.SwipeDirection
+import com.kllxx.memorylane.core.domain.format.formatTakenAt
 import com.kllxx.memorylane.core.domain.model.DayCompletion
 import com.kllxx.memorylane.core.domain.model.PhotoDecision
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentList
+import java.util.Locale
 
 object SwipeReducer {
 
@@ -14,6 +16,7 @@ object SwipeReducer {
         SwipeIntent.Undo -> undo(state)
         is SwipeIntent.JumpTo -> jumpTo(state, intent.index)
         SwipeIntent.Retry -> state.copy(isLoading = true, loadError = null)
+        is SwipeIntent.LocaleChanged -> relocalize(state, intent.locale)
         // Handled by the ViewModel: the setting is stored first, the screen follows the stored value
         SwipeIntent.ToggleButtonsMode,
         SwipeIntent.Share,
@@ -38,6 +41,17 @@ object SwipeReducer {
         is SwipeEvent.ButtonsModeChanged -> state.copy(buttonsMode = event.enabled)
         is SwipeEvent.LoadFailed -> state.copy(isLoading = false, loadError = event.error)
         is SwipeEvent.DecisionsReloaded -> reloadDecisions(state, event)
+    }
+
+    private fun relocalize(state: SwipeState, locale: Locale): SwipeState {
+        fun DeckPhoto.localized(): DeckPhoto {
+            val text = photo.takenAt?.let { formatTakenAt(it, locale, photo.hasTime) }.orEmpty()
+            return if (text == takenAtText) this else copy(takenAtText = text)
+        }
+        val deck = state.deck.map { it.localized() }
+        val trashed = state.trashed.map { it.localized() }
+        if (deck == state.deck.toList() && trashed == state.trashed.toList()) return state
+        return state.copy(deck = deck.toImmutableList(), trashed = trashed.toImmutableList())
     }
 
     private fun load(state: SwipeState, event: SwipeEvent.PhotosLoaded): SwipeState {

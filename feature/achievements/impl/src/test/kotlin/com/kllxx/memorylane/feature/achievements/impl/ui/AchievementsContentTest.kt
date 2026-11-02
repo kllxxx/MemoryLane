@@ -42,7 +42,7 @@ class AchievementsContentTest {
 
     @Test
     fun `the stats state shows the four values`() {
-        setContent(AchievementsState.Stats(7, 21, FormattedSize("2,4", SizeUnit.GB), "1 248", "312"))
+        setContent(AchievementsState.Stats(7, 21, FormattedSize("2.4", SizeUnit.GB), "1 248", "312"))
 
         composeRule.onNodeWithTag(CURRENT_STREAK_TAG).assertTextEquals("7")
         composeRule.onNodeWithTag(BEST_STREAK_TAG).assertTextEquals("21")

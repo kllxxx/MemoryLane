@@ -116,7 +116,7 @@ class AchievementsViewModelTest {
 
             statsFlow.emit(stats(viewed = 1_248, current = 7, best = 21, deleted = 312, freedBytes = 2_440_000_000))
             assertEquals(
-                AchievementsState.Stats(7, 21, FormattedSize("2,4", SizeUnit.GB), "1 248", "312"),
+                AchievementsState.Stats(7, 21, FormattedSize("2.4", SizeUnit.GB), "1 248", "312"),
                 awaitItem(),
             )
             cancelAndIgnoreRemainingEvents()

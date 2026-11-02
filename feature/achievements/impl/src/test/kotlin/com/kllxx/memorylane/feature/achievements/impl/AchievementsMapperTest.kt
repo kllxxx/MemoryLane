@@ -45,7 +45,7 @@ class AchievementsMapperTest {
         val stats = AchievementStats(7, 21, 1_248, 312, 2_440_000_000)
 
         assertEquals(
-            AchievementsState.Stats(7, 21, FormattedSize("2,4", SizeUnit.GB), "1${nbsp}248", "312"),
+            AchievementsState.Stats(7, 21, FormattedSize("2.4", SizeUnit.GB), "1${nbsp}248", "312"),
             stats.toState(),
         )
     }

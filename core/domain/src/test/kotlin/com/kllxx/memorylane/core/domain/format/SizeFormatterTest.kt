@@ -39,9 +39,9 @@ class SizeFormatterTest {
 
     @Test
     fun `megabytes below ten have one rounded decimal with a comma`() {
-        assertEquals("1,5" to SizeUnit.MB, size(1_470_000))
-        assertEquals("1,4" to SizeUnit.MB, size(1_449_999))
-        assertEquals("9,9" to SizeUnit.MB, size(9_940_000))
+        assertEquals("1.5" to SizeUnit.MB, size(1_470_000))
+        assertEquals("1.4" to SizeUnit.MB, size(1_449_999))
+        assertEquals("9.9" to SizeUnit.MB, size(9_940_000))
     }
 
     @Test
@@ -71,13 +71,29 @@ class SizeFormatterTest {
 
     @Test
     fun `size above a gigabyte has one decimal with a comma`() {
-        assertEquals("2,4" to SizeUnit.GB, size(2_440_000_000))
-        assertEquals("2,5" to SizeUnit.GB, size(2_450_000_000))
+        assertEquals("2.4" to SizeUnit.GB, size(2_440_000_000))
+        assertEquals("2.5" to SizeUnit.GB, size(2_450_000_000))
     }
 
     @Test
     fun `a whole number of gigabytes has no decimal`() {
         assertEquals("12" to SizeUnit.GB, size(12_000_000_000))
         assertEquals("12" to SizeUnit.GB, size(11_960_000_000))
+    }
+
+    @Test
+    fun `the displayed number uses the decimal separator of the language`() {
+        val tenths = formatSize(2_450_000_000)
+
+        assertEquals("2,5", tenths.text(java.util.Locale.forLanguageTag("ru-RU")))
+        assertEquals("2.5", tenths.text(java.util.Locale.US))
+    }
+
+    @Test
+    fun `a whole number has no separator in any language`() {
+        val whole = formatSize(640_000_000)
+
+        assertEquals("640", whole.text(java.util.Locale.forLanguageTag("ru-RU")))
+        assertEquals("640", whole.text(java.util.Locale.US))
     }
 }

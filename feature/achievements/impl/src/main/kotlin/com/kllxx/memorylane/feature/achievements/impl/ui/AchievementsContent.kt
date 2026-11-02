@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -174,7 +175,7 @@ private fun FreedSpaceCard(size: FormattedSize, modifier: Modifier = Modifier) {
             CardHeader(painterResource(UiR.drawable.ic_freed_space), stringResource(R.string.achievements_freed_label))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = size.value,
+                    text = size.text(LocalConfiguration.current.locales[0]),
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 40.sp,
                     fontWeight = FontWeight.ExtraBold,
