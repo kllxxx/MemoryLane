@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +35,9 @@ import com.kllxx.memorylane.core.ui.theme.MemoryLaneShapes
 private val IconTileShape = RoundedCornerShape(10.dp)
 private val SettingsIconTileSize = 36.dp
 private const val DISABLED_ALPHA = 0.4f
+
+/** The icon tile of a [SettingsRow], for tests of the alignment. */
+const val SETTINGS_ROW_ICON_TAG = "settings-row-icon"
 
 /** Start inset of the dividers between rows: 16dp padding + 36dp icon tile + 14dp gap. */
 private val DividerInset = 66.dp
@@ -129,15 +133,17 @@ fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        IconTile(icon, SettingsIconTileSize)
-        Column(modifier = Modifier.weight(1f)) {
+        IconTile(icon, SettingsIconTileSize, Modifier.testTag(SETTINGS_ROW_ICON_TAG))
+        // A row with a title alone centres the title between the icon and the trailing content; an absent or empty
+        // subtitle takes no line, so the title is not pushed up by it
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
             )
-            if (subtitle != null) {
+            if (!subtitle.isNullOrEmpty()) {
                 Text(
                     text = subtitle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

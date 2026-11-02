@@ -29,7 +29,6 @@ internal fun ReviewCard(
         SettingsRow(
             icon = painterResource(UiR.drawable.ic_touch_app),
             title = stringResource(R.string.profile_buttons_mode_title),
-            subtitle = stringResource(R.string.profile_buttons_mode_subtitle),
             // The whole row is the switch for TalkBack and for touch; the Switch inside only shows the state
             modifier = Modifier
                 .toggleable(
